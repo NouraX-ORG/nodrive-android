@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Nourax
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Hits of tools/check-branding.py that stay on purpose (spec section 6, step 3).
+# Format, one entry per line, first match wins:
+#   pattern | <python regex searched in the hit subject> | internal|legal | reason
+#   path    | <glob on the repo-relative file path>      | internal|legal | reason
+# Subjects look like "value: string/app_name = NoDrive", "attr: android:name=...",
+# "tag: com.owncloud...", "resname: string/...", "comment: ...", "line: ...", "file: ...".
+# Only add an entry for a hit that a user can never see, or that the law requires.
+# Every user-visible hit must be fixed (tools/rebrand.py), never listed here.
+
+# ---- legal: upstream copyright and licence headers (kept untouched, spec section 5) ----
+pattern | ^comment: .*SPDX-(FileCopyrightText|License-Identifier) | legal | copyright and licence header of an upstream file, or of a file derived from one; XML comments are not compiled into the app
+pattern | ^line: # (Nextcloud - Android Client$|SPDX-FileCopyrightText: ) | legal | copyright header of res/resources.properties (a build input for the locale config, not packaged)
+
+# ---- internal: never compiled into the app ----
+pattern | ^comment: | internal | developer comment in an XML file; aapt2 drops comments, they are never shown
+pattern | ^attr: tools:\w+= | internal | tools: attributes (layout preview context, sample text) are removed at build time
+
+# ---- internal: identifiers the OS, the build or the server depend on ----
+pattern | ^resname: | internal | resource name (an R.* identifier in code), never shown to users
+pattern | ^tag: com\.(nextcloud|owncloud)\.[\w.]+$ | internal | class name of a custom view or preference used as an XML tag
+pattern | ^attr: (android:name|android:configure|android:targetActivity|android:manageSpaceActivity|app:layout_behavior|type)=com\.(nextcloud|owncloud)\.[\w.$]+$ | internal | Java/Kotlin class, package or intent-action name (activities, receivers, services, fragments, behaviours, data-binding types)
+pattern | ^attr: [\w:]+=[@?](\+?id|style|drawable|mipmap|string|color|layout|xml|attr)/[\w.]+$ | internal | reference to a resource by name; the referenced resource is swept on its own
+pattern | ^attr: parent=(@style/)?[\w.]+$ | internal | parent style name in a style definition
+pattern | ^value: style/[^=]+ = [@?](style|attr|android:style)/[\w.]+$ | internal | style item that points to another style by name
+pattern | ^attr: android:name=it\.niedermann\.nextcloud\.deck(\.play|\.dev)?$ | internal | <queries> package name of the Deck app (Android 11 package visibility, needed to open Deck cards); never shown
+pattern | ^file: drawable/(nextcloud_logo|nextcloud_splash_logo)\.xml$ | internal | upstream resource file name kept so upstream layouts load it; in nodrive the file is NoDrive's own logo wrapper (content swept separately)
+pattern | ^value: string/(db_file|db_name) = nextcloud(\.db)?$ | internal | app-private database file name; Room schemas and migration tests depend on it, never shown
+pattern | ^value: string/nextcloud_user_agent = Mozilla/5\.0 \(Android\) Nextcloud-android/%1\$s%2\$s$ | internal | user agent the server requires (USER_AGENT_CLIENT_ANDROID in server 35 lib/public/IRequest.php); NoDrive appends " NoDrive" through name_for_branded_user_agent
+pattern | ^value: string/office_user_agent = Mozilla/5\.0 \(Android %1\$s\) Mobile Nextcloud-android/%2\$s NoDrive$ | internal | user agent of the Office/Text web view, same server-required token, NoDrive appended
