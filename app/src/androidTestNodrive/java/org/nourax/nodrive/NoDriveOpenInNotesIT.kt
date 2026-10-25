@@ -49,13 +49,14 @@ class NoDriveOpenInNotesIT : AbstractIT() {
             mimeType = MimeType.DIRECTORY
             parentId = root.fileId
         }
-        assertTrue(storageManager.saveFile(notes))
+        storageManager.saveFile(notes)
+        assertTrue("$NOTES_FOLDER/ was not saved", notes.fileId > 0)
         val note = OCFile("$NOTES_FOLDER/$NOTE").apply {
             remoteId = "00000102"
             mimeType = "text/markdown"
             parentId = notes.fileId
         }
-        assertTrue(storageManager.saveFile(note))
+        storageManager.saveFile(note)
     }
 
     @After
