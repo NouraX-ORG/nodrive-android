@@ -5,6 +5,7 @@
 
 Usage:
     python tools/check-branding.py [--source] [--root DIR] [--flavour nodrive] [--report FILE]
+    python tools/check-branding.py --self-test
 
 It looks at what ends up in the <flavour>Debug variant, after Android's resource and manifest
 merge (higher source sets win: debug > <flavour> > main):
@@ -28,8 +29,28 @@ Each hit becomes one "subject" line such as
 and is classified by tools/branding/allowlist.txt (first matching entry wins):
     pattern | <python regex, searched in the subject> | internal|legal | reason
     path    | <glob on the repo-relative file path>   | internal|legal | reason
+Pins: apart from the allowlist, a few fixed facts of the variant are checked on their own, so the
+leftovers found by sweep round 1 (2026-10-25: main still shipped stock Nextcloud, with 363 values
+in 53 keys naming Nextcloud such as app_name, store_full_desc and single_sign_on_request_token,
+Nextcloud logos and #0082c9) fail the gate if they ever come back, even if an allowlist entry
+would cover them:
+    flavour        app/build.gradle.kts declares the flavour with applicationId org.nourax.nodrive,
+                   and the flavour has its own res/values/setup.xml
+    app name       string/app_name is "NoDrive" in every values folder that defines it
+    values         only db_file, db_name, nextcloud_user_agent and office_user_agent may name
+                   Nextcloud, in any language (a value that only points to another resource by
+                   name, such as @style/Theme.ownCloud.Dialog, is an identifier and does not count)
+    colours        no resource value is #0082c9 / #00679e, and color/primary is #2563EB
+    art            no shipped file is Nextcloud art (logo path data, upstream image hashes) or
+                   uses Nextcloud blue
+    store listing  every fastlane title.txt is "NoDrive" and no store text names Nextcloud
+
 Exit code 1 when any hit is not covered by the allowlist (an unclassified, possibly
-user-visible hit), 0 otherwise.
+user-visible hit) or a pin fails, 0 otherwise.
+
+--self-test runs the same gate on upstream's stock "generic" variant (what main shipped before
+platform/android was merged) and exits 0 only if every pin and the keyword sweep fail there,
+so CI proves the gate still catches the stock app.
 """
 from __future__ import annotations
 
@@ -405,7 +426,178 @@ def sweep(root: Path, flavour: str) -> tuple[list[Hit], Counter, list[str], list
     return hits, shadow, images, scanned
 
 
-def report(hits, shadow, images, scanned, rules, flavour, root) -> str:
+# ----------------------------------------------------------------------------------------------
+# Pins: fixed facts of the NoDrive variant, checked apart from the allowlist
+# ----------------------------------------------------------------------------------------------
+APP_ID = "org.nourax.nodrive"
+APP_NAME = "NoDrive"
+PRIMARY = "#2563EB"
+# The only resource values that may name Nextcloud; all are internal (reasons in allowlist.txt).
+INTERNAL_VALUE_KEYS = {"string/db_file", "string/db_name", "string/nextcloud_user_agent", "string/office_user_agent"}
+COLOUR_LABELS = {"#0082c9", "#00679e"}
+NAME_RXS = [rx for label, rx in KEYWORDS if label not in COLOUR_LABELS]
+BLUE_RX = re.compile(r"0082c9|00679e", re.I)
+# A value that only points to another resource by name (@style/Theme.ownCloud.Dialog) is an identifier.
+REFERENCE_RX = re.compile(r"^[@?](\+?[\w.]+:)?(\+?\w+/)?[\w.]+$")
+# What sweep round 1 found on main (stock stable-35.0.1); --self-test requires these to be caught.
+ROUND1_KEYS = {"string/app_name", "string/store_full_desc", "string/single_sign_on_request_token"}
+
+
+@dataclass
+class Pin:
+    name: str
+    ok: bool
+    detail: str
+    items: list[str]
+
+
+def names_nextcloud(text: str) -> bool:
+    return any(rx.search(text) for rx in NAME_RXS)
+
+
+def effective_resources(root: Path, flavour: str):
+    """What the variant ships after the source-set merge (the highest source set wins per key).
+    values: {(folder, type, name): (source set, path, [value subjects])}
+    files:  {(folder, name without extension): (source set, path)} for every non-values file."""
+    values: dict[tuple[str, str, str], tuple[str, str, list[str]]] = {}
+    files: dict[tuple[str, str], tuple[str, str]] = {}
+    for sname, sdir in source_sets(root, flavour):
+        res = sdir / "res"
+        if not res.is_dir():
+            continue
+        here: dict[tuple[str, str, str], tuple[str, str, list[str]]] = {}
+        for path in sorted(res.rglob("*")):
+            if not path.is_file():
+                continue
+            folder = path.parent.name
+            rel = path.relative_to(root).as_posix()
+            if not folder.startswith("values"):
+                files.setdefault((folder, path.name.split(".")[0]), (sname, rel))
+                continue
+            if path.suffix.lower() != ".xml":
+                continue
+            for _, subject, key in XmlScan(path.read_bytes(), values=True).items:
+                full = (folder, *key) if key else None
+                if not full or full in values:
+                    continue
+                entry = here.setdefault(full, (sname, rel, []))
+                if subject.startswith("value: "):
+                    entry[2].append(subject)
+        values.update(here)
+    return values, files
+
+
+def shorten(items: list[str], n: int = 12) -> str:
+    return ", ".join(items[:n]) + (f" ... (+{len(items) - n})" if len(items) > n else "")
+
+
+def file_art(path: Path, rel: str) -> list[str]:
+    """Nextcloud art or Nextcloud blue in one shipped file."""
+    out = []
+    suffix = path.suffix.lower()
+    if suffix in RASTER:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest in NEXTCLOUD_IMAGES:
+            out.append(f"{rel} ({NEXTCLOUD_IMAGES[digest]})")
+    elif suffix == ".xml":
+        text = path.read_text(encoding="utf-8", errors="replace")
+        out += [f"{rel} ({label})" for start, label in LOGO_PATHS.items() if f'pathData="{start}' in text]
+        if BLUE_RX.search(text):
+            out.append(f"{rel} (Nextcloud blue)")
+    return out
+
+
+def check_pins(root: Path, flavour: str) -> list[Pin]:
+    pins: list[Pin] = []
+    values, files = effective_resources(root, flavour)
+
+    gradle = root / "app" / "build.gradle.kts"
+    gtext = gradle.read_text(encoding="utf-8") if gradle.is_file() else ""
+    m = re.search(r'\b(?:register|create|maybeCreate)\("%s"\)\s*\{[^{}]*?\bapplicationId\s*=\s*"([^"]+)"'
+                  % re.escape(flavour), gtext)
+    app_id = m.group(1) if m else None
+    setup = root / "app" / "src" / flavour / "res" / "values" / "setup.xml"
+    pins.append(Pin("flavour", app_id == APP_ID and setup.is_file(),
+                    f"app/build.gradle.kts flavour '{flavour}' applicationId={app_id or 'not declared'} "
+                    f"(want {APP_ID}); {setup.relative_to(root).as_posix()} "
+                    f"{'exists' if setup.is_file() else 'missing'}", []))
+
+    names = {k[0]: [searchable(s) for s in v[2]] for k, v in values.items() if k[1:] == ("string", "app_name")}
+    wrong = sorted(f"{folder}='{' '.join(t)}'" for folder, t in names.items() if t != [APP_NAME])
+    pins.append(Pin("app name", "values" in names and not wrong,
+                    f"{len(names)} values folders define string/app_name; "
+                    + (f"wrong in {len(wrong)}: {shorten(wrong)}" if wrong else f"all '{APP_NAME}'"), wrong))
+
+    named: dict[str, list[str]] = defaultdict(list)
+    for (folder, rtype, rname), (_, _, subjects) in values.items():
+        texts = [searchable(s) for s in subjects]
+        if any(names_nextcloud(t) and not REFERENCE_RX.match(t) for t in texts):
+            named[f"{rtype}/{rname}"].append(folder)
+    bad = sorted(k for k in named if k not in INTERNAL_VALUE_KEYS)
+    nbad = sum(len(named[k]) for k in bad)
+    pins.append(Pin("values", not bad,
+                    f"{sum(len(v) for v in named.values())} values in {len(named)} keys name Nextcloud; "
+                    + (f"NOT allowed: {nbad} values in {len(bad)} keys: {shorten(bad)}" if bad
+                       else "all in the internal keys " + ", ".join(sorted(INTERNAL_VALUE_KEYS))), bad))
+
+    blue = sorted(f"{folder}:{rtype}/{rname}" for (folder, rtype, rname), (_, _, subjects) in values.items()
+                  if any(BLUE_RX.search(searchable(s)) for s in subjects))
+    primary = values.get(("values", "color", "primary"))
+    primary_value = searchable(primary[2][0]) if primary and primary[2] else None
+    pins.append(Pin("colours", not blue and (primary_value or "").upper() == PRIMARY,
+                    f"color/primary={primary_value} (want {PRIMARY}); values with Nextcloud blue: "
+                    + (shorten(blue) if blue else "none"), blue))
+
+    art: list[str] = []
+    for _, (_, rel) in sorted(files.items()):
+        art += file_art(root / rel, rel)
+    fastlane = root / "src" / flavour / "fastlane"
+    store = sorted(p for p in fastlane.rglob("*") if p.is_file()) if fastlane.is_dir() else []
+    for p in store:
+        art += file_art(p, p.relative_to(root).as_posix())
+    pins.append(Pin("art", not art, f"{len(files)} shipped resource files and {len(store)} store files; "
+                    "Nextcloud art or blue: " + (shorten(art) if art else "none"), art))
+
+    titles = [p for p in store if p.name == "title.txt"]
+    bad_titles = [p.relative_to(root).as_posix() for p in titles
+                  if p.read_text(encoding="utf-8", errors="replace").strip() != APP_NAME]
+    named_text = [p.relative_to(root).as_posix() for p in store if p.suffix.lower() in TEXT
+                  and names_nextcloud(p.read_text(encoding="utf-8", errors="replace"))]
+    pins.append(Pin("store listing", bool(titles) and not bad_titles and not named_text,
+                    f"{len(titles)} title.txt in src/{flavour}/fastlane; not '{APP_NAME}': "
+                    f"{shorten(bad_titles) if bad_titles else 'none'}; text naming Nextcloud: "
+                    f"{shorten(named_text) if named_text else 'none'}", bad_titles + named_text))
+    return pins
+
+
+def self_test(root: Path, rules: list[Rule]) -> int:
+    """The gate must fail on upstream's stock 'generic' variant: that is what main shipped before
+    platform/android was merged (sweep round 1). Exit 0 only when every expected failure shows."""
+    hits, _, _, _ = sweep(root, "generic")
+    for h in hits:
+        classify(h, rules)
+    unc = [h for h in hits if not h.cls]
+    pins = {p.name: p for p in check_pins(root, "generic")}
+    expect = [(f"pin '{name}' fails", not p.ok) for name, p in pins.items()]
+    missing = sorted(ROUND1_KEYS - set(pins["values"].items))
+    expect.append((f"pin 'values' names {', '.join(sorted(ROUND1_KEYS))}", not missing))
+    expect.append(("keyword sweep has unclassified hits", bool(unc)))
+    expect.append(("keyword sweep flags app_name 'Nextcloud'",
+                   any(h.subject == "value: string/app_name = Nextcloud" for h in unc)))
+    print(f"check-branding --self-test: stock genericDebug: {len(hits)} hits, unclassified {len(unc)}")
+    for name, p in pins.items():
+        print(f"  pin {name}: {'PASS' if p.ok else 'FAIL'} - {p.detail[:300]}")
+    failed = [label for label, ok in expect if not ok]
+    for label, ok in expect:
+        print(f"  expect {label}: {'yes' if ok else 'NO'}")
+    if failed:
+        print("check-branding --self-test: FAIL - the gate no longer catches the stock app: " + "; ".join(failed))
+        return 1
+    print("check-branding --self-test: PASS - the gate fails on the stock Nextcloud variant, as it must")
+    return 0
+
+
+def report(hits, shadow, images, scanned, rules, flavour, root, pins=()) -> str:
     by_cls = Counter(h.cls or "UNCLASSIFIED" for h in hits)
     out = [f"# Branding sweep ({flavour}Debug, root {root})", "",
            f"- Files scanned: {len(scanned)}; raster images shipped (look at them): {len(images)}",
@@ -416,6 +608,13 @@ def report(hits, shadow, images, scanned, rules, flavour, root) -> str:
     for kw, n in Counter(h.keyword for h in hits).most_common():
         out.append(f"| {kw} | {n} |")
     out.append("")
+    if pins:
+        out.append("## Pins (checked apart from the allowlist)")
+        out.append("")
+        out.append("| Pin | Result | Detail |")
+        out.append("|---|---|---|")
+        out += [f"| {p.name} | {'PASS' if p.ok else '**FAIL**'} | {p.detail.replace('|', '/')} |" for p in pins]
+        out.append("")
     if shadow:
         out.append("Not shipped (shadowed by a higher source set or removed by the merged manifest):")
         out += [f"- {k}: {v}" for k, v in sorted(shadow.items())]
@@ -452,14 +651,19 @@ def main() -> int:
     ap.add_argument("--allowlist", default=str(HERE / "branding" / "allowlist.txt"))
     ap.add_argument("--report", help="write a Markdown report to this file")
     ap.add_argument("--max-print", type=int, default=60, help="unclassified hits printed to the console")
+    ap.add_argument("--self-test", action="store_true",
+                    help="prove the gate fails on upstream's stock generic variant (exit 0 when it does)")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
     rules = load_allowlist(Path(args.allowlist))
+    if args.self_test:
+        return self_test(root, rules)
     hits, shadow, images, scanned = sweep(root, args.flavour)
     for h in hits:
         classify(h, rules)
-    text = report(hits, shadow, images, scanned, rules, args.flavour, root)
+    pins = check_pins(root, args.flavour)
+    text = report(hits, shadow, images, scanned, rules, args.flavour, root, pins)
     if args.report:
         Path(args.report).write_text(text, encoding="utf-8")
     unc = [h for h in hits if not h.cls]
@@ -471,11 +675,18 @@ def main() -> int:
         print(f"  UNCLASSIFIED {h.path}:{h.line} [{h.keyword}] {h.subject[:200]}")
     if len(unc) > args.max_print:
         print(f"  ... {len(unc) - args.max_print} more (use --report)")
+    for p in pins:
+        print(f"  pin {p.name}: {'PASS' if p.ok else 'FAIL'} - {p.detail}")
+    failed_pins = [p.name for p in pins if not p.ok]
     if unc:
         print("check-branding: FAIL - fix these user-visible hits or classify true internal/legal ones "
               "in tools/branding/allowlist.txt")
+    if failed_pins:
+        print(f"check-branding: FAIL - pin(s) {', '.join(failed_pins)}: a Nextcloud leftover is back; "
+              "fix it with tools/rebrand.py (pins cannot be allowlisted)")
+    if unc or failed_pins:
         return 1
-    print("check-branding: PASS - no unclassified hit")
+    print("check-branding: PASS - no unclassified hit, every pin holds")
     return 0
 
 

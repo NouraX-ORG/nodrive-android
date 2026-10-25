@@ -53,6 +53,10 @@ jobs:
                     mkdir -p build/branding
                     python tools/check-branding.py --source --report build/branding/branding-report.md
 
+            # The gate must still fail on upstream's stock variant (what main shipped before the merge).
+            -   name: check-branding.py --self-test
+                run: python tools/check-branding.py --self-test
+
             -   name: Upload branding report
                 if: ${{ always() }}
                 uses: actions/upload-artifact@v7

@@ -412,12 +412,27 @@ class Sweep:
         d.sh(f"pm grant {PKG} android.permission.POST_NOTIFICATIONS")
         return ok
 
+    def open_file_list(self, look: Look) -> None:
+        """Start the app and wait until the file list keeps the focus. Right after a locale switch the
+        restarted home screen can come up over the app a few seconds later, so start it again then."""
+        d = self.dev
+        focus = "none"
+        for attempt in range(1, 4):
+            d.sh(f"am force-stop {PKG}")
+            d.sh(f"am start -W -n {LAUNCHER}", timeout=60)
+            d.wait_focus(lambda f: "FileDisplayActivity" in f, 30)
+            time.sleep(5)
+            focus = d.focus()
+            if "FileDisplayActivity" in focus:
+                break
+            d.key("KEYCODE_HOME")
+            time.sleep(10)
+        self.check(f"{look.name}: file list has the focus", "FileDisplayActivity" in focus,
+                   f"focus after {attempt} start(s): {focus}", hard=False)
+
     def phase_b(self, look: Look, system_accounts: bool):
         d = self.dev
-        d.sh(f"am force-stop {PKG}")
-        d.sh(f"am start -n {LAUNCHER}")
-        d.wait_focus(lambda f: "FileDisplayActivity" in f, 30)
-        time.sleep(5)
+        self.open_file_list(look)
         s = self.shot("files", "file list (offline)")
         xml = (self.out / s.xml).read_text(encoding="utf-8") if s and s.xml else d.dump()
         for i in range(3):
