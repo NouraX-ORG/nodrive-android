@@ -270,7 +270,8 @@ jobs:
                     set -o pipefail
                     mkdir -p build/device
                     rc=0
-                    python tools/check-network.py build/device/network.pcap --report build/device/network-report.md > /dev/null || rc=$?
+                    python tools/check-network.py build/device/network.pcap --require-host drive.nourax.org \
+                        --report build/device/network-report.md > /dev/null || rc=$?
                     cat build/device/network-report.md >> "$GITHUB_STEP_SUMMARY" || true
                     sed -n '/^## Result/,$p' build/device/network-report.md || true
                     exit "$rc"

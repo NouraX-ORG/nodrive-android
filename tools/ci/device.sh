@@ -17,13 +17,27 @@ status=0
 
 "$ADB" wait-for-device
 "$ADB" shell settings put global private_dns_mode off
+# Wi-Fi on current emulators runs through netsim, which the emulator's -tcpdump capture does not
+# see. With Wi-Fi off all traffic takes the mobile-data path over the captured virtual LAN.
+"$ADB" shell svc wifi disable
+"$ADB" shell svc data enable
+for _ in $(seq 1 30); do
+    "$ADB" shell dumpsys connectivity | grep -q -E "Active default network: [0-9]+" && break
+    sleep 2
+done
+"$ADB" shell "dumpsys connectivity | grep -E -m 3 'Active default network|NetworkAgentInfo.*(CELLULAR|WIFI)'" \
+    | cut -c1-200 > "$OUT/network-state.txt" || true
+echo "network: $(head -n 1 "$OUT/network-state.txt" | tr -d '\r')"
 "$ADB" shell pm list packages | sort > "$OUT/packages.txt"
 echo "device: $("$ADB" shell getprop ro.build.version.release | tr -d '\r') (API $("$ADB" shell getprop ro.build.version.sdk | tr -d '\r')), $(wc -l < "$OUT/packages.txt") packages"
 
-CLASSES=$(grep -v '^[[:space:]]*#' tools/ci/instrumented-tests.txt | awk 'NF { print $1 }' | paste -sd, -)
-echo "instrumented tests: $(echo "$CLASSES" | tr ',' '\n' | wc -l) classes"
+LIST=tools/ci/instrumented-tests.txt
+CLASSES=$(grep -v '^[[:space:]]*#' "$LIST" | awk 'NF && $1 !~ /^-/ { print $1 }' | paste -sd, -)
+NOT_METHODS=$(grep -v '^[[:space:]]*#' "$LIST" | awk 'NF && $1 ~ /^-/ { print substr($1, 2) }' | paste -sd, -)
+echo "instrumented tests: $(echo "$CLASSES" | tr ',' '\n' | wc -l) classes, $(echo "$NOT_METHODS" | tr ',' '\n' | grep -c .) method(s) left out"
 if ./gradlew --stacktrace :app:connectedNodriveDebugAndroidTest \
     "-Pandroid.testInstrumentationRunnerArguments.class=$CLASSES" \
+    "-Pandroid.testInstrumentationRunnerArguments.notClass=$NOT_METHODS" \
     "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nextcloud.test.Flaky,com.owncloud.android.utils.ScreenshotTest" \
     "-Pandroid.testInstrumentationRunnerArguments.timeout_msec=180000" \
     > "$OUT/connected-tests.log" 2>&1; then

@@ -83,11 +83,8 @@ class NoDriveBrandingIT {
         assertFalse(opensInApp("https://cloud.example.org/f/123"))
         assertFalse(opensInApp("http://$HOST/f/123"))
         assertFalse(opensInApp("nc://login/server:https://cloud.example.org&user:a&password:b"))
-        // Login links reach only AuthenticatorActivity (which refuses other hosts), not DeepLinkLoginActivity.
-        assertEquals(
-            listOf("com.owncloud.android.authentication.AuthenticatorActivity"),
-            activitiesFor("nodrive://login/server:https://cloud.example.org&user:a&password:b")
-        )
+        // DeepLinkLoginActivity, the only handler of login links, is removed: no link can add a server.
+        assertFalse(opensInApp("nodrive://login/server:https://cloud.example.org&user:a&password:b"))
     }
 
     @Test
@@ -135,14 +132,10 @@ class NoDriveBrandingIT {
         assertTrue(leftovers.joinToString("\n"), leftovers.isEmpty())
     }
 
-    private fun opensInApp(uri: String): Boolean = activitiesFor(uri).isNotEmpty()
-
-    private fun activitiesFor(uri: String): List<String> {
+    private fun opensInApp(uri: String): Boolean {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addCategory(Intent.CATEGORY_BROWSABLE)
         return context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
-            .filter { it.activityInfo.packageName == PACKAGE }
-            .map { it.activityInfo.name }
-            .sorted()
+            .any { it.activityInfo.packageName == PACKAGE }
     }
 
     companion object {

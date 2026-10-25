@@ -18,9 +18,10 @@ Exit code 1 when
   (nextcloud.com and its subdomains such as push-notifications., updates., apps., help., docs.,
   download.; also nextcloud.org / .de). Reserved test names (nextcloud.localhost, *.test,
   *.invalid, *.example) are listed but allowed;
-- the capture has no DNS query at all (the capture did not work, so it proves nothing).
---expect-host only reports whether that host was contacted (evidence for "sign-in opens the
-browser at drive.nourax.org"); it never fails.
+- the capture has no DNS query at all, or a --require-host was not contacted: then the capture
+  missed traffic and proves nothing. (On current emulators Wi-Fi runs through netsim, outside the
+  -tcpdump capture; CI switches Wi-Fi off so all traffic takes the captured mobile-data path, and
+  requires drive.nourax.org, which the sign-in test opens, to show up.)
 """
 from __future__ import annotations
 
@@ -247,7 +248,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("capture", type=Path)
     ap.add_argument("--report")
-    ap.add_argument("--expect-host", default="drive.nourax.org")
+    ap.add_argument("--require-host", action="append", default=[],
+                    help="a host the test run is known to contact; fail if the capture does not show it")
     args = ap.parse_args()
     if not args.capture.is_file() or args.capture.stat().st_size == 0:
         print(f"check-network: FAIL - capture {args.capture} is missing or empty")
@@ -265,13 +267,16 @@ def main() -> int:
     for h in hosts:
         lines.append(f"| {h} | {first.get(h, 0):.1f} | {dns.get(h, 0)} | {tls.get(h, 0)} | {http.get(h, 0)} | "
                      f"{'YES' if h in bad else 'no'} |")
-    expect = args.expect_host
-    lines.append(f"\n{expect}: {'contacted' if expect in hosts else 'not contacted'} "
-                 f"(DNS {dns.get(expect, 0)}, TLS {tls.get(expect, 0)}, HTTP {http.get(expect, 0)}).")
+    for host in args.require_host:
+        lines.append(f"\nRequired host {host}: {'contacted' if host in hosts else 'NOT contacted'} "
+                     f"(DNS {dns.get(host, 0)}, TLS {tls.get(host, 0)}, HTTP {http.get(host, 0)}).")
     lines.append(f"Names with 'nextcloud' that are reserved test names (allowed): {', '.join(allowed) or 'none'}.")
     fails = []
     if not dns:
         fails.append("no DNS query in the capture: the capture did not work")
+    missing = [h for h in args.require_host if h not in hosts]
+    if missing:
+        fails.append("required host(s) not in the capture, so it missed traffic: " + ", ".join(missing))
     if bad:
         fails.append("Nextcloud GmbH host(s) contacted: " + ", ".join(bad))
     lines.append(f"\n## Result\n\n{'FAIL: ' + '; '.join(fails) if fails else 'PASS - no Nextcloud GmbH host'}\n")

@@ -136,14 +136,15 @@ class Device:
         self.sh(f"input keyevent {name}")
 
     def tap_node(self, xml: str | None, test) -> bool:
-        for node in nodes(xml):
-            if test(node):
-                m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.get("bounds", ""))
-                if m:
-                    x1, y1, x2, y2 = map(int, m.groups())
-                    self.sh(f"input tap {(x1 + x2) // 2} {(y1 + y2) // 2}")
-                    return True
-        return False
+        return any(self.tap(node) for node in nodes(xml) if test(node))
+
+    def tap(self, node) -> bool:
+        m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.get("bounds", ""))
+        if not m:
+            return False
+        x1, y1, x2, y2 = map(int, m.groups())
+        self.sh(f"input tap {(x1 + x2) // 2} {(y1 + y2) // 2}")
+        return True
 
 
 def nodes(xml: str | None):
@@ -290,8 +291,8 @@ class Sweep:
         d.sh("logcat -c")
         d.key("KEYCODE_HOME")
         time.sleep(1)
-        d.sh(f"am start -n {LAUNCHER}")
-        self.shot("launch", "splash / first screen right after the launch")
+        d.sh(f"am start -W -n {LAUNCHER}", timeout=60)
+        self.shot("launch", "first frame of the launch")
         focus = d.wait_focus(lambda f: f.startswith(PKG) or (self.browser_pkg and f.startswith(self.browser_pkg)), 30)
         self.check(f"{look.name}: app launches", focus.startswith(PKG) or focus.startswith(self.browser_pkg or "-"),
                    f"focus after launch: {focus}")
@@ -312,8 +313,11 @@ class Sweep:
                    hard=look == LOOKS[0])
         if not opened:
             self.shot("sign-in-no-browser", "sign-in did not open a browser")
-        d.key("KEYCODE_BACK")
-        d.wait_focus(lambda f: f.startswith(PKG), 15)
+        for _ in range(4):  # a first Back may only close a browser tip
+            if d.focus().startswith(PKG):
+                break
+            d.key("KEYCODE_BACK")
+            d.wait_focus(lambda f: f.startswith(PKG), 5)
         time.sleep(2)
         self.shot("sign-in-waiting", "waiting for the browser sign-in")
         if system_screens:
@@ -423,12 +427,75 @@ class Sweep:
                 self.scroll_pages(name, s)
             d.key("KEYCODE_BACK")
             time.sleep(1)
+        if not look.night:
+            d.sh("am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT NoDrive-sweep "
+                 f"-n {ACTIVITY}ReceiveExternalFilesActivity")
+            time.sleep(4)
+            self.shot("share-receive", "NoDrive as share target (upload screen)")
+            d.key("KEYCODE_BACK")
+            time.sleep(1)
         if system_accounts:
             d.key("KEYCODE_HOME")
             d.sh("am start -a android.settings.SYNC_SETTINGS")
             time.sleep(4)
             self.shot("system-accounts", "system Settings > accounts")
             d.key("KEYCODE_HOME")
+        if look == LOOKS[0]:
+            d.sh("am start -a android.settings.APP_NOTIFICATION_SETTINGS "
+                 f"--es android.provider.extra.APP_PACKAGE {PKG}")
+            time.sleep(4)
+            self.shot("notification-channels", "notification categories after a signed-in start")
+            d.key("KEYCODE_HOME")
+            self.place_widget()
+
+    def place_widget(self):
+        """Best effort: drag the NoDrive widget onto the home screen to reach its configuration screen."""
+        d = self.dev
+        size = re.search(r"(\d+)x(\d+)", d.sh("wm size"))
+        w, h = (int(size.group(1)), int(size.group(2))) if size else (1080, 2400)
+        d.key("KEYCODE_HOME")
+        time.sleep(2)
+        d.sh(f"input swipe {w // 2} {h // 2} {w // 2} {h // 2} 1500")
+        time.sleep(2)
+        if not d.tap_node(d.dump(), lambda n: (n.get("text") or n.get("content-desc") or "").strip() == "Widgets"):
+            self.check("widget placed", False, "no 'Widgets' entry after a long press", hard=False)
+            return
+        time.sleep(3)
+        header = None
+        for _ in range(12):
+            xml = d.dump()
+            header = next((n for n in nodes(xml) if (n.get("text") or "") == "NoDrive"), None)
+            if header is not None:
+                break
+            d.sh(f"input swipe {w // 2} {int(h * 0.75)} {w // 2} {int(h * 0.35)} 400")
+            time.sleep(1)
+        if header is None:
+            self.check("widget placed", False, "NoDrive not found in the widget picker", hard=False)
+            d.key("KEYCODE_HOME")
+            return
+        d.tap(header)
+        time.sleep(3)
+        xml = d.dump()
+        top = int(re.findall(r"\d+", header.get("bounds", "[0,0][0,0]"))[3])
+        preview = next((n for n in nodes(xml) if n.get("long-clickable") == "true"
+                        and int(re.findall(r"\d+", n.get("bounds", "[0,0][0,0]"))[1]) > top), None)
+        if preview is None:
+            self.check("widget placed", False, "no widget preview to drag", hard=False)
+            d.key("KEYCODE_HOME")
+            return
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", preview.get("bounds")))
+        d.sh(f"input draganddrop {(x1 + x2) // 2} {(y1 + y2) // 2} {w // 2} {int(h * 0.4)} 2500")
+        time.sleep(5)
+        focus = d.focus()
+        s = self.shot("widget-configuration", "after dropping the NoDrive widget on the home screen")
+        self.check("widget placed", PKG in focus, f"focus after the drop: {focus}", hard=False)
+        if s and PKG in focus:
+            if d.tap_node((self.out / s.xml).read_text(encoding="utf-8") if s.xml else None,
+                          lambda n: n.get("package") == PKG and "demo@" in (n.get("text") or "")):
+                time.sleep(4)
+                self.shot("widget-configuration-2", "widget list for the account (offline)")
+        d.key("KEYCODE_BACK")
+        d.key("KEYCODE_HOME")
 
     def scroll_pages(self, name: str, first: Screen):
         size = re.search(r"(\d+)x(\d+)", self.dev.sh("wm size"))
