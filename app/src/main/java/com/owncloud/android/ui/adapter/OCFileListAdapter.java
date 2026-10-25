@@ -522,6 +522,13 @@ public class OCFileListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     private boolean shouldShowOpenInNotes() {
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        // Branded clients never offer the upstream Notes app: the card's button opens it or its store page.
+        if (activity.getResources().getBoolean(R.bool.is_branded_client)) {
+            return false;
+        }
+        // NoDrive: end
+
         if (!preferences.isShowEcosystemApps()) {
             return false;
         }

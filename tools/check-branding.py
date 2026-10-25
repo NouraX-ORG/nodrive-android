@@ -44,6 +44,13 @@ would cover them:
     art            no shipped file is Nextcloud art (logo path data, upstream image hashes) or
                    uses Nextcloud blue
     store listing  every fastlane title.txt is "NoDrive" and no store text names Nextcloud
+Two more pins come from sweep round 2 (2026-10-25, U1: the file list's "Open in Notes" card opened
+the upstream Notes app or its store page; the store id sits in a library, so no keyword finds it):
+    open in notes  bool/is_branded_client is true and OCFileListAdapter.shouldShowOpenInNotes()
+                   returns false first thing when it is set (tools/rebrand.py hook)
+    app links      every Java/Kotlin call that opens another app or a store page (openApp,
+                   openAppStore, market://, play.google.com/store) is a known one, and the guarded
+                   ones (drawer banner, Open in Notes card) are still hidden by is_branded_client
 
 Exit code 1 when any hit is not covered by the allowlist (an unclassified, possibly
 user-visible hit) or a pin fails, 0 otherwise.
@@ -507,6 +514,91 @@ def file_art(path: Path, rel: str) -> list[str]:
     return out
 
 
+# ----------------------------------------------------------------------------------------------
+# App and store links in code (sweep round 2, U1)
+# ----------------------------------------------------------------------------------------------
+# Nextcloud's own app ids (Notes, Talk) and their store pages are built inside android-common
+# (EcosystemManager), so they are in no resource or source file of this repo. What the repo has are
+# the calls into that code and into LinkHelper.openAppStore; each one must be a known, guarded one.
+NOTES_ADAPTER = "app/src/main/java/com/owncloud/android/ui/adapter/OCFileListAdapter.java"
+DRAWER = "app/src/main/java/com/owncloud/android/ui/activity/DrawerActivity.java"
+NOTES_METHOD_RX = re.compile(r"boolean shouldShowOpenInNotes\(\)\s*\{(.*?)\n    \}", re.S)
+NOTES_GUARD_RX = re.compile(r"\s*if \(activity\.getResources\(\)\.getBoolean\(R\.bool\.is_branded_client\)\)\s*\{"
+                            r"\s*return false;\s*\}")
+BANNER_GUARD_RX = re.compile(r"boolean isClientBranded = getResources\(\)\.getBoolean\(R\.bool\.is_branded_client\);"
+                             r".*?boolean shouldHideTopBanner = isClientBranded \|\|.*?if \(shouldHideTopBanner\)"
+                             r"\s*\{\s*hideTopBanner\(banner\);\s*\}\s*else\s*\{\s*showTopBanner\(banner\);", re.S)
+APP_LINK_RX = re.compile(r"\.openApp\(|openAppInStore\(|openAppStore\(|market://|play\.google\.com/store")
+MARKED_BLOCK_RX = re.compile(r"(?ms)^[ \t]*// NoDrive: begin[^\n]*\n.*?^[ \t]*// NoDrive: end[^\n]*\n(?:[ \t]*\n)?")
+
+
+def notes_card_guarded(text: str) -> tuple[bool, str]:
+    """The "Open in Notes" card opens the upstream Notes app or its store page: shouldShowOpenInNotes()
+    must return false first thing when is_branded_client is set (tools/rebrand.py hook)."""
+    m = NOTES_METHOD_RX.search(text)
+    if not m:
+        return False, "shouldShowOpenInNotes() not found (upstream code moved: re-check the card)"
+    body = "\n".join(line for line in m.group(1).splitlines() if not line.strip().startswith("//"))
+    if NOTES_GUARD_RX.match(body):
+        return True, "shouldShowOpenInNotes() returns false first when is_branded_client is set"
+    return False, "shouldShowOpenInNotes() has no is_branded_client guard as its first statement"
+
+
+def drawer_banner_guarded(text: str) -> tuple[bool, str]:
+    ok = bool(BANNER_GUARD_RX.search(text)) and text.count("showTopBanner(") == 2
+    return ok, ("drawer banner shown only when not is_branded_client" if ok
+                else "drawer banner (Notes, Talk, store search) is no longer hidden by is_branded_client")
+
+
+# (repo path, regex on the line, why it is allowed, guard that must hold or None)
+KNOWN_APP_LINKS = [
+    ("app/src/main/java/com/nextcloud/utils/LinkHelper.kt",
+     r"fun openAppStore\(|\"market://\$suffix\"|\"https://play\.google\.com/store/\$suffix\"",
+     "the openAppStore helper itself", None),
+    (DRAWER, r"ecosystemManager\.openApp\(EcosystemApp\.(NOTES|TALK), accountName\)"
+             r"|LinkHelper\.INSTANCE\.openAppStore\(\"Nextcloud\", true, this\)",
+     "drawer banner: Notes, Talk and a store search for Nextcloud", drawer_banner_guarded),
+    (DRAWER, r"LinkHelper\.INSTANCE\.openAppStore\(getPackageName\(\), false, this\)",
+     "the app-update link opens NoDrive's own store page", None),
+    ("app/src/main/java/com/owncloud/android/ui/activity/SettingsActivity.java",
+     r"market://details\?id=at\.bitfire\.davdroid", "DAVx5 store page (not Nextcloud)", None),
+    (NOTES_ADAPTER, r"ecosystemManager\.openApp\(EcosystemApp\.NOTES, user\.getAccountName\(\)\)",
+     "the Open in Notes card", notes_card_guarded),
+]
+
+
+def code_files(root: Path, flavour: str) -> dict[str, str]:
+    """Java and Kotlin sources of the variant (nodrive also compiles upstream's generic stubs)."""
+    out = {}
+    for sname in dict.fromkeys(("main", "debug", flavour, "generic")):
+        sdir = root / "app" / "src" / sname
+        for path in sorted(sdir.glob("java/**/*")) + sorted(sdir.glob("kotlin/**/*")):
+            if path.suffix in {".java", ".kt"} and path.is_file():
+                out[path.relative_to(root).as_posix()] = path.read_text(encoding="utf-8", errors="replace")
+    return out
+
+
+def app_link_problems(sources: dict[str, str]) -> tuple[int, list[str]]:
+    """Every call that opens another app or a store page must be in KNOWN_APP_LINKS, with its guard."""
+    found, problems, guards = 0, [], {}
+    for rel, text in sorted(sources.items()):
+        for n, line in enumerate(text.splitlines(), 1):
+            code = line.strip()
+            if code.startswith(("//", "*", "/*")) or not APP_LINK_RX.search(code):
+                continue
+            found += 1
+            known = [k for k in KNOWN_APP_LINKS if k[0] == rel and re.search(k[1], code)]
+            if not known:
+                problems.append(f"new app/store link {rel}:{n}: {code[:120]}")
+            elif known[0][3]:
+                guards[(rel, known[0][3])] = known[0][2]
+    for (rel, guard), what in guards.items():
+        ok, detail = guard(sources[rel])
+        if not ok:
+            problems.append(f"{what} ({rel}): {detail}")
+    return found, problems
+
+
 def check_pins(root: Path, flavour: str) -> list[Pin]:
     pins: list[Pin] = []
     values, files = effective_resources(root, flavour)
@@ -567,6 +659,19 @@ def check_pins(root: Path, flavour: str) -> list[Pin]:
                     f"{len(titles)} title.txt in src/{flavour}/fastlane; not '{APP_NAME}': "
                     f"{shorten(bad_titles) if bad_titles else 'none'}; text naming Nextcloud: "
                     f"{shorten(named_text) if named_text else 'none'}", bad_titles + named_text))
+
+    branded_value = values.get(("values", "bool", "is_branded_client"))
+    branded = bool(branded_value and branded_value[2] and searchable(branded_value[2][0]).strip() == "true")
+    branded_text = f"bool/is_branded_client={'true' if branded else 'not true'} (want true)"
+    adapter = root / NOTES_ADAPTER
+    notes_ok, notes_detail = notes_card_guarded(adapter.read_text(encoding="utf-8") if adapter.is_file() else "")
+    pins.append(Pin("open in notes", branded and notes_ok, f"{branded_text}; {NOTES_ADAPTER}: {notes_detail}",
+                    [] if branded and notes_ok else [NOTES_ADAPTER]))
+
+    found, problems = app_link_problems(code_files(root, flavour))
+    pins.append(Pin("app links", branded and not problems,
+                    f"{branded_text}; {found} calls that open another app or a store page, all known and guarded"
+                    if not problems else f"{branded_text}; {found} calls; {shorten(problems, 6)}", problems))
     return pins
 
 
@@ -581,6 +686,15 @@ def self_test(root: Path, rules: list[Rule]) -> int:
     expect = [(f"pin '{name}' fails", not p.ok) for name, p in pins.items()]
     missing = sorted(ROUND1_KEYS - set(pins["values"].items))
     expect.append((f"pin 'values' names {', '.join(sorted(ROUND1_KEYS))}", not missing))
+    adapter = (root / NOTES_ADAPTER).read_text(encoding="utf-8")
+    expect.append(("pin 'open in notes' fails on upstream's shouldShowOpenInNotes() (hook removed)",
+                   not notes_card_guarded(MARKED_BLOCK_RX.sub("", adapter))[0]))
+    sources = code_files(root, "nodrive")
+    sources[NOTES_ADAPTER] = MARKED_BLOCK_RX.sub("", adapter)
+    sources["app/src/main/java/com/example/NewBanner.kt"] = '    LinkHelper.openAppStore("Nextcloud", true, this)\n'
+    _, problems = app_link_problems(sources)
+    expect.append(("pin 'app links' flags a new store link and the unguarded Open in Notes card",
+                   any("NewBanner.kt" in p for p in problems) and any(NOTES_ADAPTER in p for p in problems)))
     expect.append(("keyword sweep has unclassified hits", bool(unc)))
     expect.append(("keyword sweep flags app_name 'Nextcloud'",
                    any(h.subject == "value: string/app_name = Nextcloud" for h in unc)))

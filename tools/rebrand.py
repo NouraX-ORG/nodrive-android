@@ -21,7 +21,7 @@ What it writes (all of it is derived from upstream files plus the constants belo
 - drawables that replace Nextcloud's logos, blues and product icons, the launcher icon XML;
 - app/src/nodrive/res/xml/exposed_filepaths.xml (matches the new data folder);
 - app/src/nodrive/AndroidManifest.xml;
-- two small marked code hooks (AuthenticatorActivity, ShowErrorActivity);
+- three small marked code hooks (AuthenticatorActivity, ShowErrorActivity, OCFileListAdapter);
 - the NoDrive fastlane text in src/nodrive/fastlane/metadata/.
 Images come from tools/make-icons.py, not from this script.
 """
@@ -254,7 +254,24 @@ ERROR_BLOCK = f"""        {BEGIN}
         {END}
 
 """
-HOOKS = [(AUTH_FILE, AUTH_ANCHOR, AUTH_BLOCK), (ERROR_FILE, ERROR_ANCHOR, ERROR_BLOCK)]
+# Sweep round 2 (U1): in a folder the server reports as its Notes folder, the file list shows an
+# "Open in Notes" card. Its button opens the upstream Notes phone app, or that app's store page when
+# it is not installed (EcosystemManager.openApp in android-common). That is an app-store recommend
+# link to Nextcloud's app (spec sections 3 and 6). Branded clients have no Settings switch for it
+# (SettingsActivity hides "show ecosystem apps"), so the card is hidden when is_branded_client is set.
+NOTES_FILE = f"{MAIN}/java/com/owncloud/android/ui/adapter/OCFileListAdapter.java"
+NOTES_ANCHOR = ("        if (!preferences.isShowEcosystemApps()) {\n            return false;\n        }\n"
+                "        String notesFolderPath = capability.getNotesFolderPath();\n")
+NOTES_BLOCK = f"""        {BEGIN}
+        // Branded clients never offer the upstream Notes app: the card's button opens it or its store page.
+        if (activity.getResources().getBoolean(R.bool.is_branded_client)) {{
+            return false;
+        }}
+        {END}
+
+"""
+HOOKS = [(AUTH_FILE, AUTH_ANCHOR, AUTH_BLOCK), (ERROR_FILE, ERROR_ANCHOR, ERROR_BLOCK),
+         (NOTES_FILE, NOTES_ANCHOR, NOTES_BLOCK)]
 
 
 def patch_hook(rel: str, anchor: str, block: str, text: str) -> str:

@@ -28,9 +28,10 @@ belong to Nourax.
 
 - Added the `nodrive` product flavour (`org.nourax.nodrive`) without Google services.
 - New name, icons, colours, ids, store text, fixed server `https://drive.nourax.org`.
-- Switched off: built-in updater, push, what's new, recommend, community links, issue reporting.
-- Two small code hooks, marked `NoDrive: begin/end`, in `AuthenticatorActivity` and
-  `ShowErrorActivity`.
+- Switched off: built-in updater, push, what's new, recommend, community links, issue reporting,
+  and the "Open in Notes" card that pointed to the upstream Notes app and its store page.
+- Three small code hooks, marked `NoDrive: begin/end`, in `AuthenticatorActivity`,
+  `ShowErrorActivity` and `OCFileListAdapter`.
 
 ## Legal-notice decision (not legal advice)
 

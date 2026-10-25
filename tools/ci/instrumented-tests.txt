@@ -110,3 +110,4 @@ com.owncloud.android.utils.SessionMixinTest
 com.owncloud.android.utils.SyncedFolderUtilsTest
 com.owncloud.android.utils.theme.CapabilityUtilsIT
 org.nourax.nodrive.NoDriveBrandingIT
+org.nourax.nodrive.NoDriveOpenInNotesIT
