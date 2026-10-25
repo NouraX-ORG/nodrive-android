@@ -117,6 +117,20 @@ jobs:
                     path: ~/.android/debug.keystore
                     key: nodrive-debug-keystore-v1
 
+            # The GPL-2.0 text, NOTICE.md and the libraries' NOTICE texts travel with the APK (see NOTICE.md).
+            -   name: Licence and notice files for the APK artifact
+                run: |
+                    set -o pipefail
+                    mkdir -p build/apk
+                    ./gradlew -q --no-configuration-cache :app:dependencies \
+                        --configuration nodriveDebugRuntimeClasspath > build/apk/runtime-dependencies.txt
+                    cp LICENSE.txt NOTICE.md build/apk/
+                    BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+                    VERSION=$("$BUILD_TOOLS/aapt2" dump badging "$APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+                    python tools/ci/third-party-notices.py --deps build/apk/runtime-dependencies.txt \
+                        --out build/apk/THIRD-PARTY-NOTICES.txt --version "$VERSION" \
+                        --source-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$GITHUB_SHA"
+
             -   name: Check the APK (signature, manifest, ids, Nextcloud URLs)
                 run: |
                     set -o pipefail
