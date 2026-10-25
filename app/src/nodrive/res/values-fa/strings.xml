@@ -8,6 +8,12 @@
   ~ SPDX-License-Identifier: AGPL-3.0-or-later OR GPL-2.0-only
 -->
 <resources>
+    <string name="auto_upload_battery_optimization_reason">فعالیت پس‌زمینه NoDrive توسط بهینه‌سازی باتری محدود شده است.</string>
+    <string name="compose_activity_label">دستیار NoDrive</string>
+    <string name="ecosystem_apps_more">برنامه‌های بیشتر Nourax</string>
+    <string name="file_migration_failed_dir_already_exists">پوشه NoDrive از قبل موجود است</string>
+    <string name="prefs_show_ecosystem_apps_summary">پیشنهادات برنامه Nourax در عنوان ناوبری</string>
+    <string name="single_sign_on_request_token" formatted="true">به %1$s اجازه دسترسی به حساب %2$s Nourax داده شود؟</string>
     <string name="store_full_desc">NoDrive is the file app for your Nourax Workspace drive at https://drive.nourax.org.\n\nFeatures:\n* Browse, upload, download, rename, move and delete your files\n* Share files and folders by link or with other people\n* Keep files available offline\n* Upload new photos and videos automatically\n* See notifications from your workspace\n* Protect access with a PIN or your fingerprint\n* Light and dark theme\n\nSign in with your Nourax account. NoDrive is made by Nourax.</string>
     <string name="store_full_dev_desc">NoDrive is the file app for your Nourax Workspace drive at https://drive.nourax.org.\n\nFeatures:\n* Browse, upload, download, rename, move and delete your files\n* Share files and folders by link or with other people\n* Keep files available offline\n* Upload new photos and videos automatically\n* See notifications from your workspace\n* Protect access with a PIN or your fingerprint\n* Light and dark theme\n\nSign in with your Nourax account. NoDrive is made by Nourax.</string>
     <string name="store_short_desc">NoDrive by Nourax: your files on drive.nourax.org</string>

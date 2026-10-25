@@ -8,6 +8,7 @@
   ~ SPDX-License-Identifier: AGPL-3.0-or-later OR GPL-2.0-only
 -->
 <resources>
+    <string name="ecosystem_apps_more">Več programov Nourax</string>
     <string name="file_migration_failed_dir_already_exists">Mapa NoDrive že obstaja</string>
     <string name="prefs_show_ecosystem_apps_summary">Predlogi programov Nourax v naslovu</string>
     <string name="single_sign_on_request_token" formatted="true">Ali dovolite uporabniku %1$s dostop do računa Nourax %2$s?</string>

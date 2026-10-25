@@ -8,6 +8,8 @@
   ~ SPDX-License-Identifier: AGPL-3.0-or-later OR GPL-2.0-only
 -->
 <resources>
+    <string name="file_migration_failed_dir_already_exists">NoDrive fascikla već postoji</string>
+    <string name="single_sign_on_request_token" formatted="true">Dozvoli da %1$s pristupa Vašem Nourax nalogu %2$s?</string>
     <string name="store_full_dev_desc">NoDrive is the file app for your Nourax Workspace drive at https://drive.nourax.org.\n\nFeatures:\n* Browse, upload, download, rename, move and delete your files\n* Share files and folders by link or with other people\n* Keep files available offline\n* Upload new photos and videos automatically\n* See notifications from your workspace\n* Protect access with a PIN or your fingerprint\n* Light and dark theme\n\nSign in with your Nourax account. NoDrive is made by Nourax.</string>
     <string name="store_short_desc">NoDrive by Nourax: your files on drive.nourax.org</string>
     <string name="store_short_dev_desc">NoDrive by Nourax: your files on drive.nourax.org</string>

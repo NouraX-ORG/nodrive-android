@@ -20,7 +20,9 @@ Fails (exit 1) when an identity fact is wrong:
 - webview_login_url is not https://drive.nourax.org/index.php/login/v2, or push_server_url
   is not empty;
 - the user agent built from the APK's own resources does not match server 35's
-  USER_AGENT_CLIENT_ANDROID rule.
+  USER_AGENT_CLIENT_ANDROID rule;
+- a string resource (any language, also merged from a library) names Nextcloud, except the
+  internal values in INTERNAL_TEXT.
 
 Records (in the report, exit code unchanged) every Nextcloud URL or host found in the
 resource table, in dex strings (with the methods that load them, via dexdump when it sits next
@@ -50,7 +52,11 @@ ANDROID_NS = "http://schemas.android.com/apk/res/android:"
 # Hosts of Nextcloud GmbH services the app must never contact (spec section 3).
 SERVICE_HOSTS = ["push-notifications.nextcloud.com", "updates.nextcloud.com", "download.nextcloud.com",
                  "apps.nextcloud.com", "help.nextcloud.com", "docs.nextcloud.com", "nextcloud.com"]
-NAME_RE = re.compile(r"next\s*cloud|owncloud", re.I)
+# The name, also as translations transliterate it (Arabic, Persian, Serbian, Uzbek, a Slovenian typo).
+NAME_RE = re.compile(r"next\s*cloud|owncloud|نكست\s*كلاود|نکست[\u200c\s]*کلود|некстклауд|nekstklaud|nexcloud|next\s+bulut",
+                     re.I)
+# String resources that may keep the name: internal values the server or the database depend on.
+INTERNAL_TEXT = {"string/db_file", "string/db_name", "string/nextcloud_user_agent", "string/office_user_agent"}
 URL_RE = re.compile(r"(?:https?://)?(?:[a-z0-9-]+\.)*nextcloud\.(?:com|org|de)(?:[/:?#][^\s\"'<>]*)?", re.I)
 
 
@@ -356,6 +362,9 @@ def main() -> int:
             elif info.filename != "resources.arsc":
                 for u in URL_RE.findall(data.decode("latin-1")):
                     other_hits[u].add(info.filename)
+
+    visible = sorted(n for n in text_hits if n not in INTERNAL_TEXT)
+    fact("string resources naming Nextcloud (not internal)", ", ".join(visible) or "none", not visible)
 
     lines.append(f"# APK check: {apk.apk.name}\n")
     lines.append(f"aapt2: `{apk.aapt2}`\n")

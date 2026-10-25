@@ -15,7 +15,9 @@ What it writes (all of it is derived from upstream files plus the constants belo
 - the "nodrive" product flavour block at the end of app/build.gradle.kts;
 - app/src/nodrive/res/values/{setup,bools,colors}.xml, values-night/colors.xml;
 - app/src/nodrive/res/values*/strings.xml: every upstream string (all languages) that names
-  Nextcloud, rewritten for NoDrive;
+  Nextcloud (also transliterated, e.g. Arabic or Serbian), rewritten for NoDrive;
+- app/src/nodrive/res/values*/nodrive_library_strings.xml: the same for strings that libraries
+  merge into the APK, from the snapshot tools/branding/library-strings.json;
 - drawables that replace Nextcloud's logos, blues and product icons, the launcher icon XML;
 - app/src/nodrive/res/xml/exposed_filepaths.xml (matches the new data folder);
 - app/src/nodrive/AndroidManifest.xml;
@@ -27,10 +29,11 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import re
 import sys
 import xml.etree.ElementTree as ET
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -55,8 +58,11 @@ T = "{%s}" % TOOLS_NS
 ET.register_namespace("android", ANDROID_NS)
 ET.register_namespace("tools", TOOLS_NS)
 
-BRAND_RE = re.compile(r"next\s*cloud|owncloud", re.IGNORECASE)
-BEGIN = "// NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)"
+# Other spellings of the Nextcloud name in translations: Arabic, Persian (with or without the
+# zero-width non-joiner), Serbian Cyrillic and Latin, a Slovenian typo and Uzbek ("Next bulut").
+TRANSLITERATIONS = r"نكست\s*كلاود|نکست[\u200c\s]*کلود|некстклауд|nekstklaud|nexcloud|next\s+bulut"
+BRAND_RE = re.compile(rf"next\s*cloud|owncloud|{TRANSLITERATIONS}", re.IGNORECASE)
+BEGIN ="// NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)"
 END = "// NoDrive: end"
 MARKED_BLOCK_RE = re.compile(r"(?ms)^[ \t]*// NoDrive: begin[^\n]*\n.*?^[ \t]*// NoDrive: end[^\n]*\n(?:[ \t]*\n)?")
 
@@ -373,12 +379,13 @@ STRING_ELEMENT_RE = re.compile(r"<(string|plurals|string-array)\b([^>]*?)(/>|>(.
 FORMAT_RE = re.compile(r"%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?[sdifxXc]|%%")
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 TAG_SPLIT_RE = re.compile(r"(<[^>]+>)")
-NAME_RE = re.compile(r"next\s*cloud", re.IGNORECASE)
+# A transliteration directly followed by the Latin name (ar: "نكست كلاود Nextcloud") is one name.
+NAME_RE = re.compile(rf"(?:{TRANSLITERATIONS})(?:\s+next\s*cloud)?|next\s*cloud", re.IGNORECASE)
 LINK_RE = re.compile(r"[/.@]next\s*cloud|next\s*cloud\.[a-z]|://", re.IGNORECASE)
 
 # Keys that name the server or the organisation, not the app.
 ORG_KEYS = {"single_sign_on_request_token", "ecosystem_apps_more", "prefs_show_ecosystem_apps_summary",
-            "outdated_server"}
+            "outdated_server", "bad_oc_version", "instance_not_configured"}
 FIXED_VALUES = {
     # translatable="false" developer placeholders (previews and screenshot tests)
     "placeholder_random_link": "https://drive.example.org",
@@ -407,6 +414,8 @@ def rebrand_text(name: str, inner: str) -> str:
             raise RebrandError(f"string {name}: contains a Nextcloud link or address; add a FIXED_VALUES entry")
         # Case-insensitive: some languages inflect the name in lower case (hu "nextcloudos").
         parts[i] = NAME_RE.sub(brand, parts[i])
+        # An Arabic-script prefix glued to the Latin name ("بNoDrive") takes a tatweel: "بـ NoDrive".
+        parts[i] = re.sub(rf"(?<=[؀-ۿ])(?={brand}\b)", "ـ ", parts[i])
     new = "".join(parts)
     if BRAND_RE.search(TAG_SPLIT_RE.sub("", new)):
         raise RebrandError(f"string {name}: unhandled spelling left after rewrite: {new!r}")
@@ -456,6 +465,107 @@ def string_files() -> dict[str, str]:
         except ET.ParseError as e:
             raise RebrandError(f"generated strings for {vdir.name} are not valid XML: {e}") from e
         out[f"{ND_RES}/{vdir.name}/strings.xml"] = content
+    return out
+
+
+# --------------------------------------------------------------------------------------------
+# Strings that libraries merge into the APK (not in app/src/main/res)
+# --------------------------------------------------------------------------------------------
+# tools/branding/library-strings.json keeps, for each library string that names Nextcloud, its
+# text per resource folder, as the APK ships it. Refresh it from a CI APK check after a library
+# update:  python tools/rebrand.py --import-library-strings <aapt2-dumps/resources.txt>
+LIBRARY_STRINGS = "tools/branding/library-strings.json"
+LIBRARY_FILE = "nodrive_library_strings.xml"
+LIBRARY_SOURCE = ("strings of the Nextcloud Android library (com.github.nextcloud:android-library), "
+                  f"snapshot in {LIBRARY_STRINGS}")
+LIBRARY_SPDX = ["2016-2024 Nextcloud GmbH and Nextcloud contributors", "2015 ownCloud Inc."]
+AAPT2_RESOURCE_RE = re.compile(r"\s*resource 0x[0-9a-fA-F]{8} (\S+)")
+AAPT2_VALUE_RE = re.compile(r"\s*\(([^)]*)\) (.*)$")
+FOLDER_RE = re.compile(r"values(-[a-z]{2,3}(-r[A-Z]{2})?|-b\+[a-z]{2,3}(\+[A-Za-z0-9]{2,8})*)?")
+
+
+def folder_of(config: str) -> str:
+    """aapt2 config name -> values folder ("" -> values, "de" -> values-de, "en-r001" -> values-b+en+001)."""
+    m = re.fullmatch(r"([a-z]{2,3})-r(\d{3})", config)
+    folder = f"values-b+{m.group(1)}+{m.group(2)}" if m else ("values-" + config if config else "values")
+    if not FOLDER_RE.fullmatch(folder):
+        raise RebrandError(f"aapt2 config '{config}' is not a plain language folder")
+    return folder
+
+
+def aapt2_text(raw: str) -> str | None:
+    """Plain text of an aapt2 'dump resources' string value; None for styled or other values."""
+    v = raw.strip()
+    if not (len(v) >= 2 and v[0] == '"' and v[-1] == '"'):
+        return None
+    return re.sub(r'\\(["\\n])', lambda m: "\n" if m.group(1) == "n" else m.group(1), v[1:-1])
+
+
+def app_resource_names() -> set[str]:
+    names = set()
+    for p in (ROOT / MAIN_RES).glob("values*/*.xml"):
+        names.update(re.findall(r'<(?:string|plurals|string-array)\s+name="([^"]+)"',
+                                p.read_text(encoding="utf-8")))
+    return names
+
+
+def import_library_strings(dump: Path) -> int:
+    """Add every library string naming Nextcloud from an aapt2 resources dump to the snapshot."""
+    path = ROOT / LIBRARY_STRINGS
+    data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    strings: dict[str, dict[str, str]] = data.get("strings", {})
+    in_app = app_resource_names()
+    current, added = None, 0
+    for line in dump.read_text(encoding="utf-8").splitlines():
+        m = AAPT2_RESOURCE_RE.match(line)
+        if m:
+            current = m.group(1)[len("string/"):] if m.group(1).startswith("string/") else None
+            continue
+        m = AAPT2_VALUE_RE.match(line)
+        if not (m and current) or current in in_app:
+            continue
+        text = aapt2_text(m.group(2))
+        if text is not None and BRAND_RE.search(text):
+            strings.setdefault(current, {})[folder_of(m.group(1))] = text
+            added += 1
+    data = {
+        "_comment": "Generated by tools/rebrand.py --import-library-strings from an aapt2 dump of the NoDrive "
+                    "APK. Text of library strings that name Nextcloud, per resource folder; rebrand.py "
+                    f"rewrites them into app/src/nodrive/res/values*/{LIBRARY_FILE}.",
+        "strings": {k: dict(sorted(v.items())) for k, v in sorted(strings.items())},
+    }
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    print(f"rebrand: {added} library string value(s) imported into {LIBRARY_STRINGS} "
+          f"({len(strings)} key(s)); now run python tools/rebrand.py")
+    return 0
+
+
+def library_string_files() -> dict[str, str]:
+    if not (ROOT / LIBRARY_STRINGS).is_file():
+        return {}
+    strings = json.loads(read(LIBRARY_STRINGS)).get("strings", {})
+    clash = sorted(set(strings) & app_resource_names())
+    if clash:
+        raise RebrandError(f"{LIBRARY_STRINGS}: now defined in {MAIN_RES} too, remove from the snapshot: {clash}")
+    by_folder: dict[str, list[str]] = defaultdict(list)
+    for key, per_folder in sorted(strings.items()):
+        for folder, text in sorted(per_folder.items()):
+            if not FOLDER_RE.fullmatch(folder):
+                raise RebrandError(f"{LIBRARY_STRINGS}: {key}: bad folder name {folder!r}")
+            inner = escape_android(text)
+            new = rebrand_text(key, inner)
+            if Counter(FORMAT_RE.findall(inner)) != Counter(FORMAT_RE.findall(new)):
+                raise RebrandError(f"{LIBRARY_STRINGS} {key} ({folder}): format specifiers changed")
+            by_folder[folder].append(f'    <string name="{key}">{new}</string>')
+    out = {}
+    for folder, elements in by_folder.items():
+        # Library code reads these strings, app code does not; lint only sees the app's references.
+        body = ('<resources xmlns:tools="http://schemas.android.com/tools"\n'
+                '    tools:ignore="UnusedResources,Typos">\n' + "\n".join(elements) + "\n</resources>")
+        content = xml_file(body, source=LIBRARY_SOURCE, upstream_spdx=LIBRARY_SPDX, licence="MIT")
+        ET.fromstring(content.encode("utf-8"))
+        out[f"{ND_RES}/{folder}/{LIBRARY_FILE}"] = content
     return out
 
 
@@ -638,6 +748,7 @@ def generated_files() -> dict[str, str]:
         f"{MAIN_RES}/values-night/colors.xml", [("color", "bg_default", "#0B1220"), ("color", "appbar", "#0F172A")],
         "THEME_BIBLE dark background and surface")
     out.update(string_files())
+    out.update(library_string_files())
     out.update(drawable_files())
     out[f"{ND_RES}/xml/exposed_filepaths.xml"] = exposed_filepaths()
     out[f"{ND}/AndroidManifest.xml"] = manifest()
@@ -658,7 +769,7 @@ def planned_changes() -> tuple[dict[str, str], list[str]]:
         if current != content:
             changed[rel] = content
     stale = []
-    for p in sorted((ROOT / ND_RES).glob("values*/strings.xml")):
+    for p in sorted([*(ROOT / ND_RES).glob("values*/strings.xml"), *(ROOT / ND_RES).glob(f"values*/{LIBRARY_FILE}")]):
         rel = p.relative_to(ROOT).as_posix()
         if rel not in files:
             stale.append(rel)
@@ -668,7 +779,15 @@ def planned_changes() -> tuple[dict[str, str], list[str]]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--check", action="store_true", help="change nothing; exit 1 if a run would change anything")
+    ap.add_argument("--import-library-strings", metavar="RESOURCES_TXT", type=Path,
+                    help=f"update {LIBRARY_STRINGS} from an 'aapt2 dump resources' file, then exit")
     args = ap.parse_args()
+    if args.import_library_strings:
+        try:
+            return import_library_strings(args.import_library_strings)
+        except RebrandError as e:
+            print(f"rebrand: ERROR: {e}")
+            return 2
     try:
         changed, stale = planned_changes()
     except RebrandError as e:

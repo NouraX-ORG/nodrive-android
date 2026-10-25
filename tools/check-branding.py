@@ -16,6 +16,7 @@ manifest), so it has nothing of these file types.
 
 Keywords (case-insensitive): nextcloud (covers "nextcloud hub", "nextcloud gmbh", every
 *.nextcloud.com link, github.com/nextcloud and com.nextcloud ids), "next cloud", owncloud,
+transliterations of the name (Arabic, Persian, Serbian, Uzbek, a Slovenian typo),
 mirall, it.niedermann, and the colour codes 0082c9 / 00679e. Images: vector drawables are
 checked for Nextcloud logo path data, raster images against SHA-256 fingerprints of upstream's
 Nextcloud art; every shipped raster image is listed so a person can look at it.
@@ -47,6 +48,8 @@ KEYWORDS = [
     ("nextcloud", re.compile(r"nextcloud", re.I)),
     ("next cloud", re.compile(r"next\s+cloud", re.I)),
     ("owncloud", re.compile(r"owncloud", re.I)),
+    # Arabic, Persian, Serbian Cyrillic/Latin, a Slovenian typo and Uzbek spellings in translations.
+    ("nextcloud (transliterated)", re.compile(r"نكست\s*كلاود|نکست[\u200c\s]*کلود|некстклауд|nekstklaud|nexcloud|next\s+bulut", re.I)),
     ("mirall", re.compile(r"mirall", re.I)),
     ("it.niedermann", re.compile(r"it\.niedermann", re.I)),
     ("#0082c9", re.compile(r"0082c9", re.I)),
