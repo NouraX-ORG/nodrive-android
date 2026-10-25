@@ -594,7 +594,9 @@ def manifest() -> str:
             continue
         if "https" in schemes:
             https_filters += 1
-            f.attrib.pop(A + "autoVerify", None)
+            # Not an App Link yet (no assetlinks.json on the server); saying so explicitly also keeps
+            # lint's "App Link format but missing autoVerify" error away.
+            f.set(A + "autoVerify", "false")
             for d in f.findall("data"):
                 if d.get(A + "host") is not None:
                     d.set(A + "host", HOST)
@@ -610,7 +612,7 @@ def manifest() -> str:
                                   "only through Login Flow v2 at " + HOST + ". "))
     application.append(ET.Element("activity", {
         A + "name": "com.owncloud.android.authentication.DeepLinkLoginActivity", T + "node": "remove"}))
-    application.append(ET.Comment(f" Generated from {src}: only https links to {HOST} (no autoVerify until "
+    application.append(ET.Comment(f" Generated from {src}: only https links to {HOST} (autoVerify=false until "
                                   "assetlinks.json exists), no Nextcloud ecosystem action. "))
     application.append(act)
     ET.indent(root, space="    ")

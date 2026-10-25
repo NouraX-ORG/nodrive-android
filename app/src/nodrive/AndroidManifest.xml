@@ -15,13 +15,13 @@
     <application>
         <!-- Login links (nodrive://login/...) could add another server: NoDrive signs in only through Login Flow v2 at drive.nourax.org. -->
         <activity android:name="com.owncloud.android.authentication.DeepLinkLoginActivity" tools:node="remove" />
-        <!-- Generated from app/src/main/AndroidManifest.xml: only https links to drive.nourax.org (no autoVerify until assetlinks.json exists), no Nextcloud ecosystem action. -->
+        <!-- Generated from app/src/main/AndroidManifest.xml: only https links to drive.nourax.org (autoVerify=false until assetlinks.json exists), no Nextcloud ecosystem action. -->
         <activity android:name="com.owncloud.android.ui.activity.FileDisplayActivity" android:configChanges="orientation|screenSize" android:exported="true" android:launchMode="singleTop" android:theme="@style/Theme.ownCloud.Launcher" tools:node="replace">
             <intent-filter>
                 <action android:name="android.intent.action.SEARCH" />
             </intent-filter>
             <meta-data android:name="android.app.searchable" android:resource="@xml/users_and_groups_searchable" />
-            <intent-filter>
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -29,7 +29,7 @@
                 <data android:host="drive.nourax.org" tools:ignore="AppLinkUrlError" />
                 <data android:pathPattern="/f/..*" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -37,7 +37,7 @@
                 <data android:host="drive.nourax.org" tools:ignore="AppLinkUrlError" />
                 <data android:pathPattern="/..*/f/..*" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -45,7 +45,7 @@
                 <data android:host="drive.nourax.org" tools:ignore="AppLinkUrlError" />
                 <data android:pathPattern="/..*/..*/f/..*" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
