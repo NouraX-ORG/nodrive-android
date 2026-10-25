@@ -1,0 +1,12 @@
+NoDrive ist die Datei-App für dein Nourax-Workspace-Laufwerk unter https://drive.nourax.org.
+
+Funktionen:
+* Dateien ansehen, hochladen, herunterladen, umbenennen, verschieben und löschen
+* Dateien und Ordner per Link oder mit anderen Personen teilen
+* Dateien offline verfügbar halten
+* Neue Fotos und Videos automatisch hochladen
+* Benachrichtigungen aus deinem Workspace sehen
+* Zugriff mit PIN oder Fingerabdruck schützen
+* Helles und dunkles Design
+
+Melde dich mit deinem Nourax-Konto an. NoDrive wird von Nourax entwickelt.

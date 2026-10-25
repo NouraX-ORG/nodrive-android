@@ -994,6 +994,19 @@ public class AuthenticatorActivity extends AccountAuthenticatorActivity
                 showServerStatus();
             }
 
+            // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+            // With a fixed login URL, refuse every server on another host (login links, poll results).
+            String fixedLoginUrl = getString(R.string.webview_login_url).trim();
+            if (!fixedLoginUrl.isEmpty()) {
+                String fixedHost = Uri.parse(fixedLoginUrl).getHost();
+                if (fixedHost == null || !fixedHost.equalsIgnoreCase(Uri.parse(uri).getHost())) {
+                    Log_OC.e(TAG, "Refused server outside " + fixedHost + ": " + uri);
+                    DisplayUtils.showSnackMessage(this, R.string.invalid_url);
+                    return;
+                }
+            }
+            // NoDrive: end
+
             // TODO maybe do this via async task
             Intent getServerInfoIntent = new Intent();
             getServerInfoIntent.setAction(OperationsService.ACTION_GET_SERVER_INFO);

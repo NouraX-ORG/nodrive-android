@@ -35,6 +35,11 @@ class ShowErrorActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbarInclude.toolbar)
         supportActionBar!!.title = createErrorTitle()
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        // No issue tracker link: no "report issue" snackbar. Sharing the error text still works.
+        if (getString(R.string.report_issue_link).isEmpty()) return
+        // NoDrive: end
+
         val snackbar = DisplayUtils.createSnackbar(
             binding.errorPageContainer,
             R.string.error_report_issue_text,

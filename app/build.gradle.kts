@@ -549,3 +549,45 @@ dependencies {
     // kotlinx.serialization
     implementation(libs.kotlinx.serialization.json)
 }
+
+// NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+// The "n" in <upstream version>-nourax.<n> (set NOURAX_REVISION in tools/rebrand.py and re-run it).
+// versionCode = upstream stable code + (n - 1), so it always rises with the upstream version.
+val nouraxRevision = 1
+require(nouraxRevision in 1..10) { "nouraxRevision must be in 1..10" }
+
+// Privacy-policy link for Settings > About. Empty (the default) hides the row.
+val nouraxPrivacyUrl: String = providers.gradleProperty("NOURAX_PRIVACY_URL")
+    .orElse(providers.environmentVariable("NOURAX_PRIVACY_URL"))
+    .orElse("")
+    .get()
+
+android {
+    buildFeatures {
+        // AGP 9 switches resValues off by default; the nodrive flavour needs it for NOURAX_PRIVACY_URL.
+        resValues = true
+    }
+
+    productFlavors {
+        register("nodrive") {
+            dimension = "default"
+            applicationId = "org.nourax.nodrive"
+            versionCode = versionMajor * 10000000 + versionMinor * 10000 + versionPatch * 100 + versionBuild +
+                (nouraxRevision - 1)
+            versionName = "$versionMajor.$versionMinor.$versionPatch-nourax.$nouraxRevision"
+            resValue("string", "nourax_privacy_url", nouraxPrivacyUrl)
+        }
+    }
+
+    sourceSets {
+        // Reuse the no-Google-services stubs of the upstream "generic" flavour instead of copying them.
+        maybeCreate("nodrive").apply {
+            java.directories.add("src/generic/java")
+            kotlin.directories.add("src/generic/java")
+        }
+        maybeCreate("androidTestNodrive").apply {
+            kotlin.directories.add("src/androidTestGeneric/java")
+        }
+    }
+}
+// NoDrive: end
