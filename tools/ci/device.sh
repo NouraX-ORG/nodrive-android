@@ -42,6 +42,28 @@ if default_is_mobile; then echo "network: default is mobile data (Wi-Fi off)"; e
 "$ADB" shell pm list packages | sort > "$OUT/packages.txt"
 echo "device: $("$ADB" shell getprop ro.build.version.release | tr -d '\r') (API $("$ADB" shell getprop ro.build.version.sdk | tr -d '\r')), $(wc -l < "$OUT/packages.txt") packages"
 
+# After boot a system app can show an "Application Not Responding" dialog (seen in run 40185239329:
+# com.google.android.googlesdksetup). The dialog holds the input focus, so Espresso tests that start
+# meanwhile fail with RootViewWithoutFocusException. Wait for it to go; after 30 s stop that app
+# ("am force-stop"), which closes its dialog. An ANR of NoDrive itself is left alone and reported.
+anr_package() {
+    "$ADB" shell dumpsys window | tr -d '\r' \
+        | sed -n 's/.*mCurrentFocus=Window{[^ ]* [^ ]* Application Not Responding: \([^}]*\)}.*/\1/p' | head -n 1
+}
+for i in $(seq 1 30); do
+    pkg=$(anr_package)
+    [ -z "$pkg" ] && break
+    echo "device: ANR dialog of $pkg has the focus ($((i * 2 - 2)) s)"
+    if [ "$i" -eq 15 ] && [ "${pkg%%:*}" != "org.nourax.nodrive" ]; then
+        echo "device: force-stopping $pkg to close its ANR dialog"
+        "$ADB" shell am force-stop "$pkg"
+    fi
+    sleep 2
+done
+pkg=$(anr_package)
+if [ -n "$pkg" ]; then echo "device: WARNING ANR dialog of $pkg still has the focus"; else
+    echo "device: no ANR dialog has the focus"; fi
+
 LIST=tools/ci/instrumented-tests.txt
 CLASSES=$(grep -v '^[[:space:]]*#' "$LIST" | awk 'NF && $1 !~ /^-/ { print $1 }' | paste -sd, -)
 NOT_METHODS=$(grep -v '^[[:space:]]*#' "$LIST" | awk 'NF && $1 ~ /^-/ { print substr($1, 2) }' | paste -sd, -)
