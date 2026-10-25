@@ -308,6 +308,7 @@ jobs:
                         build/device/*.log
                         build/device/*.txt
                         build/device/*.md
+                        build/device/first-run/
                         build/device/network.pcap
                     if-no-files-found: warn
                     retention-days: 14

@@ -4,6 +4,8 @@
 # Instrumented test classes that CI runs on the emulator for the nodrive flavour
 # (tools/ci/device.sh). All of them work without a Nextcloud server. Methods marked
 # @com.nextcloud.test.Flaky (upstream) or @ScreenshotTest are filtered out with notAnnotation.
+# When at most 5 methods fail, device.sh runs just those once more; the job passes only if they
+# pass then. The retry and the first run's results are in the step summary and the test report.
 #
 # Not run, with the reason (nothing is skipped silently):
 # - every subclass of AbstractOnServerIT (FileIT, UploadIT, DownloadIT, FileDisplayActivityIT,
