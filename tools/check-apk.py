@@ -23,7 +23,9 @@ Fails (exit 1) when an identity fact is wrong:
   USER_AGENT_CLIENT_ANDROID rule.
 
 Records (in the report, exit code unchanged) every Nextcloud URL or host found in the
-resource table, in dex strings and in other APK files, so the sweep can classify each one.
+resource table, in dex strings (with the methods that load them, via dexdump when it sits next
+to aapt2) and in other APK files, plus every string resource whose text names Nextcloud or
+ownCloud (including resources merged from libraries), so the sweep can classify each one.
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ import re
 import struct
 import subprocess
 import sys
+import tempfile
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -47,6 +50,7 @@ ANDROID_NS = "http://schemas.android.com/apk/res/android:"
 # Hosts of Nextcloud GmbH services the app must never contact (spec section 3).
 SERVICE_HOSTS = ["push-notifications.nextcloud.com", "updates.nextcloud.com", "download.nextcloud.com",
                  "apps.nextcloud.com", "help.nextcloud.com", "docs.nextcloud.com", "nextcloud.com"]
+NAME_RE = re.compile(r"next\s*cloud|owncloud", re.I)
 URL_RE = re.compile(r"(?:https?://)?(?:[a-z0-9-]+\.)*nextcloud\.(?:com|org|de)(?:[/:?#][^\s\"'<>]*)?", re.I)
 
 
@@ -75,8 +79,6 @@ class Apk:
         if self.dump_dir:
             (self.dump_dir / f"{name}.txt").write_text(res.stdout, encoding="utf-8")
         return res.stdout
-
-
 
 
 def parse_resources(text: str):
@@ -135,18 +137,22 @@ class Resources:
         return None
 
 
-
-
 def xml_attrs(text: str, res: Resources):
-    """Yield (element path, attr name, resolved value) from 'aapt2 dump xmltree'."""
-    stack: list[tuple[int, str]] = []
+    """Yield (element chain, attr name, resolved value) from 'aapt2 dump xmltree'.
+
+    The element chain is a tuple of (element name, running element number), so callers can tell
+    two <intent-filter> elements apart.
+    """
+    stack: list[tuple[int, str, int]] = []
+    count = 0
     for line in text.splitlines():
         m = re.match(r"(\s*)E: ([^\s]+)", line)
         if m:
             depth = len(m.group(1))
             while stack and stack[-1][0] >= depth:
                 stack.pop()
-            stack.append((depth, m.group(2)))
+            count += 1
+            stack.append((depth, m.group(2), count))
             continue
         m = re.match(r"(\s*)A: (.+?)(?:\(0x[0-9a-fA-F]+\))?=(.*)$", line)
         if m:
@@ -159,9 +165,7 @@ def xml_attrs(text: str, res: Resources):
                 value = res.resolve(value.split()[0])
             else:
                 value = unquote(value.split(" (Raw")[0])
-            yield "/".join(e for _, e in stack), name, value
-
-
+            yield tuple((e, i) for _, e, i in stack), name, value
 
 
 def uleb128(buf: bytes, pos: int) -> tuple[int, int]:
@@ -188,6 +192,20 @@ def dex_strings(buf: bytes) -> list[str]:
     return out
 
 
+def find_users(dexdump: Path, dex_file: Path, wanted: set[str], users: dict[str, set[str]]) -> None:
+    """Record which method loads each wanted string (const-string lines of 'dexdump -d')."""
+    method = "?"
+    with subprocess.Popen([str(dexdump), "-d", str(dex_file)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                          text=True, encoding="utf-8", errors="replace") as proc:
+        for line in proc.stdout:
+            m = re.search(r"\|\[[0-9a-f]+\] (\S+?):", line)
+            if m:
+                method = m.group(1)
+                continue
+            if "const-string" in line and "nextcloud" in line.lower():
+                m = re.search(r'const-string(?:/jumbo)? v\d+, "(.*)" // string@', line)
+                if m and m.group(1) in wanted:
+                    users[m.group(1)].add(method)
 
 
 def main() -> int:
@@ -231,21 +249,28 @@ def main() -> int:
             fact(key, mm.group(1).strip().split(" label=")[0])
 
     # --- merged manifest
-    authorities, permissions, uses_perms, schemes, hosts, actions = [], [], [], set(), set(), set()
-    for path, name, value in xml_attrs(manifest, res):
-        el = path.rsplit("/", 1)[-1]
+    authorities, permissions, uses_perms, actions = [], [], [], set()
+    filters: dict[int, dict[str, set[str]]] = defaultdict(lambda: {"scheme": set(), "host": set()})
+    for chain, name, value in xml_attrs(manifest, res):
+        el = chain[-1][0] if chain else ""
         if el == "provider" and name == "android:authorities":
             authorities.extend(value.split(";"))
         elif el == "permission" and name == "android:name":
             permissions.append(value)
         elif el in ("uses-permission", "uses-permission-sdk-23") and name == "android:name":
             uses_perms.append(value)
-        elif el == "data" and name == "android:scheme":
-            schemes.add(value)
-        elif el == "data" and name == "android:host":
-            hosts.add(value)
+        elif el == "data" and name in ("android:scheme", "android:host"):
+            parent = [i for e, i in chain if e == "intent-filter"]
+            if parent:
+                filters[parent[-1]][name.split(":")[1]].add(value)
         elif el == "action" and name == "android:name":
             actions.add(value)
+    schemes = set().union(*(f["scheme"] for f in filters.values())) if filters else set()
+    link_hosts: set[str] = set()
+    for f in filters.values():
+        if f["scheme"] & {"http", "https"}:
+            link_hosts |= f["host"] or {"*"}
+    pairs = sorted({f"{sc}://{h}" for f in filters.values() for sc in f["scheme"] for h in (f["host"] or {"*"})})
 
     def ours(v: str) -> bool:
         return v.startswith(PACKAGE) and "nextcloud" not in v.lower()
@@ -259,7 +284,8 @@ def main() -> int:
     fact("REQUEST_INSTALL_PACKAGES", "absent" if "android.permission.REQUEST_INSTALL_PACKAGES" not in uses_perms
          else "present", "android.permission.REQUEST_INSTALL_PACKAGES" not in uses_perms)
     fact("intent-filter schemes", ", ".join(sorted(schemes)) or "none", "nc" not in schemes)
-    fact("intent-filter link hosts", ", ".join(sorted(hosts)) or "none", hosts <= {LINK_HOST})
+    fact("intent-filter scheme://host pairs", ", ".join(pairs) or "none")
+    fact("http(s) link hosts", ", ".join(sorted(link_hosts)) or "none", link_hosts <= {LINK_HOST})
     nc_actions = sorted(a for a in actions if "nextcloud" in a.lower())
     fact("intent-filter actions with 'nextcloud'", ", ".join(nc_actions) or "none")
 
@@ -270,7 +296,7 @@ def main() -> int:
             fact(xml_name, "not found in the resource table", False)
             continue
         tree = apk.dump(xml_name.replace("/", "-"), "xmltree", "--file", f)
-        for _path, name, value in xml_attrs(tree, res):
+        for _chain, name, value in xml_attrs(tree, res):
             if name in ("android:accountType", "android:contentAuthority"):
                 fact(f"{xml_name} {name}", value, ours(value))
             elif name == "android:label":
@@ -297,25 +323,36 @@ def main() -> int:
     if office is not None:
         fact("office user agent", "'" + office.replace("%1$s", "<release>").replace("%2$s", vname) + "'")
 
-    # --- Nextcloud URLs and hosts: resource table
+    # --- Nextcloud URLs and hosts, and text values naming Nextcloud: resource table
     res_hits = []
+    text_hits: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for name, vals in sorted(res.values.items()):
         for cfg, v in vals:
             for u in URL_RE.findall(v):
                 res_hits.append((name, cfg or "default", u))
-    # --- dex strings and every other file
+            if name.split("/")[0] in ("string", "plurals", "array") and NAME_RE.search(v):
+                text_hits[name].append((cfg or "default", unquote(v)))
+    # --- dex strings (full string -> dex files) and every other file
     dex_hits: dict[str, set[str]] = defaultdict(set)
     other_hits: dict[str, set[str]] = defaultdict(set)
     nc_dex_strings = 0
-    with zipfile.ZipFile(apk.apk) as z:
+    users: dict[str, set[str]] = defaultdict(set)
+    dexdump = Path(apk.aapt2).with_name("dexdump" + Path(apk.aapt2).suffix)
+    with zipfile.ZipFile(apk.apk) as z, tempfile.TemporaryDirectory() as tmp:
         for info in z.infolist():
             data = z.read(info)
             if re.fullmatch(r"classes\d*\.dex", info.filename):
+                found = False
                 for s in dex_strings(data):
                     if "nextcloud" in s.lower():
                         nc_dex_strings += 1
-                    for u in URL_RE.findall(s):
-                        dex_hits[u].add(info.filename)
+                    if URL_RE.search(s):
+                        dex_hits[s].add(info.filename)
+                        found = True
+                if found and dexdump.is_file():
+                    dex_file = Path(tmp) / info.filename
+                    dex_file.write_bytes(data)
+                    find_users(dexdump, dex_file, set(dex_hits), users)
             elif info.filename != "resources.arsc":
                 for u in URL_RE.findall(data.decode("latin-1")):
                     other_hits[u].add(info.filename)
@@ -328,10 +365,23 @@ def main() -> int:
     lines.append(f"\n## Nextcloud URLs and hosts in the resource table ({len(res_hits)})\n")
     lines.append("| Resource | Config | Match |\n|---|---|---|")
     lines.extend(f"| {n} | {c} | `{u}` |" for n, c, u in res_hits)
+    lines.append(f"\n## String resources whose text names Nextcloud or ownCloud ({len(text_hits)})\n")
+    lines.append("Includes resources merged from libraries, which the source sweep does not see.\n")
+    lines.append("| Resource | Configs | Default value |\n|---|---|---|")
+    for name, vals in sorted(text_hits.items()):
+        default = next((v for c, v in vals if c == "default"), vals[0][1])
+        default = default if len(default) <= 120 else default[:117] + "..."
+        lines.append(f"| {name} | {len(vals)} | `{default.replace('|', '/')}` |")
     lines.append(f"\n## Nextcloud URLs and hosts in dex strings ({len(dex_hits)} distinct)\n")
     lines.append(f"Dex strings containing 'nextcloud' in any form (class names, packages, URLs): {nc_dex_strings}\n")
-    lines.append("| Match | Dex files |\n|---|---|")
-    lines.extend(f"| `{u}` | {', '.join(sorted(f))} |" for u, f in sorted(dex_hits.items()))
+    lines.append(f"Code that loads each string (`dexdump -d`, const-string): "
+                 f"{'yes' if dexdump.is_file() else 'dexdump not found'}\n")
+    lines.append("| Dex string | Dex files | Loaded by |\n|---|---|---|")
+    for text, files in sorted(dex_hits.items()):
+        who = sorted(users.get(text, ()))
+        shown = text if len(text) <= 160 else text[:157] + "..."
+        loaded = "<br>".join(who[:6]) + (" ..." if len(who) > 6 else "") if who else "no const-string use"
+        lines.append(f"| `{shown.replace('|', '/')}` | {', '.join(sorted(files))} | {loaded} |")
     lines.append(f"\n## Nextcloud URLs and hosts in other APK files ({len(other_hits)} distinct)\n")
     lines.append("| Match | Files |\n|---|---|")
     lines.extend(f"| `{u}` | {', '.join(sorted(f)[:8])}{' ...' if len(f) > 8 else ''} |"

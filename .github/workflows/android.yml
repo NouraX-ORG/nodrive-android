@@ -112,24 +112,29 @@ jobs:
                     path: ~/.android/debug.keystore
                     key: nodrive-debug-keystore-v1
 
-            -   name: Check the APK (manifest, ids, Nextcloud URLs)
+            -   name: Check the APK (signature, manifest, ids, Nextcloud URLs)
                 run: |
+                    set -o pipefail
                     mkdir -p build/apk
-                    ls -l "$APK"
-                    sha256sum "$APK" | sed 's#  .*/#  #' > build/apk/app-nodrive-debug.apk.sha256
+                    cp "$APK" build/apk/
+                    (cd build/apk && sha256sum app-nodrive-debug.apk > app-nodrive-debug.apk.sha256)
                     cat build/apk/app-nodrive-debug.apk.sha256
-                    keytool -printcert -jarfile "$APK" | grep -E "Owner|SHA256:" || true
-                    python tools/check-apk.py "$APK" --dump-dir build/apk/aapt2-dumps --report build/apk/apk-check.md
-                    cat build/apk/apk-check.md >> "$GITHUB_STEP_SUMMARY"
+                    BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+                    "$BUILD_TOOLS/apksigner" verify --verbose --print-certs build/apk/app-nodrive-debug.apk \
+                        | grep -E "^Verified using|^Signer #1 certificate (DN|SHA-256)" | tee build/apk/signature.txt
+                    rc=0
+                    python tools/check-apk.py build/apk/app-nodrive-debug.apk --aapt2 "$BUILD_TOOLS/aapt2" \
+                        --dump-dir build/apk/aapt2-dumps --report build/apk/apk-check.md > /dev/null || rc=$?
+                    cat build/apk/apk-check.md >> "$GITHUB_STEP_SUMMARY" || true
+                    sed -n '/^## Result/,$p' build/apk/apk-check.md || true
+                    exit "$rc"
 
             -   name: Upload APK
-                if: ${{ always() && hashFiles('app/build/outputs/apk/nodrive/debug/app-nodrive-debug.apk') != '' }}
+                if: ${{ always() && hashFiles('build/apk/app-nodrive-debug.apk') != '' }}
                 uses: actions/upload-artifact@v7
                 with:
                     name: nodrive-android-apk
-                    path: |
-                        app/build/outputs/apk/nodrive/debug/app-nodrive-debug.apk
-                        build/apk/
+                    path: build/apk/
                     if-no-files-found: error
                     retention-days: 14
 
