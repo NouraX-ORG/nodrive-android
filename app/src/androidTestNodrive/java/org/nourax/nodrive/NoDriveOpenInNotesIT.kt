@@ -8,10 +8,8 @@ package org.nourax.nodrive
 
 import android.os.SystemClock
 import androidx.test.core.app.ActivityScenario
+import android.view.View
 import androidx.test.core.app.launchActivity
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
-import androidx.test.espresso.matcher.ViewMatchers.withId
 import com.nextcloud.client.preferences.AppPreferencesImpl
 import com.nextcloud.test.TestActivity
 import com.owncloud.android.AbstractIT
@@ -25,6 +23,7 @@ import com.owncloud.android.utils.theme.CapabilityUtils
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -84,10 +83,12 @@ class NoDriveOpenInNotesIT : AbstractIT() {
             }
             waitUntilListed(scenario, { adapter }, NOTE)
 
-            scenario.onActivity {
+            // Checked on the main thread, not with Espresso: Espresso first waits for window focus,
+            // which the CI emulator sometimes gives to the launcher instead.
+            scenario.onActivity { activity ->
                 assertFalse("the file list shows the Open in Notes card", adapter!!.shouldShowHeader())
+                assertNull("the Open in Notes card is in the layout", activity.findViewById<View>(R.id.open_in))
             }
-            onView(withId(R.id.open_in)).check(doesNotExist())
         }
     }
 
