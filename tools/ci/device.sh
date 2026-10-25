@@ -19,15 +19,18 @@ status=0
 "$ADB" shell settings put global private_dns_mode off
 # Wi-Fi on current emulators runs through netsim, which the emulator's -tcpdump capture does not
 # see. With Wi-Fi off all traffic takes the mobile-data path over the captured virtual LAN.
-"$ADB" shell cmd wifi set-wifi-enabled disabled || "$ADB" shell svc wifi disable
-"$ADB" shell svc data enable
 default_is_mobile() {
     local state id
     state=$("$ADB" shell dumpsys connectivity | tr -d '\r')
     id=$(printf '%s\n' "$state" | sed -n 's/^Active default network: \([0-9][0-9]*\).*/\1/p' | head -n 1)
     [ -n "$id" ] && printf '%s\n' "$state" | grep -F "NetworkAgentInfo{network{$id}" | grep -q "MOBILE"
 }
-for _ in $(seq 1 60); do
+# Right after boot the emulator may still switch Wi-Fi on, so the command is repeated until it holds.
+for i in $(seq 0 59); do
+    if [ $((i % 5)) -eq 0 ]; then
+        "$ADB" shell cmd wifi set-wifi-enabled disabled || "$ADB" shell svc wifi disable
+        "$ADB" shell svc data enable
+    fi
     default_is_mobile && break
     sleep 2
 done

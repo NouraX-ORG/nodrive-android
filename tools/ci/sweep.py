@@ -217,6 +217,21 @@ class Sweep:
             time.sleep(3)
         return False
 
+    def ensure_mobile_data(self, label: str) -> bool:
+        """Keep Wi-Fi off: only the mobile-data path is in the emulator's -tcpdump capture."""
+        for i in range(45):
+            if i % 5 == 0:
+                self.dev.sh("cmd wifi set-wifi-enabled disabled; svc data enable")
+            state = self.dev.sh("dumpsys connectivity")
+            m = re.search(r"^Active default network: (\d+)", state, re.M)
+            if m and re.search(r"NetworkAgentInfo\{network\{%s\}[^\n]*MOBILE" % m.group(1), state):
+                self.check(f"{label}: default network is mobile data (captured)", True, "Wi-Fi off", hard=False)
+                return True
+            time.sleep(2)
+        self.check(f"{label}: default network is mobile data (captured)", False,
+                   "Wi-Fi still the default network after 90 s", hard=False)
+        return False
+
     def set_look(self, look: Look):
         current = self.dev.sh("getprop persist.sys.locale").strip() or "en-US"
         if current != look.locale:
@@ -610,6 +625,7 @@ def main() -> int:
         if sweep.install(args.apk, args.test_apk):
             for look in LOOKS:
                 sweep.set_look(look)
+                sweep.ensure_mobile_data(look.name)
                 sweep.phase_a(look, system_screens=not look.night, launcher_screens=look == LOOKS[0])
             if sweep.stand_in_account():
                 for look in reversed(LOOKS):
