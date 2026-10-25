@@ -292,6 +292,7 @@ class Sweep:
         d.key("KEYCODE_HOME")
         time.sleep(1)
         d.sh(f"am start -W -n {LAUNCHER}", timeout=60)
+        d.wait_focus(lambda f: f.startswith(PKG), 10)
         self.shot("launch", "first frame of the launch")
         focus = d.wait_focus(lambda f: f.startswith(PKG) or (self.browser_pkg and f.startswith(self.browser_pkg)), 30)
         self.check(f"{look.name}: app launches", focus.startswith(PKG) or focus.startswith(self.browser_pkg or "-"),
@@ -484,16 +485,21 @@ class Sweep:
             d.key("KEYCODE_HOME")
             return
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", preview.get("bounds")))
+        d.sh("logcat -c")
         d.sh(f"input draganddrop {(x1 + x2) // 2} {(y1 + y2) // 2} {w // 2} {int(h * 0.4)} 2500")
         time.sleep(5)
-        focus = d.focus()
-        s = self.shot("widget-configuration", "after dropping the NoDrive widget on the home screen")
-        self.check("widget placed", PKG in focus, f"focus after the drop: {focus}", hard=False)
-        if s and PKG in focus:
-            if d.tap_node((self.out / s.xml).read_text(encoding="utf-8") if s.xml else None,
-                          lambda n: n.get("package") == PKG and "demo@" in (n.get("text") or "")):
-                time.sleep(4)
-                self.shot("widget-configuration-2", "widget list for the account (offline)")
+        self.shot("widget-drop", "after dropping the NoDrive widget on the home screen")
+        log = d.sh("logcat -d -v brief AppWidgetServiceImpl:I Launcher:E '*:S'")
+        events = [ln.split(": ", 1)[-1].strip()[:160] for ln in log.splitlines()
+                  if "Bound widget" in ln or "deleteAppWidgetId" in ln or "not returned" in ln]
+        kept = any("Bound widget" in e for e in events) and not any("deleteAppWidgetId" in e for e in events)
+        self.check("widget placed", kept, "; ".join(events) or "no widget events in logcat", hard=False)
+        d.key("KEYCODE_HOME")
+        # The widget's own setup screen (normally opened by the launcher after the drop).
+        d.sh(f"am start -n {PKG}/com.nextcloud.client.widget.DashboardWidgetConfigurationActivity "
+             "--ei appWidgetId 1")
+        time.sleep(4)
+        self.shot("widget-configuration", "widget setup screen, opened directly (offline)")
         d.key("KEYCODE_BACK")
         d.key("KEYCODE_HOME")
 

@@ -19,15 +19,23 @@ status=0
 "$ADB" shell settings put global private_dns_mode off
 # Wi-Fi on current emulators runs through netsim, which the emulator's -tcpdump capture does not
 # see. With Wi-Fi off all traffic takes the mobile-data path over the captured virtual LAN.
-"$ADB" shell svc wifi disable
+"$ADB" shell cmd wifi set-wifi-enabled disabled || "$ADB" shell svc wifi disable
 "$ADB" shell svc data enable
-for _ in $(seq 1 30); do
-    "$ADB" shell dumpsys connectivity | grep -q -E "Active default network: [0-9]+" && break
+default_is_mobile() {
+    local state id
+    state=$("$ADB" shell dumpsys connectivity | tr -d '\r')
+    id=$(printf '%s\n' "$state" | sed -n 's/^Active default network: \([0-9][0-9]*\).*/\1/p' | head -n 1)
+    [ -n "$id" ] && printf '%s\n' "$state" | grep -F "NetworkAgentInfo{network{$id}" | grep -q "MOBILE"
+}
+for _ in $(seq 1 60); do
+    default_is_mobile && break
     sleep 2
 done
-"$ADB" shell "dumpsys connectivity | grep -E -m 3 'Active default network|NetworkAgentInfo.*(CELLULAR|WIFI)'" \
+"$ADB" shell "dumpsys connectivity | grep -E -m 4 'Active default network|NetworkAgentInfo.*(MOBILE|WIFI)'" \
     | cut -c1-200 > "$OUT/network-state.txt" || true
-echo "network: $(head -n 1 "$OUT/network-state.txt" | tr -d '\r')"
+"$ADB" shell settings get global wifi_on >> "$OUT/network-state.txt" || true
+if default_is_mobile; then echo "network: default is mobile data (Wi-Fi off)"; else
+    echo "network: WARNING default network is not mobile data:"; cat "$OUT/network-state.txt"; fi
 "$ADB" shell pm list packages | sort > "$OUT/packages.txt"
 echo "device: $("$ADB" shell getprop ro.build.version.release | tr -d '\r') (API $("$ADB" shell getprop ro.build.version.sdk | tr -d '\r')), $(wc -l < "$OUT/packages.txt") packages"
 
