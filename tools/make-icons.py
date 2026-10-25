@@ -76,16 +76,17 @@ def visible_diagonal(bbox) -> float:
 def white_circle(size: int, diameter: float) -> Image.Image:
     """Plain white disc on a transparent square, anti-aliased by 4x supersampling.
 
-    The mask is reduced with BOX (area average): Lanczos ringing would leave faint alpha up to
-    the image border, and lint's IconLauncherShape round-icon test (IconDetector.isRound: oval
-    over the bounding box of all non-transparent pixels, at most 4 % different) then fails at
-    48 and 72 px.
+    Lint's IconLauncherShape round-icon test (IconDetector.isRound) draws a non-anti-aliased
+    oval over the bounding box of all non-transparent pixels and allows at most 4 % different
+    pixels. So the disc must cover exactly the pixels c-r .. c+r-1: ImageDraw.ellipse includes
+    its end coordinate (hence the -1), and the mask is reduced with BOX (area average) because
+    Lanczos ringing leaves faint alpha up to the image border.
     """
     big = size * 4
     mask = Image.new("L", (big, big), 0)
     r = diameter * 4 / 2
     c = big / 2
-    ImageDraw.Draw(mask).ellipse((c - r, c - r, c + r, c + r), fill=255)
+    ImageDraw.Draw(mask).ellipse((c - r, c - r, c + r - 1, c + r - 1), fill=255)
     mask = mask.resize((size, size), Image.Resampling.BOX)
     disc = Image.new("RGBA", (size, size), WHITE)
     disc.putalpha(mask)
