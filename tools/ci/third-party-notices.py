@@ -59,6 +59,9 @@ def parse_tree(text: str) -> list[tuple[str, str, str]]:
             item, resolved = item.split(" -> ", 1)
             resolved = re.sub(r"\s*\(.*\)$", "", resolved).strip()
         parts = item.split(":")
+        if resolved and resolved.count(":") >= 2:
+            # Module substitution ("a:b:1.0 -> c:d:2.0"): the library in the APK is the right-hand one.
+            parts, resolved = resolved.split(":"), None
         if len(parts) < 2:
             continue
         group, name = parts[0].strip(), parts[1].strip()

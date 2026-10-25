@@ -23,7 +23,7 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | APK identity and side-by-side ids (package, labels, authorities, account type, scheme, link host, login URL, push URL, user agent) | CI | pass | `tools/check-apk.py`: "Result PASS"; 113 labels all "NoDrive"; all 7 authorities and the declared permission are `org.nourax.nodrive*`; links only `https://drive.nourax.org` |
 | Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) |
 | Lint | CI | pass | `lintNodriveDebug`: "No issues found." (upstream config, warnings are errors) |
-| Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 81 classes, 486 tests, 0 failed. The list and the reason for every class left out: `tools/ci/instrumented-tests.txt` |
+| Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 74 listed classes (81 in the JUnit report, which counts nested test classes on their own), 486 tests, 0 failed. The list and the reason for every class or method left out: `tools/ci/instrumented-tests.txt` |
 | App name, version, account type and ids at runtime | CI | pass | `NoDriveBrandingIT`: `nameAndVersion`, `accountTypeIsOurs`, `providerAuthoritiesAreOurs` |
 | Server is fixed; sign-in uses Login Flow v2 at drive.nourax.org | CI | pass | `NoDriveBrandingIT.serverIsFixed`, `linksOpenOnlyForDriveNouraxOrg` |
 | Push, updater, what's new, recommend, help, issue tracker are off | CI | pass | `NoDriveBrandingIT.nextcloudServicesAreOff` |
