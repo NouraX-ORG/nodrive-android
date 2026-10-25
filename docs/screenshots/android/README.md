@@ -4,7 +4,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 Taken by `tools/ci/sweep.py` on the CI emulator (Android 15, API 35, `google_apis` x86_64, Pixel 6
-profile) in run [40163420586](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40163420586)
+profile) in run [40169964556](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40169964556)
 from the debug APK `35.0.1-nourax.1` (versionCode 350000190, SHA-256
 `9d79556866ae5451b449c90354177d42ed86979c125613655a5a960d0fbb2dcd`).
 
@@ -24,7 +24,7 @@ from the debug APK `35.0.1-nourax.1` (versionCode 350000190, SHA-256
   no screen has Nextcloud blue (#0082C9, #00679E, #006AA3) pixels. A person looked at every image.
 
 
-Screens: 73. Looks: en-light, en-dark, de-light, ar-light, ar-dark.
+Screens: 72. Looks: en-light, en-dark, de-light, ar-light, ar-dark.
 
 ## Checks
 
@@ -35,27 +35,37 @@ Screens: 73. Looks: en-light, en-dark, de-light, ar-light, ar-dark.
 | install app-nodrive-debug.apk | pass | Success |
 | install app-nodrive-debug-androidTest.apk | pass | Success |
 | installed version | info | versionCode=350000190 minSdk=28 targetSdk=36 versionName=35.0.1-nourax.1 |
+| en-light: default network is mobile data (captured) | pass | Wi-Fi off |
 | en-light: app launches | pass | focus after launch: com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity |
-| en-light: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(  571): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
+| en-light: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(  569): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
 | widget picker lists NoDrive | pass | entry 'NoDrive' found and opened |
+| en-dark: default network is mobile data (captured) | pass | Wi-Fi off |
 | en-dark: app launches | pass | focus after launch: com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity |
-| en-dark: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(  571): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
+| en-dark: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(  569): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
 | switch locale to de-DE | pass | setprop persist.sys.locale + stop/start; now de-DE |
-| de-light: app launches | pass | focus after launch: com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity |
-| de-light: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager( 8527): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
+| de-light: default network is mobile data (captured) | pass | Wi-Fi off |
+| de-light: app launches | pass | focus after launch: org.nourax.nodrive/com.owncloud.android.authentication.AuthenticatorActivity |
+| de-light: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager( 8433): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher} with LAUNCH_MULTIPLE from uid 10213 (BAL_ALL |
 | switch locale to ar-EG | pass | setprop persist.sys.locale + stop/start; now ar-EG |
-| ar-light: app launches | pass | focus after launch: com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity |
-| ar-light: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(11895): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
+| ar-light: default network is mobile data (captured) | pass | Wi-Fi off |
+| ar-light: app launches | pass | focus after launch: org.nourax.nodrive/com.owncloud.android.authentication.AuthenticatorActivity |
+| ar-light: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(12025): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
+| ar-dark: default network is mobile data (captured) | pass | Wi-Fi off |
 | ar-dark: app launches | pass | focus after launch: com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity |
-| ar-dark: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(11895): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
+| ar-dark: sign-in opens the browser at drive.nourax.org | pass | browser focus=com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity; address bar='drive.nourax.org'; activity start: I/ActivityTaskManager(12025): START u0 {act=android.intent.action.VIEW dat=https://drive.nourax.org/... cmp=com.android.chrome/com.google.android.apps.chrome.IntentDispatcher (has extras)} with LAUNCH_MULTIPLE from uid 1 |
 | airplane mode for the signed-in screens | pass | airplane_mode_on=1 |
-| stand-in account (local only, airplane mode) | pass | instrumentation OK; Account {name=demo@drive.nourax.org, type=org.nourax.nodrive} Session: expectLaunch false, connected false, stats (0/0/0), lifetime 0.052, hasFeatures, Account {name=demo@drive.nourax.org, type=org.nourax.nodrive}, android.account.DEVICE_OR_PROFILE_OWNER_DISALLOWED |
+| stand-in account (local only, airplane mode) | pass | instrumentation OK; Account {name=demo@drive.nourax.org, type=org.nourax.nodrive} Session: expectLaunch false, connected false, stats (0/0/0), lifetime 0.106, hasFeatures, Account {name=demo@drive.nourax.org, type=org.nourax.nodrive}, android.account.DEVICE_OR_PROFILE_OWNER_DISALLOWED |
+| ar-dark: file list has the focus | pass | focus after 1 start(s): org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity |
+| ar-light: file list has the focus | pass | focus after 1 start(s): org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity |
 | switch locale to de-DE | pass | setprop persist.sys.locale + stop/start; now de-DE |
+| de-light: file list has the focus | pass | focus after 2 start(s): org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity |
 | switch locale to en-US | pass | setprop persist.sys.locale + stop/start; now en-US |
+| en-dark: file list has the focus | pass | focus after 1 start(s): org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity |
+| en-light: file list has the focus | pass | focus after 1 start(s): org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity |
 | widget placed | warn | Bound widget 2 to provider ProviderId{user:0, app:10213, cmp:ComponentInfo{org.nourax.nodrive/com.nextcloud.client.widget.DashboardWidgetProvider}}; Error: appWidgetId (EXTRA_APPWIDGET_ID) was not returned from the widget configuration activity.; deleteAppWidgetId() 0; deleteAppWidgetId() 0 |
-| no screen text names Nextcloud | pass | 73/73 screens dumped, 0 hits |
+| no screen text names Nextcloud | pass | 72/72 screens dumped, 0 hits |
 | browser pages naming Nextcloud (server side, listed only) | info | none |
-| Nextcloud blue on screens | pass | 73 screens, highest share of #0082C9/#00679E/#006AA3 pixels 0.000% |
+| Nextcloud blue on screens | pass | 72 screens, highest share of #0082C9/#00679E/#006AA3 pixels 0.000% |
 
 ## Screens
 
@@ -94,46 +104,45 @@ Screens: 73. Looks: en-light, en-dark, de-light, ar-light, ar-dark.
 | 31 | ar-dark | drawer | 031-ar-dark-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
 | 32 | ar-dark | settings | 032-ar-dark-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
 | 33 | ar-dark | settings-2 | 033-ar-dark-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 34 | ar-dark | settings-3 | 034-ar-dark-settings-3.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 35 | ar-dark | accounts | 035-ar-dark-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
-| 36 | ar-dark | uploads | 036-ar-dark-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
-| 37 | ar-dark | auto-upload | 037-ar-dark-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
-| 38 | ar-light | files | 038-ar-light-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 39 | ar-light | drawer | 039-ar-light-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 40 | ar-light | settings | 040-ar-light-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 41 | ar-light | settings-2 | 041-ar-light-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 42 | ar-light | accounts | 042-ar-light-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
-| 43 | ar-light | uploads | 043-ar-light-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
-| 44 | ar-light | auto-upload | 044-ar-light-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
-| 45 | ar-light | share-receive | 045-ar-light-share-receive.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ReceiveExternalFilesActivity | none | 0.00% |
-| 46 | ar-light | system-accounts | 046-ar-light-system-accounts.png | com.android.settings/com.android.settings.Settings$AccountDashboardActivity | none | 0.00% |
-| 47 | de-light | files | 047-de-light-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 48 | de-light | drawer | 048-de-light-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 49 | de-light | settings | 049-de-light-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 50 | de-light | settings-2 | 050-de-light-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 51 | de-light | accounts | 051-de-light-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
-| 52 | de-light | uploads | 052-de-light-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
-| 53 | de-light | auto-upload | 053-de-light-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
-| 54 | de-light | share-receive | 054-de-light-share-receive.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ReceiveExternalFilesActivity | none | 0.00% |
-| 55 | en-dark | files | 055-en-dark-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 56 | en-dark | drawer | 056-en-dark-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 57 | en-dark | settings | 057-en-dark-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 58 | en-dark | settings-2 | 058-en-dark-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 59 | en-dark | accounts | 059-en-dark-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
-| 60 | en-dark | uploads | 060-en-dark-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
-| 61 | en-dark | auto-upload | 061-en-dark-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
-| 62 | en-light | files | 062-en-light-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 63 | en-light | drawer | 063-en-light-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
-| 64 | en-light | settings | 064-en-light-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 65 | en-light | settings-2 | 065-en-light-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
-| 66 | en-light | accounts | 066-en-light-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
-| 67 | en-light | uploads | 067-en-light-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
-| 68 | en-light | auto-upload | 068-en-light-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
-| 69 | en-light | share-receive | 069-en-light-share-receive.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ReceiveExternalFilesActivity | none | 0.00% |
-| 70 | en-light | system-accounts | 070-en-light-system-accounts.png | com.android.settings/com.android.settings.Settings$AccountDashboardActivity | none | 0.00% |
-| 71 | en-light | notification-channels | 071-en-light-notification-channels.png | com.android.settings/com.android.settings.Settings$AppNotificationSettingsActivity | none | 0.00% |
-| 72 | en-light | widget-drop | 072-en-light-widget-drop.png | com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity | none | 0.00% |
-| 73 | en-light | widget-configuration | 073-en-light-widget-configuration.png | org.nourax.nodrive/com.nextcloud.client.widget.DashboardWidgetConfigurationActivity | none | 0.00% |
+| 34 | ar-dark | accounts | 034-ar-dark-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
+| 35 | ar-dark | uploads | 035-ar-dark-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
+| 36 | ar-dark | auto-upload | 036-ar-dark-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
+| 37 | ar-light | files | 037-ar-light-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 38 | ar-light | drawer | 038-ar-light-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 39 | ar-light | settings | 039-ar-light-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 40 | ar-light | settings-2 | 040-ar-light-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 41 | ar-light | accounts | 041-ar-light-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
+| 42 | ar-light | uploads | 042-ar-light-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
+| 43 | ar-light | auto-upload | 043-ar-light-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
+| 44 | ar-light | share-receive | 044-ar-light-share-receive.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ReceiveExternalFilesActivity | none | 0.00% |
+| 45 | ar-light | system-accounts | 045-ar-light-system-accounts.png | com.android.settings/com.android.settings.Settings$AccountDashboardActivity | none | 0.00% |
+| 46 | de-light | files | 046-de-light-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 47 | de-light | drawer | 047-de-light-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 48 | de-light | settings | 048-de-light-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 49 | de-light | settings-2 | 049-de-light-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 50 | de-light | accounts | 050-de-light-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
+| 51 | de-light | uploads | 051-de-light-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
+| 52 | de-light | auto-upload | 052-de-light-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
+| 53 | de-light | share-receive | 053-de-light-share-receive.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ReceiveExternalFilesActivity | none | 0.00% |
+| 54 | en-dark | files | 054-en-dark-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 55 | en-dark | drawer | 055-en-dark-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 56 | en-dark | settings | 056-en-dark-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 57 | en-dark | settings-2 | 057-en-dark-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 58 | en-dark | accounts | 058-en-dark-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
+| 59 | en-dark | uploads | 059-en-dark-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
+| 60 | en-dark | auto-upload | 060-en-dark-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
+| 61 | en-light | files | 061-en-light-files.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 62 | en-light | drawer | 062-en-light-drawer.png | org.nourax.nodrive/com.owncloud.android.ui.activity.FileDisplayActivity | none | 0.00% |
+| 63 | en-light | settings | 063-en-light-settings.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 64 | en-light | settings-2 | 064-en-light-settings-2.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SettingsActivity | none | 0.00% |
+| 65 | en-light | accounts | 065-en-light-accounts.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ManageAccountsActivity | none | 0.00% |
+| 66 | en-light | uploads | 066-en-light-uploads.png | org.nourax.nodrive/com.owncloud.android.ui.activity.UploadListActivity | none | 0.00% |
+| 67 | en-light | auto-upload | 067-en-light-auto-upload.png | org.nourax.nodrive/com.owncloud.android.ui.activity.SyncedFoldersActivity | none | 0.00% |
+| 68 | en-light | share-receive | 068-en-light-share-receive.png | org.nourax.nodrive/com.owncloud.android.ui.activity.ReceiveExternalFilesActivity | none | 0.00% |
+| 69 | en-light | system-accounts | 069-en-light-system-accounts.png | com.android.settings/com.android.settings.Settings$AccountDashboardActivity | none | 0.00% |
+| 70 | en-light | notification-channels | 070-en-light-notification-channels.png | com.android.settings/com.android.settings.Settings$AppNotificationSettingsActivity | none | 0.00% |
+| 71 | en-light | widget-drop | 071-en-light-widget-drop.png | com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity | none | 0.00% |
+| 72 | en-light | widget-configuration | 072-en-light-widget-configuration.png | org.nourax.nodrive/com.nextcloud.client.widget.DashboardWidgetConfigurationActivity | none | 0.00% |
 
 ## Result
 
