@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2026 Nourax
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Instrumented test classes that CI runs on the emulator for the nodrive flavour
+# (tools/ci/device.sh). All of them work without a Nextcloud server. Methods marked
+# @com.nextcloud.test.Flaky (upstream) or @ScreenshotTest are filtered out with notAnnotation.
+#
+# Not run, with the reason (nothing is skipped silently):
+# - every subclass of AbstractOnServerIT (FileIT, UploadIT, DownloadIT, FileDisplayActivityIT,
+#   OwnCloudClientManagerTest, UserAccountManagerImplTest, AssistantRepositoryTests, ContactsBackupIT,
+#   ConnectivityServiceImplIT, AutoRenameTests, FileNameValidatorTests, GrantFolderExistenceTests,
+#   FileDataStorageManagerIT, FileUploaderIT, DeleteE2ERemoteOperationIT,
+#   GetSharesForFileOperationIT, RemoveFileOperationIT, DocumentsStorageProviderIT,
+#   PreviewImageActivityIT): they need a Nextcloud test server; CI cannot sign in (spec section 7).
+# - FileDataStorageManagerContentProviderClientIT, FileDataStorageManagerContentResolverIT: they
+#   extend FileDataStorageManagerIT, an AbstractOnServerIT.
+# - com.owncloud.android.ui.LoginIT: types a server address into the server field, which NoDrive
+#   does not have (fixed server), and then signs in to a test server.
+# - the @ScreenshotTest classes: they record images for upstream's Shot comparison (API 28 only);
+#   tools/ci/sweep.py takes real screenshots of the installed app instead.
+# - androidTest/disabledTests: switched off upstream.
+# - org.nourax.nodrive.NoDriveSweepAccount: not a test; sweep.py uses it to add a local account.
+
+com.nextcloud.client.account.AnonymousUserTest
+com.nextcloud.client.account.MockUserTest
+com.nextcloud.client.account.RegisteredUserTest
+com.nextcloud.client.database.migrations.MigrationTest
+com.nextcloud.client.di.VariantModuleTest
+com.nextcloud.client.documentscan.GeneratePDFUseCaseTest
+com.nextcloud.client.files.DeepLinkHandlerTest
+com.nextcloud.client.files.download.DownloaderServiceTest
+com.nextcloud.client.files.download.RegistryTest
+com.nextcloud.client.files.download.TransferManagerConnectionTest
+com.nextcloud.client.files.download.TransferManagerTest
+com.nextcloud.client.integrations.deck.DeckApiTest
+com.nextcloud.client.jobs.BackgroundJobManagerTest
+com.nextcloud.client.migrations.MigrationsDbTest
+com.nextcloud.client.migrations.MigrationsManagerTest
+com.nextcloud.client.migrations.MockSharedPreferencesTest
+com.nextcloud.client.sso.SSOActivityTests
+com.nextcloud.extensions.BitmapDecodeTests
+com.nextcloud.extensions.BitmapRotationTests
+com.nextcloud.extensions.BundleExtensionTests
+com.nextcloud.extensions.GetExifOrientationTests
+com.nextcloud.extensions.IntentExtensionTests
+com.nextcloud.extensions.StringExtensionTests
+com.nextcloud.sso.InputStreamBinderTest
+com.nextcloud.strings.StringsTests
+com.nextcloud.test.FileDeletionTests
+com.nextcloud.test.InjectionTestActivityTest
+com.nextcloud.ui.SetOnlineStatusBottomSheetIT
+com.nextcloud.ui.SetStatusMessageBottomSheetIT
+com.nextcloud.utils.CertificateValidatorTests
+com.nextcloud.utils.CheckWCFRestrictionsTests
+com.nextcloud.utils.FileExtensionTest
+com.nextcloud.utils.FileHelperTest
+com.nextcloud.utils.OCCapabilityJsonToListTests
+com.nextcloud.utils.SharePermissionManagerTest
+com.nextcloud.utils.UploadDateTests
+com.nextcloud.utils.WebDavParentPathTests
+com.nmc.android.ui.LauncherActivityIT
+com.owncloud.android.authentication.AuthenticatorActivityIT
+com.owncloud.android.authentication.PassCodeManagerIT
+com.owncloud.android.datamodel.ArbitraryDataProviderIT
+com.owncloud.android.datamodel.ContentResolverHelperIT
+com.owncloud.android.datamodel.OCCapabilityIT
+com.owncloud.android.datamodel.OCFileIconTests
+com.owncloud.android.datamodel.OCFileUnitTest
+com.owncloud.android.datamodel.UploadStorageManagerTest
+com.owncloud.android.files.FileMenuFilterIT
+com.owncloud.android.providers.FileContentProviderTests
+com.owncloud.android.providers.FileContentProviderVerificationIT
+com.owncloud.android.providers.UsersAndGroupsSearchProviderIT
+com.owncloud.android.ui.activity.DrawerActivityIT
+com.owncloud.android.ui.activity.FileDisplayActivityTest
+com.owncloud.android.ui.adapter.OCFileListAdapterIT
+com.owncloud.android.ui.fragment.FileDetailActivitiesFragmentIT
+com.owncloud.android.ui.fragment.UnifiedSearchFragmentIT
+com.owncloud.android.ui.helpers.FileOperationsHelperIT
+com.owncloud.android.ui.helpers.UriUploaderIT
+com.owncloud.android.util.EncryptionTestIT
+com.owncloud.android.util.ErrorMessageAdapterIT
+com.owncloud.android.utils.BitmapUtilsIT
+com.owncloud.android.utils.DisplayUtilsIT
+com.owncloud.android.utils.DrawableUtilTests
+com.owncloud.android.utils.EncryptionUtilsIT
+com.owncloud.android.utils.EncryptionUtilsMetadataVerificationTests
+com.owncloud.android.utils.EncryptionUtilsV2IT
+com.owncloud.android.utils.FileExportUtilsIT
+com.owncloud.android.utils.FileStorageUtilsIT
+com.owncloud.android.utils.FileUploadHelperTest
+com.owncloud.android.utils.FileUtilTest
+com.owncloud.android.utils.SessionMixinTest
+com.owncloud.android.utils.SyncedFolderUtilsTest
+com.owncloud.android.utils.theme.CapabilityUtilsIT
+org.nourax.nodrive.NoDriveBrandingIT
