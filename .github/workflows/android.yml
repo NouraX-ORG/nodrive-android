@@ -121,7 +121,8 @@ jobs:
                     cat build/apk/app-nodrive-debug.apk.sha256
                     BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
                     "$BUILD_TOOLS/apksigner" verify --verbose --print-certs build/apk/app-nodrive-debug.apk \
-                        | grep -E "^Verified using|^Signer #1 certificate (DN|SHA-256)" | tee build/apk/signature.txt
+                        > build/apk/signature.txt 2>&1
+                    grep -v "^WARNING" build/apk/signature.txt
                     rc=0
                     python tools/check-apk.py build/apk/app-nodrive-debug.apk --aapt2 "$BUILD_TOOLS/aapt2" \
                         --dump-dir build/apk/aapt2-dumps --report build/apk/apk-check.md > /dev/null || rc=$?
