@@ -1,0 +1,106 @@
+{
+  "ocs": {
+    "meta": {
+      "status": "ok",
+      "statuscode": 200,
+      "message": "OK"
+    },
+    "data": [
+      {
+        "id": "dashboard",
+        "order": 0,
+        "href": "/apps/dashboard/",
+        "icon": "/apps/dashboard/img/app.svg",
+        "type": "link",
+        "name": "Dashboard",
+        "app": "dashboard",
+        "default": true,
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "files",
+        "order": 0,
+        "href": "/apps/files/",
+        "icon": "/apps/files/img/app.svg",
+        "type": "link",
+        "name": "Files",
+        "app": "files",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "mail",
+        "order": 1,
+        "href": "/apps/mail/",
+        "icon": "/apps/mail/img/app.svg",
+        "type": "link",
+        "name": "Mail",
+        "app": "mail",
+        "active": false,
+        "classes": "",
+        "unread": 3
+      },
+      {
+        "id": "calendar",
+        "order": 2,
+        "href": "/apps/calendar/",
+        "icon": "/apps/calendar/img/app.svg",
+        "type": "link",
+        "name": "Calendar",
+        "app": "calendar",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "spreed",
+        "order": 3,
+        "href": "/apps/spreed/",
+        "icon": "/apps/spreed/img/app.svg",
+        "type": "link",
+        "name": "Talk",
+        "app": "spreed",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "external_index1",
+        "order": 4,
+        "href": "/apps/external/sites/1",
+        "icon": "/apps/external/img/external.svg",
+        "type": "link",
+        "name": "Handbook",
+        "app": "external",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "elsewhere",
+        "order": 5,
+        "href": "https://evil.example/apps/x/",
+        "icon": "https://evil.example/i.svg",
+        "type": "link",
+        "name": "Elsewhere",
+        "app": "elsewhere",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "notes",
+        "href": "/apps/notes/",
+        "icon": "/apps/notes/img/app.svg",
+        "type": "link",
+        "name": "Notes",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      }
+    ]
+  }
+}

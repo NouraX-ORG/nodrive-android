@@ -10,7 +10,7 @@ name: Android
 
 on:
     push:
-        branches: [ main, platform/android ]
+        branches: [ main, platform/android, feature/workspace-apps ]
     workflow_dispatch:
 
 permissions:
@@ -63,6 +63,44 @@ jobs:
                 with:
                     name: nodrive-android-branding-report
                     path: build/branding/
+                    if-no-files-found: warn
+                    retention-days: 14
+
+    server-login:
+        name: Server login proof
+        needs: branding
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            -   uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   uses: actions/setup-python@v7
+                with:
+                    python-version: "3.12"
+
+            # A throwaway Nextcloud 35.0.2 in Docker with random credentials (masked); never drive.nourax.org.
+            -   name: Start the throwaway server
+                run: bash tools/ci/server-app-login.sh start
+
+            -   name: Install Playwright (web view user agent check)
+                run: |
+                    python -m pip install --disable-pip-version-check "playwright==1.55.0"
+                    python -m playwright install --with-deps chromium
+
+            -   name: Check the app sign-in method against the server
+                run: bash tools/ci/server-app-login.sh check
+
+            -   name: Upload server login report
+                if: ${{ always() }}
+                uses: actions/upload-artifact@v7
+                with:
+                    name: server-login-report
+                    path: |
+                        build/server-login/*.md
+                        build/server-login/*.json
+                        build/server-login/*.png
                     if-no-files-found: warn
                     retention-days: 14
 
