@@ -11,7 +11,8 @@ apps use for the in-app web view ("native session hand-off", plans/workspace-app
 3. the navigation list (the app's own request, Basic header) has the fields the app parses and answers 304 for
    its ETag;
 4. no credential or cookie: not signed in; wrong app password: 401, its cookies are not signed in;
-5. the web "Log out" leaves the app signed in; revoking the app password ends the web session at once;
+5. the web "Log out" leaves the app signed in; a revoked app password can no longer open sessions (a web session that is already open ends when the server
+   re-validates its token, at most every 5 minutes);
 6. a web view user agent (platform default + " NoDrive") is not sent to /unsupported (Playwright, Chromium).
 
 Every probe uses its own fresh session, because the server destroys a session that is used wrongly.
@@ -263,16 +264,20 @@ def main() -> int:
               f"web session signed in after logout {signed_in(pg2, user)}, app request {s3}")
 
     revoke = run_container(args.container, ["user:auth-tokens:add", "--name", "nodrive-ci-revoke", user])
-    jar_r = fresh_session(srv, user, revoke.strip().splitlines()[-1].strip())
+    revoked_secret = revoke.strip().splitlines()[-1].strip()
+    jar_r = fresh_session(srv, user, revoked_secret)
     s_before, _, _, b_before = page(srv, jar_r)
     listing = json.loads(run_container(args.container, ["user:auth-tokens:list", user, "--output=json"]))
     tid = next(str(t["id"]) for t in listing if t["name"] == "nodrive-ci-revoke")
     run_container(args.container, ["user:auth-tokens:delete", user, tid])
     s_after, h_after, _, b_after = page(srv, jar_r)
-    rep.check("revoking the app password ends its web session at once",
-              signed_in(b_before, user) and not signed_in(b_after, user),
-              f"before: {s_before} signed in {signed_in(b_before, user)}; after: "
-              f"{describe(s_after, h_after, '')} signed in {signed_in(b_after, user)}")
+    s_new, _, sc_new, _ = bootstrap(srv, user, revoked_secret)
+    rep.check("a revoked app password can no longer open a session",
+              signed_in(b_before, user) and s_new == 401 and not signed_in(page(srv, cookie_pairs(sc_new))[3], user),
+              f"before revoking: signed in {signed_in(b_before, user)}; new app request after revoking: {s_new}")
+    rep.check("info: an already open web session after revoking", None,
+              f"status {s_after}, signed in {signed_in(b_after, user)} (the server re-validates the token at most "
+              "every 5 minutes; the app clears its web data on sign-out)")
 
     check_web_view_user_agent(srv, rep, out, user, tokens["S"])
 

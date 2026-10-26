@@ -134,6 +134,8 @@ import com.owncloud.android.ui.preview.PreviewTextStringFragment;
 import com.owncloud.android.ui.preview.pdf.PreviewPdfFragment;
 import com.owncloud.android.ui.trashbin.TrashbinFragment;
 
+import org.nourax.nodrive.workspace.WorkspaceWebActivity;
+
 import androidx.annotation.OptIn;
 import androidx.media3.common.util.UnstableApi;
 import dagger.Module;
@@ -179,6 +181,9 @@ abstract class ComponentsModule {
 
     @ContributesAndroidInjector
     abstract ExternalSiteWebView externalSiteWebView();
+
+    @ContributesAndroidInjector
+    abstract WorkspaceWebActivity workspaceWebActivity();
 
     @ContributesAndroidInjector
     abstract FileDisplayActivity fileDisplayActivity();
