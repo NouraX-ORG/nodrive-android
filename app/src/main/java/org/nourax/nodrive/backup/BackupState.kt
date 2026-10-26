@@ -11,6 +11,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonParseException
 import com.owncloud.android.datamodel.ArbitraryDataProvider
 import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
+import com.owncloud.android.lib.common.utils.Log_OC
 
 /** The backup state of one account, kept in the app's ArbitraryDataProvider (as the Workspace apps cache is). */
 class BackupState(private val account: String, private val data: ArbitraryDataProvider) {
@@ -68,8 +69,16 @@ class BackupState(private val account: String, private val data: ArbitraryDataPr
         private val GSON = Gson()
 
         /** Called when the account is removed; the rows are deleted by upstream's own account removal. */
+        /** Never throws: removing an account must not stop because of the backup state. */
         @JvmStatic
-        fun forget(context: Context, accountName: String) = forget(accountName, ArbitraryDataProviderImpl(context))
+        @Suppress("TooGenericExceptionCaught")
+        fun forget(context: Context, accountName: String) {
+            try {
+                forget(accountName, ArbitraryDataProviderImpl(context))
+            } catch (e: RuntimeException) {
+                Log_OC.w("BackupState", "backup state not cleared: ${e.javaClass.simpleName}")
+            }
+        }
 
         fun forget(accountName: String, data: ArbitraryDataProvider) =
             ALL_KEYS.forEach { data.deleteKeyForAccount(accountName, it) }

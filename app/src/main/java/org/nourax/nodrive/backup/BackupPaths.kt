@@ -13,19 +13,32 @@ object BackupPaths {
     const val SD_CARD_PREFIX = "SD card "
     const val OTHER_FOLDER = "Other"
     private const val SEPARATOR = "/"
-    private val DEVICE_NAME_FORBIDDEN = Regex("[^A-Za-z0-9 ._()-]")
+    // Only what a file name or path cannot hold is replaced: letters of every script, digits and emoji stay readable.
+    private val DEVICE_NAME_FORBIDDEN = Regex("[/\\\\:*?\"<>|\\u0000-\\u001F\\u007F]")
     private val SEGMENT_FORBIDDEN = Regex("[\\\\:*?\"<>|\\u0000-\\u001F]")
     private val EMULATED = Regex("^/storage/emulated/\\d+(?:/(.*))?$")
+    private val VOLUME_ROOT = Regex("^/storage/(?:emulated/\\d+|[A-Za-z0-9]{4}-[A-Za-z0-9]{4})$")
     private val SD_CARD = Regex("^/storage/([A-Za-z0-9]{4}-[A-Za-z0-9]{4})(?:/(.*))?$")
 
-    fun deviceFolderName(rawName: String?): String {
-        val cleaned = rawName.orEmpty().replace(DEVICE_NAME_FORBIDDEN, "_").trim()
-        return if (cleaned.isEmpty() || cleaned.all { it == '_' }) FALLBACK_DEVICE_NAME else cleaned
+    /** The device name as a folder name; [model] is tried when the name has no letter, digit or symbol left. */
+    fun deviceFolderName(rawName: String?, model: String? = null): String =
+        cleanDeviceName(rawName) ?: cleanDeviceName(model) ?: FALLBACK_DEVICE_NAME
+
+    private fun cleanDeviceName(raw: String?): String? {
+        val cleaned = raw.orEmpty().replace(DEVICE_NAME_FORBIDDEN, "_").trim().trimEnd('.', ' ')
+        val readable = cleaned.codePoints().anyMatch {
+            Character.isLetterOrDigit(it) || Character.getType(it) == Character.OTHER_SYMBOL.toInt()
+        }
+        return cleaned.takeIf { readable }
     }
 
     /** The root fixed at the first switch-on wins, so renaming the phone never splits the backup. */
-    fun root(storedRoot: String?, deviceName: String?): String =
-        storedRoot?.takeIf { it.isNotBlank() } ?: "$SEPARATOR$BACKUP_FOLDER$SEPARATOR${deviceFolderName(deviceName)}"
+    fun root(storedRoot: String?, deviceName: String?, model: String? = null): String =
+        storedRoot?.takeIf { it.isNotBlank() }
+            ?: "$SEPARATOR$BACKUP_FOLDER$SEPARATOR${deviceFolderName(deviceName, model)}"
+
+    /** The top of a storage volume, for example /storage/emulated/0 or an SD card: not a folder to back up as a bucket. */
+    fun isVolumeRoot(localPath: String): Boolean = VOLUME_ROOT.matches(localPath.trimEnd('/'))
 
     fun remotePath(root: String, localPath: String): String {
         val relative = relativeToVolume(localPath.trimEnd('/'))

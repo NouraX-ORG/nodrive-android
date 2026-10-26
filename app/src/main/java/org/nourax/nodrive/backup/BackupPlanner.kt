@@ -9,7 +9,7 @@ package org.nourax.nodrive.backup
 import com.owncloud.android.datamodel.MediaFolderType
 
 /**
- * Decides which Auto upload rows the backup switch creates, adopts, enables or disables (design 2.2). Pure: it reads
+ * Decides which Auto upload rows the backup switch creates, enables or disables (design 2.2). Pure: it reads
  * lists and returns a [BackupPlan]; nothing here touches the phone, the database or the Drive. There is no delete.
  */
 object BackupPlanner {
@@ -25,7 +25,7 @@ object BackupPlanner {
     ): BackupPlan {
         val planning = Planning(rows, snapshot, account, root)
         planning.reenableOwned(MEDIA_TYPES)
-        val qualifying = folders.filter { it.qualifies }
+        val qualifying = folders.filter { it.isBackupCandidate() }
         qualifying.sortedBy { it.path.length }.forEach {
             planning.place(FolderSpec(it.path, it.type, BackupPaths.remotePath(root, it.path)), skipUnderParent = true)
         }
@@ -70,7 +70,7 @@ object BackupPlanner {
         val planning = Planning(rows, snapshot, account, root)
         val seenNow = mutableListOf<String>()
         if (snapshot.mediaOn) {
-            val qualifying = folders.filter { it.qualifies }
+            val qualifying = folders.filter { it.isBackupCandidate() }
             seenNow += qualifying.map { it.key() }
             qualifying.filter { it.key() !in snapshot.seen }.sortedBy { it.path.length }.forEach {
                 planning.place(
@@ -90,15 +90,19 @@ object BackupPlanner {
     private fun docSpec(path: String, root: String) =
         FolderSpec(path, MediaFolderType.CUSTOM, BackupPaths.remotePath(root, path), excludeHidden = true)
 
+    /** A bucket that is a whole storage volume would cover every folder, even ones upstream's filter rejects. */
+    private fun MediaFolderInfo.isBackupCandidate() = qualifies && !BackupPaths.isVolumeRoot(path)
+
     private fun MediaFolderInfo.key() = BackupKeys.of(type, path)
 
     /** The working state of one planning run for one account. */
     private class Planning(allRows: List<FolderRow>, private val snapshot: BackupSnapshot, account: String, root: String) {
         private val rows = allRows.filter { it.account == account }
         private val byKey = rows.groupBy { it.key }.mapValues { it.value.first() }
-        private val owned = snapshot.owned.intersect(rows.map { it.id }.toSet()).toMutableSet()
+        private val owned = snapshot.owned.intersect(rows.map { it.id }.toSet())
         private val enabledPaths = rows.filter { it.enabled }.map { it.type to it.path }.toMutableList()
         private val ops = mutableListOf<BackupOp>()
+        private val leftAlone = mutableListOf<FolderSpec>()
         private val rootPath = root
 
         fun reenableOwned(types: Set<MediaFolderType>) {
@@ -116,18 +120,19 @@ object BackupPlanner {
             val row = byKey[spec.key]
             if (row != null && (row.enabled || row.id in owned)) return
             if (skipUnderParent && isUnderEnabledParent(spec)) return
-            if (row == null) {
-                ops += BackupOp.Create(spec)
-            } else {
-                ops += BackupOp.Adopt(row.id, spec)
-                owned += row.id
+            if (row != null) {
+                // The user's own, disabled Auto upload row: never rewritten, and not enabled behind their back.
+                leftAlone += spec
+                return
             }
+            ops += BackupOp.Create(spec)
             enabledPaths += spec.type to spec.path
         }
 
         fun result(base: BackupSnapshot, seenKeys: List<String>) = BackupPlan(
             ops.toList(),
-            base.copy(root = rootPath.ifEmpty { null }, owned = owned.toSet(), seen = snapshot.seen + seenKeys)
+            base.copy(root = rootPath.ifEmpty { null }, owned = owned, seen = snapshot.seen + seenKeys),
+            leftAlone.toList()
         )
 
         private fun isUnderEnabledParent(spec: FolderSpec) = enabledPaths.any { (type, path) ->

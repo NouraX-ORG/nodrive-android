@@ -7,6 +7,8 @@
 package org.nourax.nodrive.backup
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupPathsTest {
@@ -55,6 +57,41 @@ class BackupPathsTest {
         assertEquals("Android phone", BackupPaths.deviceFolderName(null))
         assertEquals("Android phone", BackupPaths.deviceFolderName("   "))
         assertEquals("Android phone", BackupPaths.deviceFolderName("///"))
+    }
+
+    @Test
+    fun anArabicPhoneNameStaysReadable() {
+        assertEquals("هاتف محمد", BackupPaths.deviceFolderName("هاتف محمد"))
+        assertEquals("/Phone backup/هاتف محمد", BackupPaths.root(null, "هاتف محمد"))
+    }
+
+    @Test
+    fun anUrduPhoneNameStaysReadable() {
+        assertEquals("میرا فون ۲", BackupPaths.deviceFolderName("میرا فون ۲"))
+    }
+
+    @Test
+    fun anEmojiPhoneNameStaysReadableAndOnlyInvalidCharactersAreReplaced() {
+        assertEquals("Ali's 📱", BackupPaths.deviceFolderName("Ali's 📱"))
+        assertEquals("📱", BackupPaths.deviceFolderName("📱"))
+        assertEquals("Muhammad's S23", BackupPaths.deviceFolderName("Muhammad's S23"))
+        assertEquals("هاتف_محمد", BackupPaths.deviceFolderName("هاتف/محمد"))
+    }
+
+    @Test
+    fun aNameWithNothingReadableFallsBackToTheModelThenToTheDefault() {
+        assertEquals("SM-S911B", BackupPaths.deviceFolderName("///", "SM-S911B"))
+        assertEquals("SM-S911B", BackupPaths.deviceFolderName(null, "SM-S911B"))
+        assertEquals("Android phone", BackupPaths.deviceFolderName("...", "///"))
+        assertEquals("Android phone", BackupPaths.deviceFolderName("_ _", null))
+    }
+
+    @Test
+    fun aStorageVolumeIsRecognisedAsAVolumeRoot() {
+        assertTrue(BackupPaths.isVolumeRoot("/storage/emulated/0"))
+        assertTrue(BackupPaths.isVolumeRoot("/storage/emulated/0/"))
+        assertTrue(BackupPaths.isVolumeRoot("/storage/1234-ABCD"))
+        assertFalse(BackupPaths.isVolumeRoot("/storage/emulated/0/DCIM"))
     }
 
     @Test

@@ -59,6 +59,24 @@
                 android:textSize="14sp"
                 android:visibility="gone" />
 
+            <TextView
+                android:id="@+id/nodrive_backup_battery_note"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/standard_padding"
+                android:text="@string/nodrive_backup_battery_note"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/nodrive_backup_battery_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/standard_half_padding"
+                android:text="@string/nodrive_backup_battery_button"
+                android:visibility="gone" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/nodrive_backup_open_auto_upload"
                 android:layout_width="match_parent"

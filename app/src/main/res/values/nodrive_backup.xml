@@ -18,7 +18,7 @@
         <item quantity="other">On: %1$d folders to %2$s</item>
     </plurals>
     <string name="nodrive_backup_docs_title">Also back up Documents and Downloads</string>
-    <string name="nodrive_backup_docs_summary_off">Needs All files access</string>
+    <string name="nodrive_backup_docs_summary_off">Needs access to all files</string>
     <string name="nodrive_backup_docs_summary_on">On: Documents and Download</string>
     <string name="nodrive_backup_folders_title">Backed-up folders</string>
     <string name="nodrive_backup_folders_summary">See what is backed up and change it in Auto upload</string>
@@ -37,6 +37,9 @@
     <string name="nodrive_backup_result_nothing_new">Everything is already set up. New folders are added automatically.</string>
     <string name="nodrive_backup_result_none_found">No folders were found yet. New folders are added automatically.</string>
     <string name="nodrive_backup_result_stopped">The backup is stopped. Nothing was deleted, on the phone or on NoDrive.</string>
+    <string name="nodrive_backup_battery_note">Android may pause NoDrive in the background, which can stall a big first backup. Allow background activity so it can finish.</string>
+    <string name="nodrive_backup_battery_button">Allow background activity</string>
+    <string name="nodrive_backup_result_left_alone">Left as they are, because you turned them off in Auto upload:</string>
     <string name="nodrive_backup_result_note">Wi-Fi only. You can change this for each folder in Auto upload. The first upload runs in the background and can take a while.</string>
     <string name="nodrive_backup_done">Done</string>
     <string name="nodrive_backup_open_auto_upload">Open Auto upload</string>
@@ -74,7 +77,7 @@
 
     <!-- Move your Google data -->
     <string name="nodrive_backup_takeout_intro">Export your Google Drive files and Google Photos with Google Takeout. The NoDrive desktop app then uploads them with the same folder structure.</string>
-    <string name="nodrive_backup_takeout_steps">1. On a computer, open Google Takeout. Choose Deselect all, then tick Drive and Google Photos.\n\n2. Pick .zip as the file type and 50 GB as the size, so there are fewer parts. Choose to get a download link by email.\n\n3. Download every zip file within 7 days. Each link only works a few times.\n\n4. Unzip all of the zip files into one folder inside your NoDrive folder, for example NoDrive/Google Takeout. Folders with the same name merge. The NoDrive desktop app uploads everything and keeps the same folder structure. Do not upload the zip files themselves.\n\n5. Check your files on NoDrive. Delete your data at Google yourself, only when you are sure everything arrived.</string>
+    <string name="nodrive_backup_takeout_steps">1. On a computer, open Google Takeout. Choose Deselect all, then tick Drive and Google Photos.\n\n2. Pick .zip as the file type and 50 GB as the size, so there are fewer parts. Choose to get a download link by email.\n\n3. Download every zip file within 7 days. Each link only works a few times.\n\n4. Unzip all of the zip files into one folder inside your NoDrive folder, for example NoDrive/Google Takeout. Folders with the same name merge. Your Drive files are then in Takeout/Drive and your photos in Takeout/Google Photos. The NoDrive desktop app uploads everything and keeps the same folder structure. Do not upload the zip files themselves.\n\n5. Check your files on NoDrive. Delete your data at Google yourself, only when you are sure everything arrived.</string>
     <string name="nodrive_backup_takeout_notes">Good to know: Google Docs, Sheets and Slides arrive as Word, Excel and PowerPoint files. Google Photos adds a small .json file with the date of each photo. Items that were only shared with you are not in the export.</string>
     <string name="nodrive_backup_takeout_open">Open Google Takeout</string>
 </resources>

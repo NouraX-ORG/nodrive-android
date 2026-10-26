@@ -25,6 +25,7 @@ import com.owncloud.android.R
 import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
 import com.owncloud.android.datamodel.MediaFolderType
 import com.owncloud.android.datamodel.SyncedFolderProvider
+import com.owncloud.android.lib.common.utils.Log_OC
 import com.owncloud.android.ui.ThemeableSwitchPreference
 import com.owncloud.android.ui.activity.SyncedFoldersActivity
 import com.owncloud.android.utils.theme.ViewThemeUtils
@@ -40,9 +41,25 @@ object BackupSettingsSection {
     const val KEY_STOP_GOOGLE = "nodrive_backup_stop_google"
     const val KEY_MOVE_GOOGLE = "nodrive_backup_move_google"
     private const val ORDER_FIRST = -1
+    private const val TAG = "BackupSettingsSection"
 
+    /** Never throws: Settings must open even if the Backup section cannot be built. */
     @JvmStatic
+    @Suppress("TooGenericExceptionCaught")
     fun install(activity: PreferenceActivity, screen: PreferenceScreen, user: User?, viewThemeUtils: ViewThemeUtils) {
+        try {
+            build(activity, screen, user, viewThemeUtils)
+        } catch (e: RuntimeException) {
+            Log_OC.w(TAG, "backup section not shown: ${e.javaClass.simpleName}")
+        }
+    }
+
+    private fun build(
+        activity: PreferenceActivity,
+        screen: PreferenceScreen,
+        user: User?,
+        viewThemeUtils: ViewThemeUtils
+    ) {
         if (!activity.resources.getBoolean(R.bool.nodrive_backup) || user == null || user.isAnonymous) return
         val category = PreferenceCategory(activity).apply {
             title = activity.getString(R.string.nodrive_backup_category)
@@ -138,9 +155,11 @@ object BackupSettingsSection {
     private fun enabledOwnedMediaFolders(context: Context, account: String, snapshot: BackupSnapshot): Int {
         val provider = SyncedFolderProvider(context.contentResolver, AppPreferencesImpl.fromContext(context), ClockImpl())
         val media = setOf(MediaFolderType.IMAGE, MediaFolderType.VIDEO)
-        return SyncedFolderStore(provider, ClockImpl()).rows().count {
-            it.account == account && it.enabled && it.type in media && it.id in snapshot.owned
-        }
+        return SyncedFolderStore(provider, ClockImpl()).rows()
+            .filter { it.account == account && it.enabled && it.type in media && it.id in snapshot.owned }
+            .map { it.path }
+            .distinct()
+            .size
     }
 
     /** Re-reads the state whenever this Settings screen comes back, so no hook is needed in SettingsActivity. */

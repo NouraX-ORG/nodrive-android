@@ -16,15 +16,19 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.MediaStore
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.nextcloud.client.account.UserAccountManager
 import com.nextcloud.client.account.UserAccountManagerImpl
 import com.nextcloud.client.core.ClockImpl
+import com.nextcloud.client.jobs.BackgroundJobManagerImpl
 import com.nextcloud.client.preferences.AppPreferencesImpl
 import com.owncloud.android.MainApp
 import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
@@ -62,7 +66,7 @@ class BackupTestSupport {
             BackupState.forget(context, it.name)
             manager.removeAccountExplicitly(it)
         }
-        deleteRowsOfTestAccounts()
+        wipeAllAccountsAndRowsCiEmulatorOnly()
         val account = Account("$user@$url", type)
         check(manager.addAccountExplicitly(account, password, null)) { "account not added" }
         manager.setUserData(
@@ -78,13 +82,31 @@ class BackupTestSupport {
         return account
     }
 
-    /** Test clean-up only: removes the rows this test class made so the next test starts clean. */
-    fun deleteRowsOfTestAccounts() {
+    /**
+     * CI emulator only: removes every NoDrive account's Auto upload row, not just the ones a test made. Never call this
+     * on a phone that has real data.
+     */
+    fun wipeAllAccountsAndRowsCiEmulatorOnly() {
         val rows = provider
         rows.syncedFolders.forEach { rows.deleteSyncedFolder(it.id) }
     }
 
     fun rows(): List<SyncedFolder> = provider.syncedFolders
+
+    /** Runs a shell command as the shell user (for appops) and waits for it to end. */
+    fun shell(command: String): String =
+        ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use {
+            it.readBytes().decodeToString()
+        }
+
+    /** The unique work name of upstream's Auto upload for a row (BackgroundJobManagerImpl.startAutoUpload). */
+    fun autoUploadWorkStates(rowId: Long): List<WorkInfo.State> = WorkManager.getInstance(context)
+        .getWorkInfosForUniqueWork("${BackgroundJobManagerImpl.JOB_IMMEDIATE_FILES_SYNC}_$rowId").get().map { it.state }
+
+    fun waitForAutoUploadToStop(rowIds: List<Long>, timeoutMillis: Long) =
+        waitFor("no Auto upload work running or queued for $rowIds", timeoutMillis) {
+            true.takeIf { rowIds.all { id -> autoUploadWorkStates(id).all { it.isFinished } } }
+        }
 
     fun state(account: String) = BackupState(account, ArbitraryDataProviderImpl(context))
 

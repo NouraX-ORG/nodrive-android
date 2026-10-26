@@ -35,12 +35,6 @@ class PhoneFolders(private val context: Context) : DeviceFolders {
             .map { it.absolutePath }
     }
 
-    private fun toInfo(folder: MediaFolder): MediaFolderInfo? {
-        val path = folder.absolutePath ?: return null
-        val type = folder.type ?: return null
-        return MediaFolderInfo(path, type, folder.folderName, SyncedFolderUtils.isQualifyingMediaFolder(folder))
-    }
-
     private fun hasFileAccess() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         PermissionUtil.checkAllFilesAccess()
     } else {
@@ -50,9 +44,17 @@ class PhoneFolders(private val context: Context) : DeviceFolders {
     companion object {
         private const val ITEM_LIMIT = 1
 
-        fun deviceName(context: Context): String? = Settings.Global.getString(
-            context.contentResolver,
-            Settings.Global.DEVICE_NAME
-        ) ?: Build.MODEL
+        /** Also used for the folders upstream's detection already read, so the phone is not scanned twice. */
+        fun toInfo(folder: MediaFolder): MediaFolderInfo? {
+            val path = folder.absolutePath ?: return null
+            val type = folder.type ?: return null
+            return MediaFolderInfo(path, type, SyncedFolderUtils.isQualifyingMediaFolder(folder))
+        }
+
+        /** The phone's name as a folder name: the model when the name has nothing readable in it. */
+        fun deviceName(context: Context): String = BackupPaths.deviceFolderName(
+            Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME),
+            Build.MODEL
+        )
     }
 }

@@ -14,11 +14,8 @@ interface FolderStore {
     /** Writes a new enabled row and returns its id, or a negative number when it could not be stored. */
     fun create(account: String, spec: FolderSpec, defaults: BackupDefaults): Long
 
-    /** Gives an existing disabled row the backup's settings and enables it. */
-    fun adopt(rowId: Long, spec: FolderSpec, defaults: BackupDefaults)
-
     fun enable(rowId: Long)
 
-    /** Stops the row: it is kept, and so are the phone's and the Drive's files. */
+    /** Stops the row and the upload now running for it: the row is kept, and so are the phone's and the Drive's files. */
     fun disable(rowId: Long)
 }

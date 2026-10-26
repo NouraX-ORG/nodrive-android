@@ -29,10 +29,12 @@ object BackupAutoAdd {
     ) {
         try {
             if (!BackupControllers.isAvailable(context)) return
+            // The folders upstream's detection just read are reused for every account, so there is no second scan.
+            val folders by lazy { detected.mapNotNull { PhoneFolders.toInfo(it) } }
             userAccountManager.allUsers.forEach { user ->
                 val controller = BackupControllers.create(context, syncedFolderProvider, clock, user.accountName)
                 val snapshot = controller.snapshot()
-                if (snapshot.mediaOn || snapshot.docsOn) controller.autoAdd()
+                if (snapshot.mediaOn || snapshot.docsOn) controller.autoAdd(detected = folders)
             }
         } catch (e: Exception) {
             Log_OC.w(TAG, "automatic folder add skipped: ${e.javaClass.simpleName}")

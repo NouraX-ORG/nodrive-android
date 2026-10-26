@@ -23,10 +23,9 @@ class BackupPlannerTest {
     private val documents = "/storage/emulated/0/Documents"
     private val download = "/storage/emulated/0/Download"
 
-    private fun image(path: String, qualifies: Boolean = true) =
-        MediaFolderInfo(path, MediaFolderType.IMAGE, path.substringAfterLast('/'), qualifies)
+    private fun image(path: String, qualifies: Boolean = true) = MediaFolderInfo(path, MediaFolderType.IMAGE, qualifies)
 
-    private fun video(path: String) = MediaFolderInfo(path, MediaFolderType.VIDEO, path.substringAfterLast('/'))
+    private fun video(path: String) = MediaFolderInfo(path, MediaFolderType.VIDEO)
 
     private fun row(id: Long, path: String, type: MediaFolderType, enabled: Boolean, owner: String = account) =
         FolderRow(id, path, type, owner, enabled)
@@ -49,7 +48,6 @@ class BackupPlannerTest {
                         rows = rows + FolderRow(id, op.spec.path, op.spec.type, "a@h", true)
                         owned += id
                     }
-                    is BackupOp.Adopt -> rows = rows.map { if (it.id == op.rowId) it.copy(enabled = true) else it }
                     is BackupOp.Enable -> rows = rows.map { if (it.id == op.rowId) it.copy(enabled = true) else it }
                     is BackupOp.Disable -> rows = rows.map { if (it.id == op.rowId) it.copy(enabled = false) else it }
                 }
@@ -108,14 +106,25 @@ class BackupPlannerTest {
     }
 
     @Test
-    fun aDisabledRowOfTheUserIsAdoptedWithTheSameId() {
+    fun aDisabledRowOfTheUserIsNotChangedNotOwnedAndReported() {
         val rows = listOf(row(5, camera, MediaFolderType.IMAGE, enabled = false))
         val plan = BackupPlanner.enableMedia(listOf(image(camera)), rows, BackupSnapshot(), account, root)
-        assertEquals(
-            listOf<BackupOp>(BackupOp.Adopt(5, FolderSpec(camera, MediaFolderType.IMAGE, "$root/DCIM/Camera"))),
-            plan.ops
+        assertTrue(plan.ops.isEmpty())
+        assertFalse(5L in plan.state.owned)
+        assertEquals(listOf(FolderSpec(camera, MediaFolderType.IMAGE, "$root/DCIM/Camera")), plan.leftAlone)
+    }
+
+    @Test
+    fun aStorageVolumeAsABucketIsSkipped() {
+        val plan = BackupPlanner.enableMedia(
+            listOf(image("/storage/emulated/0"), image("/storage/1234-ABCD/"), image(camera)),
+            emptyList(),
+            BackupSnapshot(),
+            account,
+            root
         )
-        assertTrue(5L in plan.state.owned)
+        assertEquals(1, plan.ops.size)
+        assertEquals(setOf("1:$camera"), plan.state.seen)
     }
 
     @Test
@@ -168,8 +177,18 @@ class BackupPlannerTest {
 
     @Test
     fun noOperationCanDelete() {
-        val names = BackupOp::class.sealedSubclasses.map { it.simpleName }.toSet()
-        assertEquals(setOf("Create", "Adopt", "Enable", "Disable"), names)
+        // An exhaustive when: a new kind of operation (for example a delete) does not compile until it is looked at.
+        fun kind(op: BackupOp): String = when (op) {
+            is BackupOp.Create -> "Create"
+            is BackupOp.Enable -> "Enable"
+            is BackupOp.Disable -> "Disable"
+        }
+        val ops = listOf(
+            BackupOp.Create(FolderSpec(camera, MediaFolderType.IMAGE, "$root/DCIM/Camera")),
+            BackupOp.Enable(1),
+            BackupOp.Disable(2)
+        )
+        assertEquals(listOf("Create", "Enable", "Disable"), ops.map { kind(it) })
     }
 
     @Test

@@ -9,7 +9,7 @@ package org.nourax.nodrive.backup
 import com.owncloud.android.datamodel.MediaFolderType
 
 /** One media or document folder on the phone. */
-data class MediaFolderInfo(val path: String, val type: MediaFolderType, val name: String?, val qualifies: Boolean = true)
+data class MediaFolderInfo(val path: String, val type: MediaFolderType, val qualifies: Boolean = true)
 
 /** The part of an Auto upload (synced folder) row the planner needs. */
 data class FolderRow(
@@ -34,10 +34,12 @@ data class FolderSpec(
 
 data class BackupDefaults(val wifiOnly: Boolean = true, val chargingOnly: Boolean = false)
 
-/** There is no delete operation: switching the backup off or on never removes a row, a file or an upload. */
+/**
+ * There is no delete operation: switching the backup off or on never removes a row, a file or an upload. There is no
+ * "adopt" either: an Auto upload row made by the user is never rewritten (review S3).
+ */
 sealed interface BackupOp {
     data class Create(val spec: FolderSpec) : BackupOp
-    data class Adopt(val rowId: Long, val spec: FolderSpec) : BackupOp
     data class Enable(val rowId: Long) : BackupOp
     data class Disable(val rowId: Long) : BackupOp
 }

@@ -16,7 +16,12 @@ import com.owncloud.android.files.services.NameCollisionPolicy
 import kotlinx.coroutines.runBlocking
 
 /** [FolderStore] on upstream's synced folder table, so the Auto upload screen shows and edits the same rows. */
-class SyncedFolderStore(private val provider: SyncedFolderProvider, private val clock: Clock) : FolderStore {
+class SyncedFolderStore(
+    private val provider: SyncedFolderProvider,
+    private val clock: Clock,
+    /** Stops the Auto upload work that is running or queued for a row id (the real one asks WorkManager). */
+    private val cancelUploads: (Long) -> Unit = {}
+) : FolderStore {
     override fun rows(): List<FolderRow> = provider.syncedFolders.map {
         FolderRow(it.id, it.localPath, it.type, it.account, it.isEnabled)
     }
@@ -43,27 +48,13 @@ class SyncedFolderStore(private val provider: SyncedFolderProvider, private val 
         return provider.storeSyncedFolder(row)
     }
 
-    override fun adopt(rowId: Long, spec: FolderSpec, defaults: BackupDefaults) {
-        val row = provider.getSyncedFolderByID(rowId) ?: return
-        row.remotePath = spec.remotePath
-        row.isWifiOnly = defaults.wifiOnly
-        row.isChargingOnly = defaults.chargingOnly
-        row.setExisting(true)
-        row.isSubfolderByDate = false
-        row.uploadAction = FileUploadWorker.LOCAL_BEHAVIOUR_FORGET
-        row.setNameCollisionPolicy(NameCollisionPolicy.ASK_USER.serialize())
-        row.setExcludeHidden(spec.excludeHidden)
-        row.isHidden = false
-        row.lastScanTimestampMs = SyncedFolder.NOT_SCANNED_YET
-        row.setEnabled(true, clock.currentTime)
-        provider.updateSyncFolder(row)
-    }
-
     override fun enable(rowId: Long) {
         provider.updateSyncedFolderEnabled(rowId, true)
     }
 
     override fun disable(rowId: Long) {
+        // First the work that is uploading now: its loop stops before the next file (the unsent files stay pending).
+        cancelUploads(rowId)
         provider.updateSyncedFolderEnabled(rowId, false)
         // The same step as the Auto upload switch: queued upload entries go, never a file.
         runBlocking { FileUploadHelper.instance().removeEntityFromUploadEntities(rowId) }

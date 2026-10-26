@@ -65,7 +65,7 @@ class BackupSettingsIT {
         runCatching { Intents.release() }
         StopGoogleBackupActivity.starterFactory = { AndroidIntentStarter(it) }
         created.forEach { support.deleteMedia(it) }
-        support.deleteRowsOfTestAccounts()
+        support.wipeAllAccountsAndRowsCiEmulatorOnly()
         BackupState.forget(support.context, account)
     }
 

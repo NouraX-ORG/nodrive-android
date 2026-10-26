@@ -7,8 +7,10 @@
 # "am instrument" (not through Gradle, which uninstalls the app and with it the screenshots the tests saved):
 #   BackupSettingsIT   Settings section, setup screen, Auto upload, Stop Google backup, Takeout guide, first
 #                      sign-in offer. Needs no server; run in the light and in the dark look.
+#   BackupRowsIT       row field values, a user's row left untouched, switch-off stops the running work, the
+#                      Documents and Downloads switch with All files access (appops). Needs no server.
 #   BackupUploadIT     a photo that was already on the phone must appear on the throwaway Nextcloud under
-#                      /Phone backup/<phone>/DCIM/Camera. Needs NODRIVE_WS_URL, NODRIVE_WS_USER, NODRIVE_BK_TOKEN
+#                      /Phone backup/<phone>/DCIM/Camera; an on/off/on run sends every file exactly once. Needs NODRIVE_WS_URL, NODRIVE_WS_USER, NODRIVE_BK_TOKEN
 #                      (masked in the log). The script then checks the server's data folder on its own.
 # Pulls backup-*.png to build/device/screens/backup/ and fails when one of the 12 is missing.
 set -uo pipefail
@@ -20,6 +22,10 @@ APK=app/build/outputs/apk/nodrive/debug/app-nodrive-debug.apk
 TEST_APK=app/build/outputs/apk/androidTest/nodrive/debug/app-nodrive-debug-androidTest.apk
 SETTINGS=org.nourax.nodrive.backup.BackupSettingsIT
 UPLOAD=org.nourax.nodrive.backup.BackupUploadIT
+ROWS=org.nourax.nodrive.backup.BackupRowsIT
+# BackupUploadIT has 2 tests: one photo, then an on/off/on run with two photos; each file must reach the server once.
+UPLOAD_TESTS=2
+EXPECTED_SERVER_FILES=3
 SHOTS="$OUT/screens/backup"
 status=0
 
@@ -44,16 +50,17 @@ run_it light "$SETTINGS" settings
 "$ADB" shell cmd uimode night yes > /dev/null 2>&1 || true
 run_it dark "$SETTINGS" settings
 "$ADB" shell cmd uimode night no > /dev/null 2>&1 || true
+run_it light "$ROWS" rows
 
 if [ -n "${NODRIVE_WS_URL:-}" ] && [ -n "${NODRIVE_BK_TOKEN:-}" ]; then
     run_it light "$UPLOAD" upload
-    if grep -q "OK (1 test)" "$OUT/backup-it-upload-light.log"; then
+    if grep -q "OK ($UPLOAD_TESTS tests)" "$OUT/backup-it-upload-light.log"; then
         # Independent proof: the file is in the server's own data folder, not only visible to the app.
         hits=$(docker exec nodrive-ci-server find /var/www/html/data -path '*Phone backup*' -name 'nodrive-ci-*.jpg' 2> /dev/null | tee "$OUT/backup-server-files.txt" | grep -c .)
-        if [ "$hits" -ge 1 ]; then echo "backup server check: $hits file(s) under Phone backup on the server"; else
-            echo "backup server check: FAIL no file under Phone backup in the server's data folder"; status=1; fi
+        if [ "$hits" -eq "$EXPECTED_SERVER_FILES" ]; then echo "backup server check: exactly $hits file(s) under Phone backup on the server"; else
+            echo "backup server check: FAIL $hits file(s) under Phone backup in the server's data folder, expected $EXPECTED_SERVER_FILES"; status=1; fi
     else
-        echo "backup server check: the upload test did not pass (OK (1 test) missing), so the server was not checked"; status=1
+        echo "backup server check: the upload test did not pass (OK ($UPLOAD_TESTS tests) missing), so the server was not checked"; status=1
     fi
 else
     echo "backup: no test server, upload test skipped"

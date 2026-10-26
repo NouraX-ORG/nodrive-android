@@ -20,6 +20,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.nextcloud.client.core.Clock
 import com.nextcloud.client.jobs.BackgroundJobManager
+import com.nextcloud.utils.BatteryOptimizationHelper
 import com.owncloud.android.R
 import com.owncloud.android.datamodel.SyncedFolderProvider
 import com.owncloud.android.lib.common.utils.Log_OC
@@ -47,6 +48,11 @@ class BackupSetupActivity : ToolbarActivity() {
 
     private lateinit var action: BackupAction
 
+    /** What the screen shows once the change is done, kept over a rotation so nothing is asked or applied twice. */
+    private var finishedMessage = 0
+    private var finishedLines = ""
+    private var finishedWithNote = false
+
     private val allFilesAccessScreen = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (BackupAccess.docsGranted(this)) applyChange() else finishDenied(R.string.nodrive_backup_docs_access_denied)
     }
@@ -71,7 +77,30 @@ class BackupSetupActivity : ToolbarActivity() {
             viewThemeUtils.material.colorMaterialButtonPrimaryTonal(this)
             setOnClickListener { startActivity(Intent(this@BackupSetupActivity, SyncedFoldersActivity::class.java)) }
         }
-        proceed()
+        findViewById<MaterialButton>(R.id.nodrive_backup_battery_button).apply {
+            viewThemeUtils.material.colorMaterialButtonPrimaryTonal(this)
+            setOnClickListener { BatteryOptimizationHelper.openBatteryOptimizationSettings(this@BackupSetupActivity) }
+        }
+        finishedMessage = savedInstanceState?.getInt(STATE_MESSAGE) ?: 0
+        if (finishedMessage != 0) {
+            finishedLines = savedInstanceState?.getString(STATE_LINES).orEmpty()
+            finishedWithNote = savedInstanceState?.getBoolean(STATE_NOTE) == true
+            showFinished()
+        } else {
+            proceed()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_MESSAGE, finishedMessage)
+        outState.putString(STATE_LINES, finishedLines)
+        outState.putBoolean(STATE_NOTE, finishedWithNote)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (finishedMessage != 0) showBatteryRow()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -206,26 +235,49 @@ class BackupSetupActivity : ToolbarActivity() {
         val message = when {
             !action.turnsOn -> R.string.nodrive_backup_result_stopped
             result.lines.isNotEmpty() -> R.string.nodrive_backup_result_folders
-            result.state.owned.isEmpty() -> R.string.nodrive_backup_result_none_found
+            result.state.owned.isEmpty() && result.leftAlone.isEmpty() -> R.string.nodrive_backup_result_none_found
             else -> R.string.nodrive_backup_result_nothing_new
         }
-        findViewById<TextView>(R.id.nodrive_backup_message).setText(message)
-        findViewById<ProgressBar>(R.id.nodrive_backup_progress).visibility = View.GONE
-        findViewById<TextView>(R.id.nodrive_backup_lines).apply {
-            text = result.lines.joinToString("\n") { "${it.relativePath}  →  ${it.remotePath}" }
-            visibility = if (result.lines.isEmpty()) View.GONE else View.VISIBLE
+        val covered = result.lines.joinToString("\n") { "${it.relativePath}  →  ${it.remotePath}" }
+        val left = if (result.leftAlone.isEmpty()) {
+            ""
+        } else {
+            getString(R.string.nodrive_backup_result_left_alone) + "\n" + result.leftAlone.joinToString("\n")
         }
-        showButtons(withNote = action.turnsOn)
+        finishedMessage = message
+        finishedLines = listOf(covered, left).filter { it.isNotEmpty() }.joinToString("\n\n")
+        finishedWithNote = action.turnsOn
+        showFinished()
     }
 
     private fun finishDenied(message: Int) {
-        findViewById<TextView>(R.id.nodrive_backup_message).setText(message)
+        finishedMessage = message
+        finishedLines = ""
+        finishedWithNote = false
+        showFinished()
+    }
+
+    private fun showFinished() {
+        findViewById<TextView>(R.id.nodrive_backup_message).setText(finishedMessage)
         findViewById<ProgressBar>(R.id.nodrive_backup_progress).visibility = View.GONE
-        showButtons(withNote = false)
+        findViewById<TextView>(R.id.nodrive_backup_lines).apply {
+            text = finishedLines
+            visibility = if (finishedLines.isEmpty()) View.GONE else View.VISIBLE
+        }
+        showButtons(withNote = finishedWithNote)
+    }
+
+    /** The same offer as upstream's Auto upload switch: the first big backup can stall on a battery-limited phone. */
+    private fun showBatteryRow() {
+        val show = finishedWithNote && BatteryOptimizationHelper.isBatteryOptimizationEnabled(this)
+        val visibility = if (show) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.nodrive_backup_battery_note).visibility = visibility
+        findViewById<View>(R.id.nodrive_backup_battery_button).visibility = visibility
     }
 
     private fun showButtons(withNote: Boolean) {
         findViewById<View>(R.id.nodrive_backup_note).visibility = if (withNote) View.VISIBLE else View.GONE
+        showBatteryRow()
         findViewById<View>(R.id.nodrive_backup_open_auto_upload).visibility = View.VISIBLE
         findViewById<View>(R.id.nodrive_backup_done).visibility = View.VISIBLE
     }
@@ -239,6 +291,9 @@ class BackupSetupActivity : ToolbarActivity() {
 
     companion object {
         private const val TAG = "BackupSetupActivity"
+        private const val STATE_MESSAGE = "nodrive_backup_state_message"
+        private const val STATE_LINES = "nodrive_backup_state_lines"
+        private const val STATE_NOTE = "nodrive_backup_state_note"
 
         fun intent(context: Context, action: BackupAction): Intent =
             Intent(context, BackupSetupActivity::class.java).putExtra(BackupAction.EXTRA_ACTION, action.name)

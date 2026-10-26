@@ -25,18 +25,17 @@ class BackupControllerTest {
 
         override fun rows() = rows
 
+        /** Number of creates that work before the next one throws, like a full database would. */
+        var createsUntilFailure = Int.MAX_VALUE
+
         override fun create(account: String, spec: FolderSpec, defaults: BackupDefaults): Long {
+            if (createsUntilFailure-- <= 0) throw IllegalStateException("database is full")
             val id = nextId++
             calls += "create:$id"
             specs += spec
             defaultsSeen += defaults
             rows = rows + FolderRow(id, spec.path, spec.type, account, true)
             return id
-        }
-
-        override fun adopt(rowId: Long, spec: FolderSpec, defaults: BackupDefaults) {
-            calls += "adopt:$rowId"
-            rows = rows.map { if (it.id == rowId) it.copy(enabled = true) else it }
         }
 
         override fun enable(rowId: Long) {
@@ -61,8 +60,8 @@ class BackupControllerTest {
     private val store = FakeStore()
     private val devices = FakeDevices(
         listOf(
-            MediaFolderInfo(camera, MediaFolderType.IMAGE, "Camera"),
-            MediaFolderInfo(movies, MediaFolderType.VIDEO, "Movies")
+            MediaFolderInfo(camera, MediaFolderType.IMAGE),
+            MediaFolderInfo(movies, MediaFolderType.VIDEO)
         )
     )
     private val controller = BackupController("a@h", devices, store, state, "Pixel 8")
@@ -130,7 +129,7 @@ class BackupControllerTest {
     fun autoAddCreatesANewFolderOnlyWhileTheSwitchIsOn() {
         assertTrue(controller.autoAdd().rowsToStart.isEmpty())
         controller.enableMedia()
-        devices.media = devices.media + MediaFolderInfo("/storage/emulated/0/Pictures/Screenshots", MediaFolderType.IMAGE, "S")
+        devices.media = devices.media + MediaFolderInfo("/storage/emulated/0/Pictures/Screenshots", MediaFolderType.IMAGE)
 
         val added = controller.autoAdd()
         assertEquals(1, added.rowsToStart.size)
@@ -184,5 +183,67 @@ class BackupControllerTest {
         controller.disableMedia()
         assertTrue(store.calls.none { it.endsWith(":1") })
         assertTrue(store.rows.first { it.id == 1L }.enabled)
+    }
+
+    @Test
+    fun aFailurePartWayKeepsTheRowsAlreadyMadeAsOwnedSoSwitchingOffStopsThem() {
+        store.createsUntilFailure = 1
+        try {
+            controller.enableMedia()
+            org.junit.Assert.fail("the second create should have failed")
+        } catch (_: IllegalStateException) {
+            // expected: the store ran out of room
+        }
+        val saved = state.read()
+        assertEquals(setOf(10L), saved.owned)
+        assertEquals("/Phone backup/Pixel 8", saved.root)
+        assertFalse(saved.mediaOn)
+
+        controller.disableMedia()
+        assertTrue(store.rows.none { it.enabled })
+        assertTrue(store.calls.contains("disable:10"))
+    }
+
+    @Test
+    fun aRowOfTheUserIsNeverChangedAndIsReported() {
+        store.rows = listOf(FolderRow(1, camera, MediaFolderType.IMAGE, "a@h", false))
+        val result = controller.enableMedia()
+        assertTrue(store.calls.none { it.endsWith(":1") })
+        assertFalse(store.rows.first { it.id == 1L }.enabled)
+        assertFalse(1L in state.read().owned)
+        assertEquals(listOf("DCIM/Camera"), result.leftAlone)
+        controller.disableMedia()
+        assertTrue(store.calls.none { it.endsWith(":1") })
+    }
+
+    @Test
+    fun theTwoRowsOfOneFolderGiveOneResultLine() {
+        devices.media = listOf(
+            MediaFolderInfo(camera, MediaFolderType.IMAGE),
+            MediaFolderInfo(camera, MediaFolderType.VIDEO)
+        )
+        val result = controller.enableMedia()
+        assertEquals(2, result.rowsToStart.size)
+        assertEquals(1, result.lines.size)
+    }
+
+    @Test
+    fun autoAddUsesTheFoldersItWasGivenAndDoesNotScanThePhoneAgain() {
+        controller.enableMedia()
+        val reading = object : DeviceFolders {
+            var reads = 0
+
+            override fun mediaFolders(): List<MediaFolderInfo> {
+                reads++
+                return emptyList()
+            }
+
+            override fun documentFolders(): List<String> = emptyList()
+        }
+        val scanning = BackupController("a@h", reading, store, state, "Pixel 8")
+        val found = listOf(MediaFolderInfo("/storage/emulated/0/Pictures/Screenshots", MediaFolderType.IMAGE))
+        val added = scanning.autoAdd(detected = found)
+        assertEquals(1, added.rowsToStart.size)
+        assertEquals(0, reading.reads)
     }
 }

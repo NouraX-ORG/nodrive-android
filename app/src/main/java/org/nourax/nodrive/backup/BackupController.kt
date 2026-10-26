@@ -36,16 +36,20 @@ class BackupController(
         BackupPlanner.disableDocs(rows, snapshot, account)
     }
 
-    /** For new folders while a switch is on; does nothing (and reads nothing from the phone) while both are off. */
-    fun autoAdd(defaults: BackupDefaults = BackupDefaults()): BackupResult = run(defaults) { snapshot, rows ->
-        if (!snapshot.mediaOn && !snapshot.docsOn) {
-            BackupPlan(emptyList(), snapshot)
-        } else {
-            val docs = if (snapshot.docsOn) devices.documentFolders() else emptyList()
-            val media = if (snapshot.mediaOn) devices.mediaFolders() else emptyList()
-            BackupPlanner.autoAdd(media, docs, rows, snapshot, account, rootOf(snapshot))
+    /**
+     * For new folders while a switch is on; does nothing (and reads nothing from the phone) while both are off.
+     * [detected] are media folders that were just read from the phone, so they are not read again.
+     */
+    fun autoAdd(defaults: BackupDefaults = BackupDefaults(), detected: List<MediaFolderInfo>? = null): BackupResult =
+        run(defaults) { snapshot, rows ->
+            if (!snapshot.mediaOn && !snapshot.docsOn) {
+                BackupPlan(emptyList(), snapshot)
+            } else {
+                val docs = if (snapshot.docsOn) devices.documentFolders() else emptyList()
+                val media = if (snapshot.mediaOn) detected ?: devices.mediaFolders() else emptyList()
+                BackupPlanner.autoAdd(media, docs, rows, snapshot, account, rootOf(snapshot))
+            }
         }
-    }
 
     private fun rootOf(snapshot: BackupSnapshot) = BackupPaths.root(snapshot.root, deviceName)
 
@@ -65,11 +69,8 @@ class BackupController(
                     owned += it
                     start += it
                     lines += line(op.spec, root)
-                }
-                is BackupOp.Adopt -> {
-                    store.adopt(op.rowId, op.spec, defaults)
-                    start += op.rowId
-                    lines += line(op.spec, root)
+                    // At once, so a failure or a dead process later never leaves a running row that is not ours.
+                    state.write(before.copy(root = made.state.root, owned = owned.toSet()))
                 }
                 is BackupOp.Enable -> {
                     store.enable(op.rowId)
@@ -80,11 +81,12 @@ class BackupController(
         }
         val after = made.state.copy(owned = owned)
         if (after != before) state.write(after)
-        BackupResult(start, lines, after)
+        BackupResult(start, lines.distinct(), after, made.leftAlone.map { relative(it, root) }.distinct())
     }
 
-    private fun line(spec: FolderSpec, root: String) =
-        BackupLine(spec.remotePath.removePrefix("$root/"), spec.remotePath)
+    private fun relative(spec: FolderSpec, root: String) = spec.remotePath.removePrefix("$root/")
+
+    private fun line(spec: FolderSpec, root: String) = BackupLine(relative(spec, root), spec.remotePath)
 
     private companion object {
         val LOCK = Any()
