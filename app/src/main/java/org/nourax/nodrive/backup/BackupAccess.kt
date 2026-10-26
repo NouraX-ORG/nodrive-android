@@ -8,9 +8,9 @@ package org.nourax.nodrive.backup
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.net.toUri
 import com.owncloud.android.utils.PermissionUtil
 
 /** What the phone has to allow before the backup may be switched on (design 2.5 and 2.6). */
@@ -36,10 +36,10 @@ object BackupAccess {
         return listOf(
             PermissionUtil.getManageAllFilesIntent(context),
             Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri())
         )
     }
 
     fun appDetailsIntent(context: Context) =
-        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri())
 }

@@ -197,7 +197,13 @@ class BackupSettingsIT {
                 Intents.getIntents().firstOrNull { it.data == Uri.parse("https://takeout.google.com") }
             }
             assertEquals(Intent.ACTION_VIEW, sent.action)
-            assertFalse(sent.hasExtra(Browser.EXTRA_HEADERS))
+            // The Custom Tab library adds the phone's language as Accept-Language; nothing else may travel with it.
+            val headers = sent.getBundleExtra(Browser.EXTRA_HEADERS)
+            assertTrue(
+                "extra headers: ${headers?.keySet()}",
+                headers == null || headers.keySet().all { it.equals("Accept-Language", ignoreCase = true) }
+            )
+            assertTrue(sent.extras?.keySet().orEmpty().none { it.contains("auth", ignoreCase = true) })
             assertTrue(Intents.getIntents().none { it.data?.host?.contains("nourax") == true })
         }
     }
