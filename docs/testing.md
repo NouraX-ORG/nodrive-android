@@ -12,9 +12,15 @@
 - **The Workspace apps menu is proven in CI against a throwaway local server** (not drive.nourax.org):
   the emulator signs in to it and the in-app pages are checked. The phone test of the real Drive is
   owner tests 12 to 14 (section 4).
+- **The Backup settings are proven in CI on the emulator** against the same kind of throwaway server:
+  the switch, the Auto upload rows, a photo that was already on the phone arriving on the server, the
+  Stop Google backup buttons and the Takeout button. The phone test of the real Drive is owner tests
+  15 to 21 (section 4).
 
+The Backup rows, the Workspace menu rows, the unit-test and the screenshot rows come from [run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749)
+on branch `feature/backup-settings` (`a6d9e8fe7a`, 2026-10-26; the commit that was merged into `main`).
 The Workspace apps rows come from [run 40352108524](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40352108524) on branch `feature/workspace-apps`
-(`c02bc5970a`, 2026-10-26). The other CI rows are from [run 40188742857](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40188742857)
+(`c02bc5970a`). The other CI rows are from [run 40188742857](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40188742857)
 on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: see the
 [Actions tab](https://github.com/NouraX-ORG/nodrive-android/actions/workflows/android.yml).
 
@@ -25,7 +31,7 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Branding gate: rebrand and icons up to date, keyword sweep, pins, self-test | CI | pass | Job "Branding gate": "rebrand --check: up to date", "make-icons --check: all images up to date", "882 hits: internal 254, legal 628, unclassified 0", "PASS - no unclassified hit, every pin holds"; self-test on stock genericDebug: 1315 hits, 528 unclassified |
 | Builds a debug-signed APK of the nodrive flavour | CI | pass | Job "APK and unit tests": `app-nodrive-debug.apk`, SHA-256 `0c2ee105a34838b843a538575e9c36965dd3760571ec4e1bd6f10a1085356c63`, `apksigner verify` OK |
 | APK identity and side-by-side ids (package, labels, authorities, account type, scheme, link host, login URL, push URL, user agent) | CI | pass | `tools/check-apk.py`: "Result PASS"; 113 labels all "NoDrive"; all 7 authorities and the declared permission are `org.nourax.nodrive*`; links only `https://drive.nourax.org` |
-| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) |
+| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after it: 110 suites, 662 tests, 0 failed, 3 skipped |
 | Lint | CI | pass | `lintNodriveDebug`: "No issues found." (upstream config, warnings are errors) |
 | Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 74 listed classes (81 in the JUnit report, which counts nested test classes on their own), 486 tests, 0 failed. The list and the reason for every class or method left out: `tools/ci/instrumented-tests.txt` |
 | App name, version, account type and ids at runtime | CI | pass | `NoDriveBrandingIT`: `nameAndVersion`, `accountTypeIsOurs`, `providerAuthoritiesAreOurs` |
@@ -47,6 +53,16 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Workspace apps: the credential never leaves the account's own server | CI | pass | `WorkspaceWebGuardsIT` (inside "workspace IT (light): OK"): another host, http, another port and a redirect get no credential and no cookie, and a probe server on a second host received none (a positive control proves the probe works). Unit tests `WorkspaceOriginTest`, `WorkspaceWebGuardsTest`, `WorkspaceCookiesTest`. The workflow's token grep over the logs: no hit |
 | Workspace apps: links in the notification list that point to the account's own server open inside the app, other links still leave the app | CI | pass | Unit test `WorkspaceRoutingTest` (run 40352108524, unit tests green) |
 | Workspace apps: removing the account clears the in-app web data | CI | pass | Emulator job: "workspace IT (removal): OK (1 test)". It runs last, because the removal revokes the app password and the server then throttles for a while |
+| Backup: planning and safety rules (which folders, the remote path, own versus the user's rows, no delete operation exists) | CI | pass | Unit tests in [run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749): `BackupPlannerTest` (21), `BackupControllerTest` (10), `BackupPathsTest` (9), `BackupStateTest` (5), `BackupSafetyTest` (2: the operation list has no delete, and a source check finds no delete, overwrite, move or delete-after-upload call in `org.nourax.nodrive.backup`). Plans are replayed on a fake store: switching on twice changes nothing, switching off touches only the rows the switch made, another account's rows are never touched |
+| Backup switch: turning it on makes Auto upload rows for the phone's media folders, with existing files, folder names kept, Wi-Fi only, remote root `/Phone backup/<phone name>`; Auto upload shows them | CI | pass | Emulator job: "backup IT settings (light): OK (4 tests)" and "(dark): OK (4 tests)" (`BackupSettingsIT`: row fields, the Auto upload list, the kept file, the result screen). Screens: [Settings](screenshots/android/backup-settings-light.png), [result](screenshots/android/backup-setup-result-light.png), [Auto upload](screenshots/android/backup-auto-upload-light.png) |
+| Backup switch: a photo that was already on the phone is uploaded, under the backup folder, on the server | CI | pass | Emulator job: "backup IT upload (light): OK (1 test)" (`BackupUploadIT`) and "backup server check: 1 file(s) under Phone backup on the server" (a `find` on the throwaway server's data folder). Not yet proven in CI: on, off, on again with an exact count of one copy (review item S7a; the server check counts at least one) |
+| Backup switch off: stops the folders it turned on, deletes nothing | CI | pass (partly) | Unit tests `BackupControllerTest` (only owned and enabled rows are disabled; user-made rows and other accounts' rows are never touched). Known gap from the independent review (S2): an upload that is already running when the switch is turned off may finish its pending files; the next scan stops. Listed as a to-do (section 6) |
+| Stop Google backup: cards for Google Photos, WhatsApp and Google device backup; an app's card shows only when the app is installed (device backup always); every intent has a safe fallback; no QUERY_ALL_PACKAGES | CI | pass | Unit tests `GoogleBackupPlacesTest` (8). `BackupSettingsIT` checks the stubbed Open intents. `tools/check-apk.py`: QUERY_ALL_PACKAGES absent, and package visibility declared for `com.google.android.apps.photos`, `com.whatsapp`, `com.whatsapp.w4b`. Screen: [Stop Google backup](screenshots/android/backup-stop-google-light.png) |
+| Move your Google data to NoDrive: guide text and the Open Google Takeout button (browser tab at https://takeout.google.com, no NoDrive credential) | CI | pass | `BackupSettingsIT`: the button starts a Custom Tab with the data `https://takeout.google.com`; no header other than Accept-Language and no sign-in extra is sent. Screen: [Move from Google](screenshots/android/backup-move-google-light.png) |
+| First-sign-in offer: shown once, then not again | CI | pass | `BackupSettingsIT`: the dialog "Back up your photos and videos to NoDrive?" shows once for a new sign-in and not again. Screen: [offer](screenshots/android/backup-offer-light.png) |
+| Workspace menu leaves out the server's Files, Activity and Photos entries (NoDrive has its own) | CI | pass | Unit test `WorkspaceAppsParserTest` (hidden by id or by app name). Server proof: the throwaway server sends `dashboard, files, office, photos, circles, activity` and the menu shows Dashboard, Office and Teams ([menu](screenshots/android/workspace-menu-light.png)). `WorkspaceAppsIT` has a positive control that the server did send both entries |
+| Branding gate and checks with the Backup change | CI | pass | Run 40399452749: "rebrand --check: up to date"; "check-branding: PASS - no unclassified hit"; `check-apk.py` "Result PASS"; "backup tests: PASS", "workspace apps test: PASS", "screen sweep: PASS" (78/78 screens dumped, 0 hits for Nextcloud); lint green. No new string, layout or colour names Nextcloud |
+| Independent review of the Backup change | CI artifacts, read-only | approved, no blocking finding | 7 should-fix and 13 nits, all with a fix in the review file `plans/backup-settings-review-1.md` (nodrive-clients folder). They are the to-dos in section 6 |
 | Sign in with "Log in with Nourax" (owner's normal account, not the emergency admin) | owner | pending | Owner test 2 |
 | The login pages in the browser show no Nextcloud text | owner | pending | Owner test 2 (server side, see section 5) |
 | Device name under web Settings > Security > Devices | owner | pending | Owner test 3: read it out |
@@ -62,6 +78,13 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Workspace apps menu on the real Drive: lists the user's apps, opens them inside NoDrive already signed in, back returns to the files | owner | pending | Owner test 12 |
 | A notification link to drive.nourax.org opens inside NoDrive, signed in | owner | pending | Owner test 13 |
 | Sign out: the in-app pages are signed out too; signing in again works | owner | pending | Owner test 14 |
+| Backup: the switch "Back up all photos and videos to NoDrive" turns on every media folder; old and new photos arrive on the Drive under Phone backup; Auto upload lists the folders | owner | pending | Owner test 15 |
+| Backup: "Also back up Documents and Downloads" and the All files access step | owner | pending | Owner test 16 |
+| Backup: the one-time offer after the first sign-in | owner | pending | Owner test 17 |
+| Backup: switching off stops uploads and deletes nothing | owner | pending | Owner test 18 |
+| Stop Google backup: each Open button takes you to the right place | owner | pending | Owner test 19 |
+| Move your Google data to NoDrive: the guide and the Open Google Takeout button | owner | pending | Owner test 20 |
+| Workspace menu: no second Activity and Photos entries | owner | pending | Owner test 21 |
 
 ### Known CI flakiness
 
@@ -84,8 +107,8 @@ test too.
 
 ## 3. Screenshot index
 
-72 screens in [screenshots/android/](screenshots/android/README.md), taken by `tools/ci/sweep.py` in
-run [40169964556](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40169964556). The
+78 screens in [screenshots/android/](screenshots/android/README.md), taken by `tools/ci/sweep.py` in
+run [40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749). The Backup change added Settings pages (Settings has a new Backup section at the top) and moved the numbers, so every link below is to the new image. The
 emulator is Android 15 on a Pixel 6 profile.
 
 - The signed-in screens use a local stand-in account `demo@drive.nourax.org`, added in airplane mode.
@@ -93,7 +116,8 @@ emulator is Android 15 on a Pixel 6 profile.
 - The "Sorry, you have been blocked" browser page is the Drive's firewall, which keeps CI away from
   the login pages. It is expected.
 - Every newer run makes the same set in its `nodrive-android-screenshots` artifact. The 72 screens
-  of run 40188742857 were all looked at for the final sweep.
+  of run 40188742857 were all looked at for the final sweep; the Backup screens and the Settings
+  pages of run 40399452749 were looked at for the independent review.
 
 The cells link to the images. Empty cells: that screen is taken in English, German and Arabic light
 only.
@@ -109,28 +133,44 @@ only.
 | share-sheet | [007](screenshots/android/007-en-light-share-sheet.png) |  | [019](screenshots/android/019-de-light-share-sheet.png) | [026](screenshots/android/026-ar-light-share-sheet.png) |  |
 | launcher-apps | [008](screenshots/android/008-en-light-launcher-apps.png) |  |  |  |  |
 | widget-picker | [009](screenshots/android/009-en-light-widget-picker.png) |  |  |  |  |
-| files | [061](screenshots/android/061-en-light-files.png) | [054](screenshots/android/054-en-dark-files.png) | [046](screenshots/android/046-de-light-files.png) | [037](screenshots/android/037-ar-light-files.png) | [030](screenshots/android/030-ar-dark-files.png) |
-| drawer | [062](screenshots/android/062-en-light-drawer.png) | [055](screenshots/android/055-en-dark-drawer.png) | [047](screenshots/android/047-de-light-drawer.png) | [038](screenshots/android/038-ar-light-drawer.png) | [031](screenshots/android/031-ar-dark-drawer.png) |
-| settings | [063](screenshots/android/063-en-light-settings.png) | [056](screenshots/android/056-en-dark-settings.png) | [048](screenshots/android/048-de-light-settings.png) | [039](screenshots/android/039-ar-light-settings.png) | [032](screenshots/android/032-ar-dark-settings.png) |
-| settings-2 | [064](screenshots/android/064-en-light-settings-2.png) | [057](screenshots/android/057-en-dark-settings-2.png) | [049](screenshots/android/049-de-light-settings-2.png) | [040](screenshots/android/040-ar-light-settings-2.png) | [033](screenshots/android/033-ar-dark-settings-2.png) |
-| accounts | [065](screenshots/android/065-en-light-accounts.png) | [058](screenshots/android/058-en-dark-accounts.png) | [050](screenshots/android/050-de-light-accounts.png) | [041](screenshots/android/041-ar-light-accounts.png) | [034](screenshots/android/034-ar-dark-accounts.png) |
-| uploads | [066](screenshots/android/066-en-light-uploads.png) | [059](screenshots/android/059-en-dark-uploads.png) | [051](screenshots/android/051-de-light-uploads.png) | [042](screenshots/android/042-ar-light-uploads.png) | [035](screenshots/android/035-ar-dark-uploads.png) |
-| auto-upload | [067](screenshots/android/067-en-light-auto-upload.png) | [060](screenshots/android/060-en-dark-auto-upload.png) | [052](screenshots/android/052-de-light-auto-upload.png) | [043](screenshots/android/043-ar-light-auto-upload.png) | [036](screenshots/android/036-ar-dark-auto-upload.png) |
-| share-receive | [068](screenshots/android/068-en-light-share-receive.png) |  | [053](screenshots/android/053-de-light-share-receive.png) | [044](screenshots/android/044-ar-light-share-receive.png) |  |
-| system-accounts | [069](screenshots/android/069-en-light-system-accounts.png) |  |  | [045](screenshots/android/045-ar-light-system-accounts.png) |  |
-| notification-channels | [070](screenshots/android/070-en-light-notification-channels.png) |  |  |  |  |
-| widget-drop | [071](screenshots/android/071-en-light-widget-drop.png) |  |  |  |  |
-| widget-configuration | [072](screenshots/android/072-en-light-widget-configuration.png) |  |  |  |  |
+| files | [066](screenshots/android/066-en-light-files.png) | [058](screenshots/android/058-en-dark-files.png) | [049](screenshots/android/049-de-light-files.png) | [038](screenshots/android/038-ar-light-files.png) | [030](screenshots/android/030-ar-dark-files.png) |
+| drawer | [067](screenshots/android/067-en-light-drawer.png) | [059](screenshots/android/059-en-dark-drawer.png) | [050](screenshots/android/050-de-light-drawer.png) | [039](screenshots/android/039-ar-light-drawer.png) | [031](screenshots/android/031-ar-dark-drawer.png) |
+| settings | [068](screenshots/android/068-en-light-settings.png) | [060](screenshots/android/060-en-dark-settings.png) | [051](screenshots/android/051-de-light-settings.png) | [040](screenshots/android/040-ar-light-settings.png) | [032](screenshots/android/032-ar-dark-settings.png) |
+| settings-2 | [069](screenshots/android/069-en-light-settings-2.png) | [061](screenshots/android/061-en-dark-settings-2.png) | [052](screenshots/android/052-de-light-settings-2.png) | [041](screenshots/android/041-ar-light-settings-2.png) | [033](screenshots/android/033-ar-dark-settings-2.png) |
+| settings-3 | [070](screenshots/android/070-en-light-settings-3.png) | [062](screenshots/android/062-en-dark-settings-3.png) | [053](screenshots/android/053-de-light-settings-3.png) | [042](screenshots/android/042-ar-light-settings-3.png) | [034](screenshots/android/034-ar-dark-settings-3.png) |
+| settings-4 |  |  |  | [043](screenshots/android/043-ar-light-settings-4.png) |  |
+| accounts | [071](screenshots/android/071-en-light-accounts.png) | [063](screenshots/android/063-en-dark-accounts.png) | [054](screenshots/android/054-de-light-accounts.png) | [044](screenshots/android/044-ar-light-accounts.png) | [035](screenshots/android/035-ar-dark-accounts.png) |
+| uploads | [072](screenshots/android/072-en-light-uploads.png) | [064](screenshots/android/064-en-dark-uploads.png) | [055](screenshots/android/055-de-light-uploads.png) | [045](screenshots/android/045-ar-light-uploads.png) | [036](screenshots/android/036-ar-dark-uploads.png) |
+| auto-upload | [073](screenshots/android/073-en-light-auto-upload.png) | [065](screenshots/android/065-en-dark-auto-upload.png) | [056](screenshots/android/056-de-light-auto-upload.png) | [046](screenshots/android/046-ar-light-auto-upload.png) | [037](screenshots/android/037-ar-dark-auto-upload.png) |
+| share-receive | [074](screenshots/android/074-en-light-share-receive.png) |  | [057](screenshots/android/057-de-light-share-receive.png) | [047](screenshots/android/047-ar-light-share-receive.png) |  |
+| system-accounts | [075](screenshots/android/075-en-light-system-accounts.png) |  |  | [048](screenshots/android/048-ar-light-system-accounts.png) |  |
+| notification-channels | [076](screenshots/android/076-en-light-notification-channels.png) |  |  |  |  |
+| widget-drop | [077](screenshots/android/077-en-light-widget-drop.png) |  |  |  |  |
+| widget-configuration | [078](screenshots/android/078-en-light-widget-configuration.png) |  |  |  |  |
 
 ### Workspace apps screens
 
 Four extra screens from the same emulator run, taken against the throwaway server with the test user
 `citest`. They are in [screenshots/android/](screenshots/android/README.md), named `workspace-*.png`.
+The server sends Files, Activity and Photos too; the menu leaves them out.
 
 | Screen | Light | Dark |
 |---|---|---|
-| The drawer: the files entries, then the server's apps (Dashboard, Office, Photos, ...) | [workspace-menu-light.png](screenshots/android/workspace-menu-light.png) | [workspace-menu-dark.png](screenshots/android/workspace-menu-dark.png) |
-| An app opened inside NoDrive, signed in (Dashboard) | [workspace-page-light.png](screenshots/android/workspace-page-light.png) (still loading, only the page header shows) | [workspace-page-dark.png](screenshots/android/workspace-page-dark.png) |
+| The drawer: the files entries, then the server's apps (Dashboard, Office, Teams, ...) | [workspace-menu-light.png](screenshots/android/workspace-menu-light.png) | [workspace-menu-dark.png](screenshots/android/workspace-menu-dark.png) |
+| An app opened inside NoDrive, signed in (Dashboard) | [workspace-page-light.png](screenshots/android/workspace-page-light.png) | [workspace-page-dark.png](screenshots/android/workspace-page-dark.png) |
+
+### Backup screens
+
+Twelve extra screens from the same run (`BackupSettingsIT`), named `backup-*.png`, light and dark.
+
+| Screen | Light | Dark |
+|---|---|---|
+| Settings, Backup section at the top | [backup-settings-light.png](screenshots/android/backup-settings-light.png) | [backup-settings-dark.png](screenshots/android/backup-settings-dark.png) |
+| Result after the main switch is turned on | [backup-setup-result-light.png](screenshots/android/backup-setup-result-light.png) | [backup-setup-result-dark.png](screenshots/android/backup-setup-result-dark.png) |
+| Auto upload with the folder the switch turned on | [backup-auto-upload-light.png](screenshots/android/backup-auto-upload-light.png) | [backup-auto-upload-dark.png](screenshots/android/backup-auto-upload-dark.png) |
+| The one-time offer after the first sign-in | [backup-offer-light.png](screenshots/android/backup-offer-light.png) | [backup-offer-dark.png](screenshots/android/backup-offer-dark.png) |
+| Stop Google backup | [backup-stop-google-light.png](screenshots/android/backup-stop-google-light.png) | [backup-stop-google-dark.png](screenshots/android/backup-stop-google-dark.png) |
+| Move your Google data to NoDrive | [backup-move-google-light.png](screenshots/android/backup-move-google-light.png) | [backup-move-google-dark.png](screenshots/android/backup-move-google-dark.png) |
 
 ## 4. Owner tests (at home, on the owner's Android phone)
 
@@ -176,7 +216,7 @@ package conflicts, the CI debug key has changed: uninstall NoDrive first, then i
 | 4 | Files | Open a folder; upload a photo; download a file; rename, move and delete a test file | Each step: worked or not |
 | 5 | Share link | On a test file: share > share link; set an expiry date and a password; open the link in a private browser window | Asked for the password? Expiry shown? |
 | 6 | Offline file | On a test file: "Make available offline"; switch on airplane mode; open the file | Did it open? |
-| 7 | Auto upload | Settings > Auto upload: switch on the camera folder; take a photo; wait a minute | Did the photo appear on drive.nourax.org? |
+| 7 | Auto upload | (The one-switch backup in tests 15 to 21 also covers this.) Settings > Auto upload: switch on the camera folder; take a photo; wait a minute | Did the photo appear on drive.nourax.org? |
 | 8 | Dark mode and language | Switch the phone to dark mode, then to another language (for example German or Arabic) | Any screen with Nextcloud's name, logo or blue? |
 | 9 | Mobile data | Away from home, on mobile data: open NoDrive and refresh; upload a small file | Did it sync? |
 | 10 | Sign out | Drawer > Sign out | Back to the sign-in screen? |
@@ -192,6 +232,28 @@ Use the same test build and the owner's normal Nourax account. Do these after te
 | 13 | Notification link | Open the notification list. Tap a notification that has a link to drive.nourax.org (for example a Talk message or a calendar invitation) | Did the page open inside NoDrive, signed in, instead of Chrome? Does a link to another website still open in the phone's browser? |
 | 14 | Sign out and in | Open one Workspace app. Then side menu > Sign out. Sign in again with "Log in with Nourax". Open a Workspace app again | After signing out, are the in-app pages signed out (open NoDrive's menu again only after signing in)? After signing in again, does a Workspace app open signed in with no sign-in page? |
 
+### Tests 15 to 21: Backup, Stop Google backup, Move from Google
+
+Use the newest test build (install the `nodrive-android-apk` of the newest green run on `main`, over
+the old one) and the owner's normal Nourax account. Do these after test 2. **Do test 15 on Wi-Fi.**
+The first backup can be large: leave the phone on Wi-Fi (plugged in if you like) and give it time.
+
+Where things are on the Drive: everything goes under the folder **Phone backup**, then a folder with
+the phone's name, then the phone's own folder names (for example `Phone backup/Pixel 8/Camera`,
+`.../Screenshots`, `.../WhatsApp Images`). No date folders. Two phones with the same default name
+(for example two "Pixel 8") would share one folder; a different file with the same name becomes a
+conflict you decide on, and nothing is overwritten.
+
+| # | Test | What to do | What to report |
+|---|---|---|---|
+| 15 | One backup switch | Open NoDrive > Settings. At the top is **Backup**. Switch on **Back up all photos and videos to NoDrive**. Allow the photo and video access if Android asks. A result screen lists the folders. Tap **Open Auto upload**. Then, on a computer, open drive.nourax.org > Files > **Phone backup** | Which folders did the result screen list (Camera, Screenshots, Pictures, Movies, WhatsApp, ...)? Does Auto upload show the same folders as switched on, with Wi-Fi only on? Did **old** photos (from before you switched on) and a **new** photo (take one now) appear on the Drive, in a folder named like the phone's folder, with no date folders? How long did it take? Did the photos stay on the phone? If the screen offers "allow background activity", did that work? |
+| 16 | Documents and Downloads | In Settings > Backup, switch on **Also back up Documents and Downloads**. Android sends you to **All files access**: allow it for NoDrive, then go back | Did the switch ask for All files access and then turn on? Do the phone's Documents and Download files appear on the Drive under Phone backup? If you say no to All files access, does NoDrive say nothing was changed? |
+| 17 | The offer after sign-in | On a phone that has **never** signed in to NoDrive (or after signing out and signing in as a new account): after the first sign-in a box asks "Back up your photos and videos to NoDrive?" with **Turn on** and **Not now**. (A phone that was already signed in before this update does not get the box: use Settings > Backup.) | Did the box show once? Does **Not now** leave the switch off, and does the box not come back? Does **Turn on** do the same as test 15? |
+| 18 | Switch off | Settings > Backup: switch off the main switch (and the Documents switch if on). Take a new photo and wait a few minutes. Look at the Drive and at Auto upload | Do new photos stay off the Drive? Is Auto upload now off for those folders? Is everything that was already on the Drive still there, and everything on the phone still there? (Nothing is ever deleted.) Switching on again: does it carry on without uploading the same photos twice? (A file that was already uploading when you switched off may still finish.) |
+| 19 | Stop Google backup | Settings > Backup > **Stop Google backup**. For each card tap **Open**: Google Photos (only if installed), Google device backup, WhatsApp (only if installed). Follow the short guide on the card and switch the backup off yourself | Which cards were listed? Did **Open** take you to Google Photos, to Android's Google backup settings (or to the main Settings screen with the guide), and to WhatsApp? Could you follow each guide and find the switch? Did anything crash or do nothing? |
+| 20 | Move from Google | Settings > Backup > **Move your Google data to NoDrive**. Read the guide. Tap **Open Google Takeout** | Is the guide clear (export Drive and Google Photos, download the zip files on a computer, unzip them all into one folder inside the NoDrive folder, the desktop app uploads it with the same folder structure)? Did the browser open takeout.google.com, with no NoDrive sign-in or password involved? |
+| 21 | No duplicates in the menu | Open the side menu | Below NoDrive's own entries (Activities, Media, Albums, ...) are the Workspace apps (for example Dashboard, Office, Talk). Is there **no** second "Activity", **no** second "Photos" and no "Files" there? |
+
 ## 5. Server-side items for the Workspace session
 
 These belong to the Drive server, not to the app. They were found in the server 35 source
@@ -204,5 +266,26 @@ These belong to the Drive server, not to the app. They were found in the server 
 | S3 | The web's "get the mobile apps" links point at Nextcloud's apps | config keys `customclient_android` and `customclient_fdroid` (server `config.sample.php`) | Later, once NoDrive is in a store: point them at NoDrive's listing |
 | S4 | Links to drive.nourax.org do not open NoDrive automatically | No `/.well-known/assetlinks.json` yet; the app uses `autoVerify="false"` | After release signing: publish `assetlinks.json` with the release key's fingerprint |
 | S5 | No push notifications | Nextcloud's push proxy serves only Nextcloud's apps | Later: our own push service |
-| S6 | The names of the Workspace apps in NoDrive's menu come straight from the server's navigation list (`GET /ocs/v2.php/core/navigation/apps`). If an app's name there still says "Nextcloud", NoDrive shows it as is | The app only displays what the server sends | Read the list on the Drive: every entry's name and icon should read "Nourax" or be neutral. NoDrive leaves out `files` only; Activity and Photos are listed and duplicate NoDrive's own entries (owner decision pending) |
+| S6 | The names of the Workspace apps in NoDrive's menu come straight from the server's navigation list (`GET /ocs/v2.php/core/navigation/apps`). If an app's name there still says "Nextcloud", NoDrive shows it as is | The app only displays what the server sends | Read the list on the Drive: every entry's name and icon should read "Nourax" or be neutral. NoDrive leaves out `files`, `activity` and `photos` (NoDrive has its own Activity and Photos screens; owner decision of 2026-10-26) |
 | S7 | The in-app pages are signed in with the phone's app password from Login Flow v2: one request to the server makes a web session. Revoking the password in Settings > Security > Devices stops new pages from opening signed in, but an already open web session is not ended at once (the CI server proof shows this) | Nextcloud's web sessions live on their own after they start | Expect a short delay after a revoke. Ending a web session on the server does not sign the phone out |
+
+## 6. To-dos for later (from the independent review of the Backup change)
+
+None of these blocks the owner's backup.
+
+- **Stop a running upload when the switch is turned off** (review S2): cancel the folder's running
+  upload job when the folder is disabled. Today the running job may finish its pending files; the
+  next scan does not start again.
+- **User-made Auto upload rows that the switch takes over** (S3): save their options and restore them
+  at switch-off, or leave such rows alone. Needs an owner decision.
+- **Save the folders that were turned on after each step**, not only at the end (S1), with a test
+  that fails on the second step.
+- Offer the battery-optimization exemption on the result screen (S5); keep letters of any script in
+  the phone name of the backup folder, for example Arabic (S6); tests for on, off, on again with
+  exactly one copy on the server, for the Documents switch and for taking over a user's row (S7);
+  the smaller items N1 to N13 in the review file.
+- **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_backup.xml`).
+  German, Arabic and the other languages are still to do.
+- On the first real Takeout export, check the zip layout (`Takeout/Drive/...` and
+  `Takeout/Google Photos/...`) and that the NoDrive desktop app uploads it with the same folder
+  structure (design risk R9). Later name those two folders in the guide (review N12).

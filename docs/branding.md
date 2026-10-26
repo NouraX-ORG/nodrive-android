@@ -59,6 +59,8 @@ NoDrive's ids differ from the real Nextcloud app's, so both install and run side
 | Database file | `nextcloud.db` | unchanged (app-private; Room schemas and migrations depend on it) |
 | Notification channel ids, pinned-shortcut ids, broadcast actions | upstream names | unchanged (scoped to the package; names on screen are neutral) |
 | Workspace apps screen (`WorkspaceWebActivity`) | not there | `org.nourax.nodrive.workspace.WorkspaceWebActivity`, not exported, only in the `nodrive` manifest (written by `tools/rebrand.py`) |
+| Backup screens (`BackupSetupActivity`, `StopGoogleBackupActivity`, `MoveFromGoogleActivity`) | not there | `org.nourax.nodrive.backup.*`, not exported, only in the `nodrive` manifest (written by `tools/rebrand.py`) |
+| Package visibility (`<queries>`) | none | `com.google.android.apps.photos`, `com.whatsapp`, `com.whatsapp.w4b` only, so Stop Google backup can show an app's card. No `QUERY_ALL_PACKAGES` (checked by `tools/check-apk.py`) |
 | Store id (later) | `com.nextcloud.client` | `org.nourax.nodrive` |
 
 ## 3. Server, sign-in and what is switched off
@@ -84,7 +86,8 @@ All in `app/src/nodrive/res/values/setup.xml` and `bools.xml`.
 | `license_enabled` | `true` | The one licence row stays (see NOTICE.md) |
 | `osm_geocoder_contact` | empty | No Nextcloud contact address sent to OpenStreetMap Nominatim |
 | `show_drawer_logout` | `true` | "Sign out" in the drawer |
-| `nodrive_workspace_apps` | `true` (declared `false` in `app/src/main/res/values/nodrive_workspace.xml`, so the other flavours compile) | Workspace apps menu, signed-in in-app pages and in-app notification links. No new string: the app names come from the server |
+| `nodrive_workspace_apps` | `true` (declared `false` in `app/src/main/res/values/nodrive_workspace.xml`, so the other flavours compile) | Workspace apps menu, signed-in in-app pages and in-app notification links. No new string: the app names come from the server. The menu leaves out the server's `files`, `activity` and `photos` entries |
+| `nodrive_backup` | `true` (declared `false` in `app/src/main/res/values/nodrive_backup.xml`, so the other flavours compile) | Settings > Backup (one backup switch, Documents and Downloads switch, Stop Google backup, Move your Google data), the one-time offer after the first sign-in, and new media folders added while the switch is on. All new texts are in `nodrive_backup.xml` (English only, no Nextcloud name). The remote root is the fixed folder name `Phone backup` |
 
 ## 4. Colours
 

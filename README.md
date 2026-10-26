@@ -10,11 +10,20 @@ NoDrive is the Android app for **Nourax Workspace** files at <https://drive.nour
 - See your files, upload, download, rename, move and delete them, share links, keep files offline and
   upload new photos automatically.
 - **Workspace apps:** the side menu also lists the Workspace apps the signed-in user has (Mail,
-  Calendar, Talk, ...), read from the Drive's navigation list. Tapping one opens the page inside
+  Calendar, Talk, ...), read from the Drive's navigation list (without Files, Activity and Photos,
+  which NoDrive has itself). Tapping one opens the page inside
   NoDrive, already signed in with the phone's app password, so there is no sign-in page. Links in the
   notification list that point to the Drive open there too. The password goes only to the account's
   own server and is never in a URL or a log. Signing out or removing the account clears the in-app
   web data. Details: [docs/testing.md](docs/testing.md).
+- **Backup:** Settings > Backup has one switch, "Back up all photos and videos to NoDrive". It turns
+  on Auto upload for every photo and video folder on the phone, also the files already there, into
+  `Phone backup/<phone name>/<folder name>` on the Drive, and adds new media folders by itself. A
+  second switch adds Documents and Downloads. Switching off stops future uploads and never deletes
+  anything. The same section has "Stop Google backup" (guides and Open buttons for Google Photos,
+  Google's device backup and WhatsApp backup) and "Move your Google data to NoDrive" (a Google
+  Takeout guide: export, unzip into the NoDrive folder on a computer, the desktop app uploads it
+  with the same folder structure). Details: [docs/testing.md](docs/testing.md).
 - Sign in happens in the browser, with Nextcloud's Login Flow v2. The web page offers "Log in with
   Nourax".
 - The server is fixed. NoDrive connects only to `https://drive.nourax.org` and has no "enter server
@@ -29,7 +38,7 @@ NoDrive is a modified version of the **Nextcloud Android app**:
 <https://github.com/nextcloud/android>, tag `stable-35.0.1`.
 
 Thank you to Nextcloud GmbH and to every Nextcloud contributor. Almost all of the code in this
-repository is their work. Nourax added a product flavour called `nodrive`, three small marked code
+repository is their work. Nourax added a product flavour called `nodrive`, small marked code
 hooks, the tools in `tools/` and our own CI. [NOTICE.md](NOTICE.md) lists every change.
 
 Upstream's own README is kept at [docs/upstream-README.md](docs/upstream-README.md). Credits to
@@ -82,4 +91,4 @@ as well. [docs/build.md](docs/build.md) has the details, the tests and the CI.
 | [docs/build.md](docs/build.md) | Building locally and in CI, Gradle tasks, artifacts |
 | [docs/testing.md](docs/testing.md) | Test results (CI and owner), screenshots, installing on a phone |
 | [docs/upstream-updates.md](docs/upstream-updates.md) | Merging a new Nextcloud Android release |
-| [docs/screenshots/android/](docs/screenshots/android/README.md) | Screenshots of every reachable screen |
+| [docs/screenshots/android/](docs/screenshots/android/README.md) | Screenshots of every reachable screen, the Workspace apps and the Backup screens |
