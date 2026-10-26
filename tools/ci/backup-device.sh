@@ -7,8 +7,9 @@
 # "am instrument" (not through Gradle, which uninstalls the app and with it the screenshots the tests saved):
 #   BackupSettingsIT   Settings section, setup screen, Auto upload, Stop Google backup, Takeout guide, first
 #                      sign-in offer. Needs no server; run in the light and in the dark look.
-#   BackupRowsIT       row field values, a user's row left untouched, switch-off stops the running work, the
-#                      Documents and Downloads switch with All files access (appops). Needs no server.
+#   BackupRowsIT       row field values, a user row left untouched, switch-off stops the running work. No server.
+#   BackupDocsIT       the Documents and Downloads switch without and with All files access (set with appops from
+#                      here). No server.
 #   BackupUploadIT     a photo that was already on the phone must appear on the throwaway Nextcloud under
 #                      /Phone backup/<phone>/DCIM/Camera; an on/off/on run sends every file exactly once. Needs NODRIVE_WS_URL, NODRIVE_WS_USER, NODRIVE_BK_TOKEN
 #                      (masked in the log). The script then checks the server's data folder on its own.
@@ -23,6 +24,7 @@ TEST_APK=app/build/outputs/apk/androidTest/nodrive/debug/app-nodrive-debug-andro
 SETTINGS=org.nourax.nodrive.backup.BackupSettingsIT
 UPLOAD=org.nourax.nodrive.backup.BackupUploadIT
 ROWS=org.nourax.nodrive.backup.BackupRowsIT
+DOCS=org.nourax.nodrive.backup.BackupDocsIT
 # BackupUploadIT has 2 tests: one photo, then an on/off/on run with two photos; each file must reach the server once.
 UPLOAD_TESTS=2
 EXPECTED_SERVER_FILES=3
@@ -42,7 +44,8 @@ run_it() { # $1 = look (light|dark), $2 = class, $3 = log name
         -e NODRIVE_WS_URL "${NODRIVE_WS_URL:-}" -e NODRIVE_WS_USER "${NODRIVE_WS_USER:-}" \
         -e NODRIVE_BK_TOKEN "${NODRIVE_BK_TOKEN:-}" -e NODRIVE_BK_LOOK "$1" "$RUNNER" 2>&1 | tr -d '\r' > "$log"
     if grep -q "^OK (" "$log"; then echo "backup IT $3 ($1): $(grep '^OK (' "$log")"; else
-        echo "backup IT $3 ($1): FAIL"; grep -v "^INSTRUMENTATION_" "$log" | tail -n 40 | cut -c1-300; status=1; fi
+        echo "backup IT $3 ($1): FAIL"; grep -v "^INSTRUMENTATION_" "$log" | tail -n 40 | cut -c1-300
+        "$ADB" logcat -d -b crash 2> /dev/null | tail -n 30 | cut -c1-300; status=1; fi
 }
 
 "$ADB" shell cmd uimode night no > /dev/null 2>&1 || true
@@ -51,6 +54,12 @@ run_it light "$SETTINGS" settings
 run_it dark "$SETTINGS" settings
 "$ADB" shell cmd uimode night no > /dev/null 2>&1 || true
 run_it light "$ROWS" rows
+# All files access is changed from outside, because changing it restarts the app process. Each test checks the state.
+"$ADB" shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE deny > /dev/null 2>&1 || true
+run_it light "$DOCS#withoutAllFilesAccessNoDocumentsFolderIsFoundAndNoRowIsMade" docs-off
+"$ADB" shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow > /dev/null 2>&1 || true
+run_it light "$DOCS#withAllFilesAccessDocumentsAndDownloadsGetTheirOwnRows" docs-on
+"$ADB" shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE default > /dev/null 2>&1 || true
 
 if [ -n "${NODRIVE_WS_URL:-}" ] && [ -n "${NODRIVE_BK_TOKEN:-}" ]; then
     run_it light "$UPLOAD" upload
