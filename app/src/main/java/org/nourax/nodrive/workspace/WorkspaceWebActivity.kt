@@ -8,7 +8,6 @@ package org.nourax.nodrive.workspace
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.SystemClock
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
@@ -16,6 +15,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.nextcloud.client.account.User
 import com.owncloud.android.MainApp
@@ -105,7 +105,7 @@ class WorkspaceWebActivity : ExternalSiteWebView() {
         view.stopLoading()
         if (WorkspaceNavigationPolicy.isForeignWebPage(view.url, base) && view.canGoBack()) view.goBack()
         if (WorkspaceNavigationPolicy.decide(url.orEmpty(), base) == WorkspaceDecision.CUSTOM_TAB) {
-            WorkspaceLinks.openInCustomTab(this, Uri.parse(url.orEmpty()))
+            WorkspaceLinks.openInCustomTab(this, url.orEmpty().toUri())
         }
     }
 

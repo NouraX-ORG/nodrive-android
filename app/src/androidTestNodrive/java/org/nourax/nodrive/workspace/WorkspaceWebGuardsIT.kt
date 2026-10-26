@@ -94,11 +94,12 @@ class WorkspaceWebGuardsIT {
                 true.takeIf { CookieManager.getInstance().getCookie(support.serverUrl).isNullOrEmpty() }
             }
             support.evaluate(web, "window.staleDocument = true; location.reload(); 1")
-            support.waitFor("signed in again as ${support.userId}", PAGE_TIMEOUT_MILLIS) {
+            val path = support.waitFor("signed in again as ${support.userId}", PAGE_TIMEOUT_MILLIS) {
                 val fresh = support.evaluate(web, "typeof window.staleDocument === 'undefined'") == "true"
                 val cookies = CookieManager.getInstance().getCookie(support.serverUrl).orEmpty()
                 signedInPath(web).takeIf { fresh && cookies.isNotEmpty() }
             }
+            assertTrue(path, path.isNotEmpty())
         }
     }
 
