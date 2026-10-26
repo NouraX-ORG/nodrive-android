@@ -152,7 +152,7 @@ class WorkspaceAppsIT {
 
     private fun assertOtherHostGoesToTheBrowser(web: WebView) {
         val before = support.onMainResult { web.url }
-        val foreign = "http://10.0.2.2:$FOREIGN_PORT/probe"
+        val foreign = "http://localhost:$FOREIGN_PORT/probe"
         intending(allOf(hasAction(Intent.ACTION_VIEW), hasData(Uri.parse(foreign))))
             .respondWith(Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null))
         support.evaluate(web, "location.href='$foreign'")

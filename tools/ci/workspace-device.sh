@@ -22,6 +22,9 @@ status=0
 
 if [ -z "${NODRIVE_WS_URL:-}" ]; then echo "workspace: no test server, skipped"; exit 0; fi
 mkdir -p "$SHOTS"
+# The probe server plays "another host" as localhost:8081 on the emulator. Cookies are scoped by host and not by
+# port, so a probe on 10.0.2.2:8081 would share the cookies of the test server on 10.0.2.2:8080.
+"$ADB" reverse tcp:8081 tcp:8081 > /dev/null 2>&1 || echo "workspace: adb reverse for the probe server failed"
 
 "$ADB" install -r "$APK" > "$OUT/workspace-install.log" 2>&1 && "$ADB" install -r -t "$TEST_APK" >> "$OUT/workspace-install.log" 2>&1 \
     || { cat "$OUT/workspace-install.log"; echo "workspace: install failed"; exit 1; }

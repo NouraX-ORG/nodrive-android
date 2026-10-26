@@ -58,7 +58,7 @@ class WorkspaceWebGuardsIT {
     fun aLoadThatSkipsTheLinkCheckStillStaysOutOfTheApp() {
         withDashboard { web, _ ->
             val before = support.onMainResult { web.url }
-            val foreign = "http://10.0.2.2:$FOREIGN_PORT/direct"
+            val foreign = "http://localhost:$FOREIGN_PORT/direct"
             stubBrowser(foreign)
             support.onMain { web.loadUrl(foreign) }
             awaitBrowserIntent(foreign)
@@ -71,7 +71,7 @@ class WorkspaceWebGuardsIT {
     fun aWindowOpenedByThePageGoesToTheBrowser() {
         withDashboard { web, _ ->
             val before = support.onMainResult { web.url }
-            val foreign = "http://10.0.2.2:$FOREIGN_PORT/popup"
+            val foreign = "http://localhost:$FOREIGN_PORT/popup"
             stubBrowser(foreign)
             support.onMain { web.settings.javaScriptCanOpenWindowsAutomatically = true }
             support.evaluate(web, "window.open('$foreign'); 1")

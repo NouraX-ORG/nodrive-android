@@ -299,7 +299,7 @@ jobs:
                     sha256sum "$APK"
 
             # A throwaway Nextcloud 35.0.2 with random credentials (masked) for tools/ci/workspace-device.sh, and a
-            # probe server on port 8081 that plays "another host" (the emulator reaches both as 10.0.2.2).
+            # probe server on port 8081 that plays "another host" (the emulator reaches it as localhost:8081 through adb reverse, a different host from 10.0.2.2:8080).
             -   name: Start the throwaway servers (Nextcloud on 8080, probe on 8081)
                 run: |
                     bash tools/ci/server-app-login.sh start
@@ -336,7 +336,8 @@ jobs:
                     docker logs nodrive-ci-server 2>&1 | grep -E '"(GET|POST|PROPFIND) ' | cut -c1-200 | tail -n 300 \
                         > build/device/server-access-tail.log || true
                     rc=0
-                    python3 tools/ci/probe-server.py --check build/device/probe.jsonl | tee build/device/probe-check.txt || rc=1
+                    python3 tools/ci/probe-server.py --check build/device/probe.jsonl --min-requests 1 > build/device/probe-check.txt || rc=1
+                    cat build/device/probe-check.txt
                     for name in NODRIVE_WS_SSO_TOKEN NODRIVE_WS_REMOVE_TOKEN NODRIVE_WS_PW_TOKEN NODRIVE_WS_LOGIN_PASSWORD; do
                         value="${!name:-}"
                         [ -n "$value" ] || continue
