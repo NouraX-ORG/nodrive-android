@@ -4,8 +4,10 @@
 #
 # Runs inside reactivecircus/android-emulator-runner once the emulator has booted (CI only).
 # 1. the instrumented tests in tools/ci/instrumented-tests.txt (Gradle, nodriveDebug);
-# 2. the screen sweep (tools/ci/sweep.py), which installs the APKs again and takes the screenshots.
-# Both always run; the exit code is non-zero when either failed. Output goes to build/device/.
+# 2. the Workspace apps test against the throwaway server (tools/ci/workspace-device.sh, only when the
+#    workflow started that server);
+# 3. the screen sweep (tools/ci/sweep.py), which installs the APKs again and takes the screenshots.
+# All of them always run; the exit code is non-zero when either failed. Output goes to build/device/.
 set -uo pipefail
 
 OUT=build/device
@@ -142,6 +144,13 @@ else
     fi
 fi
 kill "$FOCUS_LOGGER" 2>/dev/null || true
+
+if ADB="$ADB" bash tools/ci/workspace-device.sh; then
+    echo "workspace apps test: PASS"
+else
+    status=1
+    echo "workspace apps test: FAIL"
+fi
 
 if python3 tools/ci/sweep.py --adb "$ADB" --apk "$APK" --test-apk "$TEST_APK" --out "$OUT/screens"; then
     echo "screen sweep: PASS"

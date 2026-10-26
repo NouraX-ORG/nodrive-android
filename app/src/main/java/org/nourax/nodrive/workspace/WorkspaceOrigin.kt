@@ -20,8 +20,8 @@ object WorkspaceOrigin {
     private const val PORT_HTTP = 80
     private const val PORT_HTTPS = 443
     private const val NO_PORT = -1
-    private val loginPath = Regex("^(/index\.php)?(/login|/apps/user_oidc/login)(/.*)?$")
-    private val logoutPath = Regex("^(/index\.php)?/logout(/.*)?$")
+    private val loginPath = Regex("^(/index\\.php)?(/login|/apps/user_oidc/login)(/.*)?$")
+    private val logoutPath = Regex("^(/index\\.php)?/logout(/.*)?$")
 
     fun parse(value: String?): URI? {
         if (value.isNullOrEmpty()) return null
@@ -52,7 +52,7 @@ object WorkspaceOrigin {
         if (href.isNullOrEmpty()) return null
         val origin = origin(base) ?: return null
         if (href.startsWith("/")) {
-            return if (href.startsWith("//") || href.contains('\')) null else origin + href
+            return if (href.startsWith("//") || href.contains('\\')) null else origin + href
         }
         return if (isSameOrigin(href, base)) href else null
     }

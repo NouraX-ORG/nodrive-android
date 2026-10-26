@@ -298,6 +298,15 @@ jobs:
                     ./gradlew --stacktrace :app:assembleNodriveDebug :app:assembleNodriveDebugAndroidTest
                     sha256sum "$APK"
 
+            # A throwaway Nextcloud 35.0.2 with random credentials (masked) for tools/ci/workspace-device.sh, and a
+            # probe server on port 8081 that plays "another host" (the emulator reaches both as 10.0.2.2).
+            -   name: Start the throwaway servers (Nextcloud on 8080, probe on 8081)
+                run: |
+                    bash tools/ci/server-app-login.sh start
+                    mkdir -p build/device
+                    nohup python3 tools/ci/probe-server.py --port 8081 --log build/device/probe.jsonl > /dev/null 2>&1 &
+                    echo "NODRIVE_WS_URL=http://10.0.2.2:8080" >> "$GITHUB_ENV"
+
             -   name: Enable KVM
                 run: |
                     echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -320,6 +329,23 @@ jobs:
                     emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -tcpdump ${{ github.workspace }}/build/device/network.pcap
                     pre-emulator-launch-script: mkdir -p build/device
                     script: bash tools/ci/device.sh
+
+            -   name: Workspace apps checks (server log, probe server, no credential in the reports)
+                if: ${{ always() }}
+                run: |
+                    docker logs nodrive-ci-server 2>&1 | grep -E '"(GET|POST|PROPFIND) ' | cut -c1-200 | tail -n 300 \
+                        > build/device/server-access-tail.log || true
+                    rc=0
+                    python3 tools/ci/probe-server.py --check build/device/probe.jsonl | tee build/device/probe-check.txt || rc=1
+                    for name in NODRIVE_WS_SSO_TOKEN NODRIVE_WS_REMOVE_TOKEN NODRIVE_WS_PW_TOKEN NODRIVE_WS_LOGIN_PASSWORD; do
+                        value="${!name:-}"
+                        [ -n "$value" ] || continue
+                        if grep -rlaF --exclude=network.pcap -e "$value" build/device app/build/reports \
+                            app/build/outputs/androidTest-results 2> /dev/null | grep -q .; then
+                            echo "LEAK: the value of $name is in a file that gets uploaded"; rc=1
+                        fi
+                    done
+                    exit "$rc"
 
             -   name: Network check (no Nextcloud GmbH host)
                 if: ${{ always() }}
