@@ -15,7 +15,8 @@ OUT=build/device
 PKG=org.nourax.nodrive
 APK=app/build/outputs/apk/nodrive/debug/app-nodrive-debug.apk
 TEST_APK=app/build/outputs/apk/androidTest/nodrive/debug/app-nodrive-debug-androidTest.apk
-CLASS=org.nourax.nodrive.workspace.WorkspaceAppsIT,org.nourax.nodrive.workspace.WorkspaceWebGuardsIT
+APPS=org.nourax.nodrive.workspace.WorkspaceAppsIT
+GUARDS=org.nourax.nodrive.workspace.WorkspaceWebGuardsIT
 SHOTS="$OUT/screens/workspace"
 status=0
 
@@ -40,10 +41,13 @@ run_it() { # $1 = look (light|dark), $2 = class or class#method
 }
 
 "$ADB" shell cmd uimode night no > /dev/null 2>&1 || true
-run_it light "$CLASS"
+# The account removal test runs last: it revokes its app password while the app still sends requests, and the
+# server's brute-force protection answers 429 to this address for a long while afterwards.
+run_it light "$APPS#menuListsTheWorkspaceAppsAndTapOpensASignedInPage,$GUARDS"
 "$ADB" shell cmd uimode night yes > /dev/null 2>&1 || true
-run_it dark "$CLASS#menuListsTheWorkspaceAppsAndTapOpensASignedInPage"
+run_it dark "$APPS#menuListsTheWorkspaceAppsAndTapOpensASignedInPage"
 "$ADB" shell cmd uimode night no > /dev/null 2>&1 || true
+run_it removal "$APPS#removingTheAccountClearsTheWebData"
 
 for f in $("$ADB" shell ls "/sdcard/Android/data/$PKG/files/" 2> /dev/null | tr -d '\r' | grep '^workspace-.*\.png$'); do
     "$ADB" pull "/sdcard/Android/data/$PKG/files/$f" "$SHOTS/$f" > /dev/null
