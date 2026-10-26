@@ -69,7 +69,8 @@ jobs:
     server-login:
         name: Server login proof
         needs: branding
-        runs-on: ubuntu-latest
+        # Playwright supports Ubuntu 24.04, not yet the 26.04 that ubuntu-latest has become.
+        runs-on: ubuntu-24.04
         timeout-minutes: 20
         steps:
             -   uses: actions/checkout@v7
