@@ -83,6 +83,12 @@ class WorkspaceAppsIT {
                 val onPage = !path.contains("login") && !path.contains("unsupported")
                 path.takeIf { user == "\"${support.userId}\"" && onPage }
             }
+            // Only for a screenshot that shows the page itself: the dashboard greets the user by display name.
+            runCatching {
+                support.waitFor("the dashboard greeting", CONTENT_TIMEOUT_MILLIS) {
+                    support.evaluate(web, "document.body.innerText.indexOf('Demo User') >= 0").takeIf { it == "true" }
+                }
+            }
             support.sleepForAnimation()
             support.screenshot("page")
 
@@ -159,6 +165,7 @@ class WorkspaceAppsIT {
     private companion object {
         const val MENU_TIMEOUT_MILLIS = 90_000L
         const val PAGE_TIMEOUT_MILLIS = 120_000L
+        const val CONTENT_TIMEOUT_MILLIS = 60_000L
         const val REMOVAL_TIMEOUT_MILLIS = 60_000L
         const val INTENT_TIMEOUT_MILLIS = 20_000L
         const val FOREIGN_PORT = 8081
