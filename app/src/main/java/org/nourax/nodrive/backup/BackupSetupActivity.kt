@@ -68,7 +68,7 @@ class BackupSetupActivity : ToolbarActivity() {
             setOnClickListener { finish() }
         }
         findViewById<MaterialButton>(R.id.nodrive_backup_open_auto_upload).apply {
-            viewThemeUtils.material.colorMaterialButtonPrimaryOutlined(this)
+            viewThemeUtils.material.colorMaterialButtonPrimaryTonal(this)
             setOnClickListener { startActivity(Intent(this@BackupSetupActivity, SyncedFoldersActivity::class.java)) }
         }
         proceed()
