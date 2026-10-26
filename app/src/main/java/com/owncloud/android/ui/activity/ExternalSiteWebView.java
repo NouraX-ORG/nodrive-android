@@ -11,6 +11,7 @@ package com.owncloud.android.ui.activity;
 
 import android.annotation.SuppressLint;
 import android.content.pm.ApplicationInfo;
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.MenuItem;
@@ -137,6 +138,9 @@ public class ExternalSiteWebView extends FileActivity {
 
         getWebView().setWebViewClient(new NextcloudWebViewClient(getSupportFragmentManager()) {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (!showErrorPageFor(request)) {
+                    return;
+                }
                 InputStream resources = getResources().openRawResource(R.raw.custom_error);
                 String customError = DisplayUtils.getData(resources);
 
@@ -148,6 +152,12 @@ public class ExternalSiteWebView extends FileActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return handleUrlLoading(view, request);
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                onPageLoadStarted(view, url);
             }
         });
 
@@ -161,6 +171,15 @@ public class ExternalSiteWebView extends FileActivity {
             return true;
         }
         return false;
+    }
+
+    /** Whether a failed request replaces the page with the error page; the failed request may be a sub-resource. */
+    protected boolean showErrorPageFor(WebResourceRequest request) {
+        return true;
+    }
+
+    /** Called when the web view starts loading a page, also for navigations that shouldOverrideUrlLoading misses. */
+    protected void onPageLoadStarted(WebView view, String url) {
     }
 
     protected void loadInitialUrl(String url) {

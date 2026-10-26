@@ -15,7 +15,7 @@ OUT=build/device
 PKG=org.nourax.nodrive
 APK=app/build/outputs/apk/nodrive/debug/app-nodrive-debug.apk
 TEST_APK=app/build/outputs/apk/androidTest/nodrive/debug/app-nodrive-debug-androidTest.apk
-CLASS=org.nourax.nodrive.workspace.WorkspaceAppsIT
+CLASS=org.nourax.nodrive.workspace.WorkspaceAppsIT,org.nourax.nodrive.workspace.WorkspaceWebGuardsIT
 SHOTS="$OUT/screens/workspace"
 status=0
 

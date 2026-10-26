@@ -52,7 +52,7 @@ def check(log: Path) -> int:
         if log.is_file() else []
     bad = [e for e in entries if "authorization" in e["headers"]
            or any(c.lower().startswith(ACCOUNT_COOKIE_PREFIXES) for c in e["cookies"])]
-    print(f"probe server: {len(entries)} request(s), {len(bad)} carrying the account")
+    print(f"probe server (a tripwire: it can only fire when a request reaches it): {len(entries)} request(s), {len(bad)} carrying the account")
     for e in bad:
         print(f"  LEAK {e['method']} {e['path']} headers={e['headers']} cookies={e['cookies']}")
     return 1 if bad else 0

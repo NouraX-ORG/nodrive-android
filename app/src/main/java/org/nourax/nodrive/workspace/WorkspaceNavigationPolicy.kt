@@ -28,4 +28,28 @@ object WorkspaceNavigationPolicy {
             else -> WorkspaceDecision.BLOCK
         }
     }
+
+    /**
+     * True for a web page of another origin. A page whose load the web view started without asking
+     * shouldOverrideUrlLoading (a form posted from the page) must not be shown inside the app.
+     */
+    fun isForeignWebPage(url: String?, base: String): Boolean {
+        if (url.isNullOrEmpty()) return false
+        return when (decide(url, base)) {
+            WorkspaceDecision.CUSTOM_TAB -> true
+            WorkspaceDecision.BLOCK -> url.startsWith("http://", ignoreCase = true) ||
+                url.startsWith("https://", ignoreCase = true)
+            else -> false
+        }
+    }
+
+    /** The page may only open for the account that is still the current one, and only at the account's own server. */
+    fun mayStart(requestedAccount: String?, currentAccount: String?, url: String, base: String): Boolean =
+        currentAccount != null && currentAccount == requestedAccount && decide(url, base) == WorkspaceDecision.LOAD
+
+    /** A new sign-in only when none has just happened: a session that dies at once must not loop. */
+    fun mayRelogin(sessionStartedAtMillis: Long?, nowMillis: Long): Boolean =
+        sessionStartedAtMillis == null || nowMillis - sessionStartedAtMillis >= RELOGIN_MIN_INTERVAL_MILLIS
+
+    const val RELOGIN_MIN_INTERVAL_MILLIS = 60_000L
 }

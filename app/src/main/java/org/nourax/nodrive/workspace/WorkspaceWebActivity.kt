@@ -8,11 +8,13 @@ package org.nourax.nodrive.workspace
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
 import com.nextcloud.client.account.User
@@ -34,7 +36,7 @@ import kotlin.coroutines.resume
 class WorkspaceWebActivity : ExternalSiteWebView() {
     private var base = ""
     private var currentTarget = ""
-    private var sessionStartedAt = 0L
+    private var sessionStartedAt: Long? = null
 
     override fun postOnCreate() {
         onBackPressedDispatcher.addCallback(
@@ -52,13 +54,13 @@ class WorkspaceWebActivity : ExternalSiteWebView() {
     override fun loadInitialUrl(url: String) {
         val current = getUser().orElse(null)
         val requestedAccount = intent.getStringExtra(EXTRA_ACCOUNT_NAME)
-        if (current == null || current.accountName != requestedAccount) {
-            finish()
+        if (current == null) {
+            fail("no-account")
             return
         }
         base = WorkspaceAccess.baseUrl(current)
-        if (WorkspaceNavigationPolicy.decide(url, base) != WorkspaceDecision.LOAD) {
-            finish()
+        if (!WorkspaceNavigationPolicy.mayStart(requestedAccount, current.accountName, url, base)) {
+            fail("not-allowed")
             return
         }
         val settings = getWebView().settings
@@ -95,10 +97,21 @@ class WorkspaceWebActivity : ExternalSiteWebView() {
         }
     }
 
+    override fun showErrorPageFor(request: WebResourceRequest): Boolean = request.isForMainFrame
+
+    /** A form posted to another host never reaches shouldOverrideUrlLoading: keep that page out of the app here. */
+    override fun onPageLoadStarted(view: WebView, url: String?) {
+        if (base.isEmpty() || !WorkspaceNavigationPolicy.isForeignWebPage(url, base)) return
+        view.stopLoading()
+        if (WorkspaceNavigationPolicy.isForeignWebPage(view.url, base) && view.canGoBack()) view.goBack()
+        if (WorkspaceNavigationPolicy.decide(url.orEmpty(), base) == WorkspaceDecision.CUSTOM_TAB) {
+            WorkspaceLinks.openInCustomTab(this, Uri.parse(url.orEmpty()))
+        }
+    }
+
     private fun relogin() {
         val current = getUser().orElse(null)
-        val sinceSession = SystemClock.elapsedRealtime() - sessionStartedAt
-        if (current == null || sinceSession < RELOGIN_MIN_INTERVAL_MILLIS) {
+        if (current == null || !WorkspaceNavigationPolicy.mayRelogin(sessionStartedAt, SystemClock.elapsedRealtime())) {
             fail("login-loop")
             return
         }
@@ -148,7 +161,8 @@ class WorkspaceWebActivity : ExternalSiteWebView() {
 
     private fun fail(reason: String) {
         Log_OC.w(TAG, "workspace page not opened: $reason")
-        DisplayUtils.showSnackMessage(this, R.string.common_error_unknown)
+        // A toast survives finish(); a snackbar on this activity would never be seen.
+        Toast.makeText(applicationContext, R.string.common_error_unknown, Toast.LENGTH_LONG).show()
         finish()
     }
 
@@ -156,7 +170,6 @@ class WorkspaceWebActivity : ExternalSiteWebView() {
         private const val TAG = "WorkspaceWebActivity"
         private const val EXTRA_ACCOUNT_NAME = "ACCOUNT_NAME"
         private const val USER_AGENT_SUFFIX = " NoDrive"
-        private const val RELOGIN_MIN_INTERVAL_MILLIS = 60_000L
 
         @JvmStatic
         fun intent(context: Context, user: User, url: String, title: String?): Intent =

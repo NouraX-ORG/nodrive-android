@@ -10,28 +10,30 @@ import android.graphics.drawable.Drawable
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
-import com.bumptech.glide.request.target.CustomTarget
-import com.bumptech.glide.request.transition.Transition
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.navigation.NavigationView
 import com.nextcloud.client.account.User
-import com.nextcloud.utils.GlideHelper
 import com.owncloud.android.R
 import com.owncloud.android.lib.common.utils.Log_OC
 import com.owncloud.android.ui.activity.DrawerActivity
-import com.owncloud.android.utils.DrawableUtil
-import kotlin.concurrent.thread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.WeakHashMap
 
 /** The Workspace apps group of the side menu: it sits between "Activity" (order 1) and the external links (3). */
 object WorkspaceAppsDrawer {
     const val GROUP_ID = 4400
-    const val ITEM_BASE = 400
+
+    /** Far above the ids of the external links (111 + the server's link id). */
+    const val ITEM_BASE = 10_000
     private const val MENU_ORDER = 2
     private const val MAX_APPS = 50
-    private const val ICON_SIZE_PX = 32
+    private const val ICON_SIZE_DP = 24
     private const val TAG = "WorkspaceAppsDrawer"
 
-    @Volatile
-    private var shown: List<WorkspaceApp> = emptyList()
+    /** The apps behind the items of each menu; read and written on the main thread only. */
+    private val shown = WeakHashMap<NavigationView, List<WorkspaceApp>>()
 
     fun enabled(activity: DrawerActivity): Boolean = activity.resources.getBoolean(R.bool.nodrive_workspace_apps)
 
@@ -39,9 +41,9 @@ object WorkspaceAppsDrawer {
     @JvmStatic
     fun update(activity: DrawerActivity, navView: NavigationView, user: User) {
         if (!enabled(activity) || user.isAnonymous) return
-        thread(name = TAG) {
-            val apps = WorkspaceAccess.repository(activity, user).cached().take(MAX_APPS)
-            activity.runOnUiThread { if (!activity.isFinishing) show(activity, navView, user, apps) }
+        activity.lifecycleScope.launch {
+            val apps = withContext(Dispatchers.IO) { WorkspaceAccess.repository(activity, user).cached().take(MAX_APPS) }
+            if (!activity.isFinishing) show(activity, navView, apps)
         }
     }
 
@@ -49,12 +51,14 @@ object WorkspaceAppsDrawer {
     @JvmStatic
     fun refresh(activity: DrawerActivity, navView: NavigationView?, user: User) {
         if (!enabled(activity) || user.isAnonymous) return
-        thread(name = TAG) {
-            val outcome = try {
-                WorkspaceAccess.repository(activity, user).refresh()
-            } catch (e: Exception) {
-                Log_OC.w(TAG, "apps list not refreshed: ${e.javaClass.simpleName}")
-                WorkspaceRefresh.KEPT
+        activity.lifecycleScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                try {
+                    WorkspaceAccess.repository(activity, user).refresh()
+                } catch (e: Exception) {
+                    Log_OC.w(TAG, "apps list not refreshed: ${e.javaClass.simpleName}")
+                    WorkspaceRefresh.KEPT
+                }
             }
             if (navView != null && outcome in listOf(WorkspaceRefresh.UPDATED, WorkspaceRefresh.CLEARED)) {
                 update(activity, navView, user)
@@ -65,33 +69,32 @@ object WorkspaceAppsDrawer {
     @JvmStatic
     fun onItemClicked(activity: DrawerActivity, item: MenuItem, user: User): Boolean {
         if (item.groupId != GROUP_ID) return false
-        val app = shown.getOrNull(item.itemId - ITEM_BASE) ?: return false
+        val navView = activity.findViewById<NavigationView>(R.id.nav_view) ?: return false
+        val app = shown[navView]?.getOrNull(item.itemId - ITEM_BASE) ?: return false
         activity.closeDrawer()
         activity.startActivity(WorkspaceWebActivity.intent(activity, user, app.href, app.name))
         return true
     }
 
-    private fun show(activity: DrawerActivity, navView: NavigationView, user: User, apps: List<WorkspaceApp>) {
-        shown = apps
+    private fun show(activity: DrawerActivity, navView: NavigationView, apps: List<WorkspaceApp>) {
+        shown[navView] = apps
         val menu = navView.menu
         menu.removeGroup(GROUP_ID)
         val color = ContextCompat.getColor(activity, R.color.drawer_menu_icon)
+        val sizePx = (ICON_SIZE_DP * activity.resources.displayMetrics.density).toInt()
         apps.forEachIndexed { index, app ->
             val id = ITEM_BASE + index
             menu.add(GROUP_ID, id, MENU_ORDER, app.name).isCheckable = false
             setIcon(navView, id, ContextCompat.getDrawable(activity, R.drawable.ic_link), color)
             val icon = app.iconUrl ?: return@forEachIndexed
-            GlideHelper.loadIntoTarget(activity, user.toOwnCloudAccount(), icon, iconTarget(navView, id, color), R.drawable.ic_link)
+            try {
+                WorkspaceIcons.load(activity, icon) { resource ->
+                    setIcon(navView, id, WorkspaceIcons.rasterize(navView.context, resource, sizePx), color)
+                }
+            } catch (e: Exception) {
+                Log_OC.w(TAG, "icon not loaded: ${e.javaClass.simpleName}")
+            }
         }
-    }
-
-    private fun iconTarget(navView: NavigationView, id: Int, color: Int) = object : CustomTarget<Drawable>() {
-        override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
-            val resized = DrawableUtil.getResizedDrawable(navView.context, resource, ICON_SIZE_PX)
-            setIcon(navView, id, resized, color)
-        }
-
-        override fun onLoadCleared(placeholder: Drawable?) = Unit
     }
 
     private fun setIcon(navView: NavigationView, id: Int, drawable: Drawable?, color: Int) {
