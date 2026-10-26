@@ -9,6 +9,12 @@ NoDrive is the Android app for **Nourax Workspace** files at <https://drive.nour
 
 - See your files, upload, download, rename, move and delete them, share links, keep files offline and
   upload new photos automatically.
+- **Workspace apps:** the side menu also lists the Workspace apps the signed-in user has (Mail,
+  Calendar, Talk, ...), read from the Drive's navigation list. Tapping one opens the page inside
+  NoDrive, already signed in with the phone's app password, so there is no sign-in page. Links in the
+  notification list that point to the Drive open there too. The password goes only to the account's
+  own server and is never in a URL or a log. Signing out or removing the account clears the in-app
+  web data. Details: [docs/testing.md](docs/testing.md).
 - Sign in happens in the browser, with Nextcloud's Login Flow v2. The web page offers "Log in with
   Nourax".
 - The server is fixed. NoDrive connects only to `https://drive.nourax.org` and has no "enter server

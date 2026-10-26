@@ -58,6 +58,7 @@ NoDrive's ids differ from the real Nextcloud app's, so both install and run side
 | Text-selection action | "Nextcloud Assistant" | "NoDrive Assistant" |
 | Database file | `nextcloud.db` | unchanged (app-private; Room schemas and migrations depend on it) |
 | Notification channel ids, pinned-shortcut ids, broadcast actions | upstream names | unchanged (scoped to the package; names on screen are neutral) |
+| Workspace apps screen (`WorkspaceWebActivity`) | not there | `org.nourax.nodrive.workspace.WorkspaceWebActivity`, not exported, only in the `nodrive` manifest (written by `tools/rebrand.py`) |
 | Store id (later) | `com.nextcloud.client` | `org.nourax.nodrive` |
 
 ## 3. Server, sign-in and what is switched off
@@ -83,6 +84,7 @@ All in `app/src/nodrive/res/values/setup.xml` and `bools.xml`.
 | `license_enabled` | `true` | The one licence row stays (see NOTICE.md) |
 | `osm_geocoder_contact` | empty | No Nextcloud contact address sent to OpenStreetMap Nominatim |
 | `show_drawer_logout` | `true` | "Sign out" in the drawer |
+| `nodrive_workspace_apps` | `true` (declared `false` in `app/src/main/res/values/nodrive_workspace.xml`, so the other flavours compile) | Workspace apps menu, signed-in in-app pages and in-app notification links. No new string: the app names come from the server |
 
 ## 4. Colours
 

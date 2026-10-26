@@ -9,8 +9,12 @@
 - **CI cannot sign in.** The Drive's login pages do not open from CI runners. So CI stops at "it
   builds, starts, and the screens are correct".
 - **Signing in and syncing are owner tests**, on the owner's phone at home (section 4).
+- **The Workspace apps menu is proven in CI against a throwaway local server** (not drive.nourax.org):
+  the emulator signs in to it and the in-app pages are checked. The phone test of the real Drive is
+  owner tests 12 to 14 (section 4).
 
-The CI results below are from [run 40188742857](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40188742857)
+The Workspace apps rows come from [run 40352108524](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40352108524) on branch `feature/workspace-apps`
+(`c02bc5970a`, 2026-10-26). The other CI rows are from [run 40188742857](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40188742857)
 on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: see the
 [Actions tab](https://github.com/NouraX-ORG/nodrive-android/actions/workflows/android.yml).
 
@@ -37,6 +41,12 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Account name in system settings, share target, widget, notification channels | CI | pass | Screens 005, 045, 069 (accounts), 007, 044, 053, 068 (share), 009, 071, 072 (widget), 006, 070 (notifications) |
 | No call to any Nextcloud GmbH host | CI | pass | `tools/check-network.py` on the emulator's `network.pcap` (233,255 packets): "PASS - no Nextcloud GmbH host" |
 | Independent sweep (round 3) | CI artifacts, read-only | pass | [branding-sweep.md](branding-sweep.md) |
+| Workspace apps: the navigation list is parsed, Files is left out, the server order is kept, the real answer of a throwaway server matches the unit-test fixture | CI | pass | [Run 40352108524](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40352108524) on branch `feature/workspace-apps` `c02bc5970a`. Unit tests: 104 suites, 607 tests, 0 failed, 3 skipped (53 tests in `org.nourax.nodrive.workspace`: parser, repository cache and ETag, origin, cookies, session, routing, guards). Job "Server login proof": navigation list "status 200, 6 entries"; "answers 304 for its ETag" |
+| Workspace apps: sign-in proof against a throwaway Nextcloud server 35 | CI | pass | Job "Server login proof": the cookies of the app's one request open the page signed in ("page with the cookies only (no Authorization header) is signed in: status 200"); without the session cookie, with no credential and with a wrong app password the page is not signed in (401); the web view user agent loads the dashboard |
+| Workspace apps: the menu shows the server's apps (not Files); tapping one opens the page inside the app, already signed in | CI | pass | Emulator job: "workspace IT (light): OK (4 tests)" and "workspace IT (dark): OK (1 test)" (`WorkspaceAppsIT`: the page is signed in as the test user, back goes through the page history, an expired session signs in again). Screens: [menu light](screenshots/android/workspace-menu-light.png), [page dark](screenshots/android/workspace-page-dark.png) |
+| Workspace apps: the credential never leaves the account's own server | CI | pass | `WorkspaceWebGuardsIT` (inside "workspace IT (light): OK"): another host, http, another port and a redirect get no credential and no cookie, and a probe server on a second host received none (a positive control proves the probe works). Unit tests `WorkspaceOriginTest`, `WorkspaceWebGuardsTest`, `WorkspaceCookiesTest`. The workflow's token grep over the logs: no hit |
+| Workspace apps: links in the notification list that point to the account's own server open inside the app, other links still leave the app | CI | pass | Unit test `WorkspaceRoutingTest` (run 40352108524, unit tests green) |
+| Workspace apps: removing the account clears the in-app web data | CI | pass | Emulator job: "workspace IT (removal): OK (1 test)". It runs last, because the removal revokes the app password and the server then throttles for a while |
 | Sign in with "Log in with Nourax" (owner's normal account, not the emergency admin) | owner | pending | Owner test 2 |
 | The login pages in the browser show no Nextcloud text | owner | pending | Owner test 2 (server side, see section 5) |
 | Device name under web Settings > Security > Devices | owner | pending | Owner test 3: read it out |
@@ -49,6 +59,9 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Sync on mobile data, away from home | owner | pending | Owner test 9 |
 | Sign out | owner | pending | Owner test 10 |
 | Installs next to the real Nextcloud app (optional) | owner | pending | Owner test 11 |
+| Workspace apps menu on the real Drive: lists the user's apps, opens them inside NoDrive already signed in, back returns to the files | owner | pending | Owner test 12 |
+| A notification link to drive.nourax.org opens inside NoDrive, signed in | owner | pending | Owner test 13 |
+| Sign out: the in-app pages are signed out too; signing in again works | owner | pending | Owner test 14 |
 
 ### Known CI flakiness
 
@@ -109,6 +122,16 @@ only.
 | widget-drop | [071](screenshots/android/071-en-light-widget-drop.png) |  |  |  |  |
 | widget-configuration | [072](screenshots/android/072-en-light-widget-configuration.png) |  |  |  |  |
 
+### Workspace apps screens
+
+Four extra screens from the same emulator run, taken against the throwaway server with the test user
+`citest`. They are in [screenshots/android/](screenshots/android/README.md), named `workspace-*.png`.
+
+| Screen | Light | Dark |
+|---|---|---|
+| The drawer: the files entries, then the server's apps (Dashboard, Office, Photos, ...) | [workspace-menu-light.png](screenshots/android/workspace-menu-light.png) | [workspace-menu-dark.png](screenshots/android/workspace-menu-dark.png) |
+| An app opened inside NoDrive, signed in (Dashboard) | [workspace-page-light.png](screenshots/android/workspace-page-light.png) (still loading, only the page header shows) | [workspace-page-dark.png](screenshots/android/workspace-page-dark.png) |
+
 ## 4. Owner tests (at home, on the owner's Android phone)
 
 Use the owner's normal Nourax account ("Log in with Nourax"), **not** the emergency admin account.
@@ -159,6 +182,16 @@ package conflicts, the CI debug key has changed: uninstall NoDrive first, then i
 | 10 | Sign out | Drawer > Sign out | Back to the sign-in screen? |
 | 11 | Next to Nextcloud (optional) | Install the real Nextcloud app too and sign in to both | Do both work? Two separate accounts in system settings? |
 
+### Tests 12 to 14: the Workspace apps
+
+Use the same test build and the owner's normal Nourax account. Do these after test 2.
+
+| # | Test | What to do | What to report |
+|---|---|---|---|
+| 12 | Workspace apps menu | Open the side menu. Below the files entries, find the Workspace apps (for example Mail, Calendar, Talk). Tap one | Which apps are listed? Is "Files" missing (it should be)? Did the page open inside NoDrive, with no browser address bar and **no sign-in page**, already showing your account? Press back: do you return to the files? Do the icons look right? |
+| 13 | Notification link | Open the notification list. Tap a notification that has a link to drive.nourax.org (for example a Talk message or a calendar invitation) | Did the page open inside NoDrive, signed in, instead of Chrome? Does a link to another website still open in the phone's browser? |
+| 14 | Sign out and in | Open one Workspace app. Then side menu > Sign out. Sign in again with "Log in with Nourax". Open a Workspace app again | After signing out, are the in-app pages signed out (open NoDrive's menu again only after signing in)? After signing in again, does a Workspace app open signed in with no sign-in page? |
+
 ## 5. Server-side items for the Workspace session
 
 These belong to the Drive server, not to the app. They were found in the server 35 source
@@ -171,3 +204,5 @@ These belong to the Drive server, not to the app. They were found in the server 
 | S3 | The web's "get the mobile apps" links point at Nextcloud's apps | config keys `customclient_android` and `customclient_fdroid` (server `config.sample.php`) | Later, once NoDrive is in a store: point them at NoDrive's listing |
 | S4 | Links to drive.nourax.org do not open NoDrive automatically | No `/.well-known/assetlinks.json` yet; the app uses `autoVerify="false"` | After release signing: publish `assetlinks.json` with the release key's fingerprint |
 | S5 | No push notifications | Nextcloud's push proxy serves only Nextcloud's apps | Later: our own push service |
+| S6 | The names of the Workspace apps in NoDrive's menu come straight from the server's navigation list (`GET /ocs/v2.php/core/navigation/apps`). If an app's name there still says "Nextcloud", NoDrive shows it as is | The app only displays what the server sends | Read the list on the Drive: every entry's name and icon should read "Nourax" or be neutral. NoDrive leaves out `files` only; Activity and Photos are listed and duplicate NoDrive's own entries (owner decision pending) |
+| S7 | The in-app pages are signed in with the phone's app password from Login Flow v2: one request to the server makes a web session. Revoking the password in Settings > Security > Devices stops new pages from opening signed in, but an already open web session is not ended at once (the CI server proof shows this) | Nextcloud's web sessions live on their own after they start | Expect a short delay after a revoke. Ending a web session on the server does not sign the phone out |

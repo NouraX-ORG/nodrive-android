@@ -26,6 +26,17 @@ from the debug APK `35.0.1-nourax.1` (versionCode 350000190, SHA-256
 
 Screens: 72. Looks: en-light, en-dark, de-light, ar-light, ar-dark.
 
+## Workspace apps screens
+
+Taken by the instrumented tests of run [40352108524](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40352108524) (branch `feature/workspace-apps`,
+`c02bc5970a`) against a throwaway local Nextcloud server 35 with the test user `citest`. They are not
+part of the 72-screen sweep above.
+
+| File | What it shows |
+|---|---|
+| `workspace-menu-light.png`, `workspace-menu-dark.png` | The drawer: the files entries, then the server's apps (Dashboard, Office, Photos, ...) with icons |
+| `workspace-page-light.png`, `workspace-page-dark.png` | The Dashboard opened inside NoDrive, signed in. The light shot was taken while the page was still loading, so only its header shows |
+
 ## Checks
 
 | Check | Result | Evidence |
