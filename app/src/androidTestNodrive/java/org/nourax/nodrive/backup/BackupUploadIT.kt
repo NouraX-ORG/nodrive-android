@@ -135,7 +135,7 @@ class BackupUploadIT {
         val result = ReadFolderRemoteOperation(folder).execute(serverClient())
         assertTrue("$folder is readable", result.isSuccess)
         val stem = fileName.substringBeforeLast('.')
-        return result.data.filterIsInstance<RemoteFile>().count { it.remotePath.substringAfterLast('/').startsWith(stem) }
+        return result.data.filterIsInstance<RemoteFile>().count { it.remotePath?.substringAfterLast('/')?.startsWith(stem) == true }
     }
 
     private companion object {
