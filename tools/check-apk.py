@@ -256,6 +256,7 @@ def main() -> int:
 
     # --- merged manifest
     authorities, permissions, uses_perms, actions = [], [], [], set()
+    query_packages: set[str] = set()
     filters: dict[int, dict[str, set[str]]] = defaultdict(lambda: {"scheme": set(), "host": set()})
     for chain, name, value in xml_attrs(manifest, res):
         el = chain[-1][0] if chain else ""
@@ -271,6 +272,8 @@ def main() -> int:
                 filters[parent[-1]][name.split(":")[1]].add(value)
         elif el == "action" and name == "android:name":
             actions.add(value)
+        elif el == "package" and name == "android:name" and any(e == "queries" for e, _ in chain):
+            query_packages.add(value)
     schemes = set().union(*(f["scheme"] for f in filters.values())) if filters else set()
     link_hosts: set[str] = set()
     for f in filters.values():
@@ -289,6 +292,12 @@ def main() -> int:
     fact("uses-permission", f"{len(uses_perms)}: " + ", ".join(sorted(set(uses_perms))), not bad_uses)
     fact("REQUEST_INSTALL_PACKAGES", "absent" if "android.permission.REQUEST_INSTALL_PACKAGES" not in uses_perms
          else "present", "android.permission.REQUEST_INSTALL_PACKAGES" not in uses_perms)
+    fact("QUERY_ALL_PACKAGES", "absent" if "android.permission.QUERY_ALL_PACKAGES" not in uses_perms else "present",
+         "android.permission.QUERY_ALL_PACKAGES" not in uses_perms)
+    backup_queries = {"com.google.android.apps.photos", "com.whatsapp", "com.whatsapp.w4b"}
+    fact("package visibility for Stop Google backup",
+         "all of " + ", ".join(sorted(backup_queries)) if backup_queries <= query_packages
+         else "missing " + ", ".join(sorted(backup_queries - query_packages)), backup_queries <= query_packages)
     fact("intent-filter schemes", ", ".join(sorted(schemes)) or "none", "nc" not in schemes)
     fact("intent-filter scheme://host pairs", ", ".join(pairs) or "none")
     fact("http(s) link hosts", ", ".join(sorted(link_hosts)) or "none", link_hosts <= {LINK_HOST})

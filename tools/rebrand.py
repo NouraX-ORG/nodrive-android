@@ -21,7 +21,9 @@ What it writes (all of it is derived from upstream files plus the constants belo
 - drawables that replace Nextcloud's logos, blues and product icons, the launcher icon XML;
 - app/src/nodrive/res/xml/exposed_filepaths.xml (matches the new data folder);
 - app/src/nodrive/AndroidManifest.xml;
-- three small marked code hooks (AuthenticatorActivity, ShowErrorActivity, OCFileListAdapter);
+- small marked code hooks (AuthenticatorActivity twice, ShowErrorActivity, OCFileListAdapter and the five
+  backup hooks: SettingsActivity, MediaFoldersDetectionWork, FileDisplayActivity, AccountRemovalWork,
+  ComponentsModule);
 - the NoDrive fastlane text in src/nodrive/fastlane/metadata/.
 Images come from tools/make-icons.py, not from this script.
 """
@@ -41,6 +43,12 @@ MAIN = "app/src/main"
 MAIN_RES = f"{MAIN}/res"
 WORKSPACE_RES = f"{MAIN_RES}/values/nodrive_workspace.xml"
 WORKSPACE_ACTIVITY = "org.nourax.nodrive.workspace.WorkspaceWebActivity"
+BACKUP_RES = f"{MAIN_RES}/values/nodrive_backup.xml"
+BACKUP_PKG = "org.nourax.nodrive.backup"
+BACKUP_ACTIVITIES = [f"{BACKUP_PKG}.BackupSetupActivity", f"{BACKUP_PKG}.StopGoogleBackupActivity",
+                     f"{BACKUP_PKG}.MoveFromGoogleActivity"]
+# Apps whose backup the "Stop Google backup" screen can open: the smallest package visibility it needs.
+BACKUP_QUERY_PACKAGES = ["com.google.android.apps.photos", "com.whatsapp", "com.whatsapp.w4b"]
 ND = "app/src/nodrive"
 ND_RES = f"{ND}/res"
 FASTLANE = "src/nodrive/fastlane/metadata"
@@ -272,15 +280,78 @@ NOTES_BLOCK = f"""        {BEGIN}
         {END}
 
 """
-HOOKS = [(AUTH_FILE, AUTH_ANCHOR, AUTH_BLOCK), (ERROR_FILE, ERROR_ANCHOR, ERROR_BLOCK),
-         (NOTES_FILE, NOTES_ANCHOR, NOTES_BLOCK)]
+
+# Backup settings (org.nourax.nodrive.backup): small marked calls into the new package. Java and Kotlin both
+# accept the fully qualified names, so no import line of an upstream file changes.
+BACKUP_SETTINGS_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/SettingsActivity.java"
+BACKUP_SETTINGS_ANCHOR = "        // Synced folders\n        setupAutoUploadCategory(preferenceScreen);\n"
+BACKUP_SETTINGS_BLOCK = f"""        {BEGIN}
+        {BACKUP_PKG}.BackupSettingsSection.install(this, preferenceScreen, user, viewThemeUtils);
+        {END}
+
+"""
+BACKUP_DETECT_FILE = f"{MAIN}/java/com/nextcloud/client/jobs/MediaFoldersDetectionWork.kt"
+BACKUP_DETECT_ANCHOR = "        val imageMediaFolderPaths: MutableList<String> = ArrayList()\n"
+BACKUP_DETECT_BLOCK = f"""        {BEGIN}
+        {BACKUP_PKG}.BackupAutoAdd.onMediaFoldersDetected(
+            context,
+            userAccountManager,
+            syncedFolderProvider,
+            clock,
+            imageMediaFolders + videoMediaFolders
+        )
+        {END}
+
+"""
+BACKUP_OFFER_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/FileDisplayActivity.kt"
+BACKUP_OFFER_ANCHOR = "        folderRefreshScheduler.start()\n"
+BACKUP_OFFER_BLOCK = f"""        {BEGIN}
+        {BACKUP_PKG}.BackupOffer.maybeShow(this, userAccountManager.user)
+        {END}
+
+"""
+BACKUP_PENDING_ANCHOR = "            // notify Document Provider\n            DocumentsStorageProvider.notifyRootsChanged(this);\n"
+BACKUP_PENDING_BLOCK = f"""            {BEGIN}
+            {BACKUP_PKG}.BackupOffer.markPending(this, mAccount.name);
+            {END}
+
+"""
+BACKUP_FORGET_FILE = f"{MAIN}/java/com/nextcloud/client/jobs/AccountRemovalWork.kt"
+BACKUP_FORGET_ANCHOR = "        val storageManager = FileDataStorageManager(user, context.contentResolver)\n"
+BACKUP_FORGET_BLOCK = f"""        {BEGIN}
+        {BACKUP_PKG}.BackupState.forget(context, user.accountName)
+        {END}
+
+"""
+BACKUP_DI_FILE = f"{MAIN}/java/com/nextcloud/client/di/ComponentsModule.java"
+BACKUP_DI_ANCHOR = "    @ContributesAndroidInjector\n    abstract FileDisplayActivity fileDisplayActivity();\n"
+BACKUP_DI_INJECTORS = "".join(
+    f"    @ContributesAndroidInjector\n    abstract {BACKUP_PKG}.{a} {a[0].lower() + a[1:]}();\n\n"
+    for a in ("BackupSetupActivity", "StopGoogleBackupActivity", "MoveFromGoogleActivity"))
+BACKUP_DI_BLOCK = f"    {BEGIN}\n{BACKUP_DI_INJECTORS}    {END}\n\n"
+
+# file -> [(anchor, block)]: a file may carry several marked blocks, each anchor must be found exactly once.
+HOOKS = {
+    AUTH_FILE: [(AUTH_ANCHOR, AUTH_BLOCK), (BACKUP_PENDING_ANCHOR, BACKUP_PENDING_BLOCK)],
+    ERROR_FILE: [(ERROR_ANCHOR, ERROR_BLOCK)],
+    NOTES_FILE: [(NOTES_ANCHOR, NOTES_BLOCK)],
+    BACKUP_SETTINGS_FILE: [(BACKUP_SETTINGS_ANCHOR, BACKUP_SETTINGS_BLOCK)],
+    BACKUP_DETECT_FILE: [(BACKUP_DETECT_ANCHOR, BACKUP_DETECT_BLOCK)],
+    BACKUP_OFFER_FILE: [(BACKUP_OFFER_ANCHOR, BACKUP_OFFER_BLOCK)],
+    BACKUP_FORGET_FILE: [(BACKUP_FORGET_ANCHOR, BACKUP_FORGET_BLOCK)],
+    BACKUP_DI_FILE: [(BACKUP_DI_ANCHOR, BACKUP_DI_BLOCK)],
+}
 
 
-def patch_hook(rel: str, anchor: str, block: str, text: str) -> str:
+def patch_hooks(rel: str, hooks: list[tuple[str, str]], text: str) -> str:
+    """Strip every marked block of the file once, then put each block in front of its anchor."""
     stripped = MARKED_BLOCK_RE.sub("", text)
-    if stripped.count(anchor) != 1:
-        raise RebrandError(f"{rel}: anchor not found exactly once (upstream code moved?):\n{anchor}")
-    return stripped.replace(anchor, block + anchor)
+    for anchor, block in hooks:
+        if stripped.count(anchor) != 1:
+            raise RebrandError(f"{rel}: anchor not found exactly once (upstream code moved?):\n{anchor}")
+    for anchor, block in hooks:
+        stripped = stripped.replace(anchor, block + anchor)
+    return stripped
 
 
 # --------------------------------------------------------------------------------------------
@@ -389,7 +460,7 @@ def values_override(src: str, items: list[tuple[str, str, str]], comment: str,
         body.append(f'    <{rtype} name="{name}"{attrs}>{value}</{rtype}>')
     for rtype, name, value in flavour_only or []:
         # Declared (with its default) in a NoDrive-owned file of main, so other flavours still compile.
-        main_resource_attrs(read(WORKSPACE_RES), rtype, name, WORKSPACE_RES)
+        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES), rtype, name, f"{WORKSPACE_RES} or {BACKUP_RES}")
         body.append(f'    <{rtype} name="{name}">{value}</{rtype}>')
     body.append("</resources>")
     holders, licence = upstream_spdx(main_text)
@@ -753,6 +824,15 @@ def manifest() -> str:
     application.append(ET.Element("activity", {
         A + "name": WORKSPACE_ACTIVITY, A + "exported": "false",
         A + "configChanges": "orientation|screenSize|screenLayout|keyboardHidden"}))
+    application.append(ET.Comment(" Backup settings: the setup screen, the Stop Google backup helper and the Takeout "
+                                  "guide. "))
+    for name in BACKUP_ACTIVITIES:
+        application.append(ET.Element("activity", {A + "name": name, A + "exported": "false"}))
+    root.append(ET.Comment(" Package visibility for the Stop Google backup screen: only the apps whose backup it "
+                           "can open, never QUERY_ALL_PACKAGES. "))
+    queries = ET.SubElement(root, "queries")
+    for package in BACKUP_QUERY_PACKAGES:
+        ET.SubElement(queries, "package", {A + "name": package})
     ET.indent(root, space="    ")
     body = ET.tostring(root, encoding="unicode")
     body = body.replace(f'<manifest xmlns:android="{ANDROID_NS}" xmlns:tools="{TOOLS_NS}">',
@@ -770,8 +850,8 @@ def generated_files() -> dict[str, str]:
     out[f"{ND_RES}/values/bools.xml"] = values_override(
         f"{MAIN_RES}/values/bools.xml", [("bool", "show_push_warning", "false")],
         "Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; "
-        "the Workspace apps menu and signed-in in-app pages are on",
-        flavour_only=[("bool", "nodrive_workspace_apps", "true")])
+        "the Workspace apps menu, signed-in in-app pages and the Backup settings are on",
+        flavour_only=[("bool", "nodrive_workspace_apps", "true"), ("bool", "nodrive_backup", "true")])
     out[f"{ND_RES}/values/colors.xml"] = values_override(
         f"{MAIN_RES}/values/colors.xml", [("color", "bg_default", "#F8FAFC")], "THEME_BIBLE light background")
     out[f"{ND_RES}/values-night/colors.xml"] = values_override(
@@ -790,8 +870,8 @@ def planned_changes() -> tuple[dict[str, str], list[str]]:
     """Return {path: new content} for every file that differs, and stale files to delete."""
     files = generated_files()
     files["app/build.gradle.kts"] = patch_gradle(read("app/build.gradle.kts"))
-    for rel, anchor, block in HOOKS:
-        files[rel] = patch_hook(rel, anchor, block, read(rel))
+    for rel, hooks in HOOKS.items():
+        files[rel] = patch_hooks(rel, hooks, read(rel))
     changed = {}
     for rel, content in files.items():
         path = ROOT / rel

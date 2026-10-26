@@ -185,6 +185,18 @@ abstract class ComponentsModule {
     @ContributesAndroidInjector
     abstract WorkspaceWebActivity workspaceWebActivity();
 
+    // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+    @ContributesAndroidInjector
+    abstract org.nourax.nodrive.backup.BackupSetupActivity backupSetupActivity();
+
+    @ContributesAndroidInjector
+    abstract org.nourax.nodrive.backup.StopGoogleBackupActivity stopGoogleBackupActivity();
+
+    @ContributesAndroidInjector
+    abstract org.nourax.nodrive.backup.MoveFromGoogleActivity moveFromGoogleActivity();
+
+    // NoDrive: end
+
     @ContributesAndroidInjector
     abstract FileDisplayActivity fileDisplayActivity();
 

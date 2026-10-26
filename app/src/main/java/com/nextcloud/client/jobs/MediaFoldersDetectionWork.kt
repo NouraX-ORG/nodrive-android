@@ -89,6 +89,16 @@ class MediaFoldersDetectionWork(
             null,
             true
         )
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.backup.BackupAutoAdd.onMediaFoldersDetected(
+            context,
+            userAccountManager,
+            syncedFolderProvider,
+            clock,
+            imageMediaFolders + videoMediaFolders
+        )
+        // NoDrive: end
+
         val imageMediaFolderPaths: MutableList<String> = ArrayList()
         val videoMediaFolderPaths: MutableList<String> = ArrayList()
 

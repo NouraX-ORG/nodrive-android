@@ -9,7 +9,8 @@
   ~ SPDX-License-Identifier: AGPL-3.0-or-later OR GPL-2.0-only
 -->
 <resources>
-    <!-- Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; the Workspace apps menu and signed-in in-app pages are on -->
+    <!-- Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; the Workspace apps menu, signed-in in-app pages and the Backup settings are on -->
     <bool name="show_push_warning">false</bool>
     <bool name="nodrive_workspace_apps">true</bool>
+    <bool name="nodrive_backup">true</bool>
 </resources>

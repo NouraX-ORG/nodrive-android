@@ -1555,6 +1555,10 @@ public class AuthenticatorActivity extends AccountAuthenticatorActivity
             setAccountAuthenticatorResult(intent.getExtras());
             setResult(RESULT_OK, intent);
 
+            // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+            org.nourax.nodrive.backup.BackupOffer.markPending(this, mAccount.name);
+            // NoDrive: end
+
             // notify Document Provider
             DocumentsStorageProvider.notifyRootsChanged(this);
 

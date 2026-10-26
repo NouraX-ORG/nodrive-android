@@ -14,7 +14,8 @@ import com.google.gson.JsonParser
 /** Reads the answer of GET /ocs/v2.php/core/navigation/apps (design section 2). */
 object WorkspaceAppsParser {
     private const val TYPE_LINK = "link"
-    private const val APP_FILES = "files"
+    // NoDrive has its own Files, Activity and Photos screens: the server's entries would only duplicate them.
+    private val HIDDEN_APPS = setOf("files", "activity", "photos")
     private const val APP_EXTERNAL = "external"
 
     /** Throws a JsonParseException when the body is not an OCS answer. */
@@ -35,7 +36,7 @@ object WorkspaceAppsParser {
         val appId = entry.text("app")
         val name = entry.text("name")?.trim()
         if (id.isNullOrEmpty() || name.isNullOrEmpty() || entry.text("type") != TYPE_LINK) return null
-        if (id == APP_FILES || appId == APP_EXTERNAL) return null
+        if (id in HIDDEN_APPS || appId in HIDDEN_APPS || appId == APP_EXTERNAL) return null
         val href = WorkspaceOrigin.resolve(entry.text("href"), base) ?: return null
         return WorkspaceApp(id, appId, name, href, WorkspaceOrigin.resolve(entry.text("icon"), base))
     }

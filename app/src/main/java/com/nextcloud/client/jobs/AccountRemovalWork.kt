@@ -86,6 +86,10 @@ class AccountRemovalWork(
         backgroundJobManager.cancelPeriodicContactsBackup(user)
         val userRemoved = userAccountManager.removeUser(user)
         WorkspaceWebData.onAccountRemoved(context, user)
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.backup.BackupState.forget(context, user.accountName)
+        // NoDrive: end
+
         val storageManager = FileDataStorageManager(user, context.contentResolver)
 
         // disable daily backup

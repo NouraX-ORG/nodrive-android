@@ -21,10 +21,21 @@ class WorkspaceAppsParserTest {
             .bufferedReader().use { it.readText() }
 
     @Test
-    fun filesExternalAndForeignEntriesAreDroppedAndOrderIsKept() {
+    fun filesActivityPhotosExternalAndForeignEntriesAreDroppedAndOrderIsKept() {
         val apps = WorkspaceAppsParser.parse(fixture(), base)
         assertEquals(listOf("dashboard", "mail", "calendar", "spreed", "notes"), apps.map { it.id })
         assertEquals(listOf("Dashboard", "Mail", "Calendar", "Talk", "Notes"), apps.map { it.name })
+    }
+
+    @Test
+    fun hiddenAppsAreDroppedByIdAndByAppName() {
+        val json = """{"ocs":{"data":[
+            {"id":"activity","type":"link","name":"Activity","href":"/apps/activity/","app":"activity"},
+            {"id":"photos","type":"link","name":"Photos","href":"/apps/photos/","app":"photos"},
+            {"id":"x","type":"link","name":"Pictures","href":"/apps/photos/","app":"photos"},
+            {"id":"y","type":"link","name":"Feed","href":"/apps/activity/","app":"activity"},
+            {"id":"mail","type":"link","name":"Mail","href":"/apps/mail/","app":"mail"}]}}"""
+        assertEquals(listOf("mail"), WorkspaceAppsParser.parse(json, base).map { it.id })
     }
 
     @Test

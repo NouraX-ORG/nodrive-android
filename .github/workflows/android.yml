@@ -10,7 +10,7 @@ name: Android
 
 on:
     push:
-        branches: [ main, platform/android, feature/workspace-apps ]
+        branches: [ main, platform/android, feature/workspace-apps, feature/backup-settings ]
     workflow_dispatch:
 
 permissions:
@@ -298,7 +298,7 @@ jobs:
                     ./gradlew --stacktrace :app:assembleNodriveDebug :app:assembleNodriveDebugAndroidTest
                     sha256sum "$APK"
 
-            # A throwaway Nextcloud 35.0.2 with random credentials (masked) for tools/ci/workspace-device.sh, and a
+            # A throwaway Nextcloud 35.0.2 with random credentials (masked) for tools/ci/workspace-device.sh and tools/ci/backup-device.sh, and a
             # probe server on port 8081 that plays "another host" (the emulator reaches it as localhost:8081 through adb reverse, a different host from 10.0.2.2:8080).
             -   name: Start the throwaway servers (Nextcloud on 8080, probe on 8081)
                 run: |
@@ -338,7 +338,7 @@ jobs:
                     rc=0
                     python3 tools/ci/probe-server.py --check build/device/probe.jsonl --min-requests 1 > build/device/probe-check.txt || rc=1
                     cat build/device/probe-check.txt
-                    for name in NODRIVE_WS_SSO_TOKEN NODRIVE_WS_REMOVE_TOKEN NODRIVE_WS_PW_TOKEN NODRIVE_WS_LOGIN_PASSWORD; do
+                    for name in NODRIVE_WS_SSO_TOKEN NODRIVE_WS_REMOVE_TOKEN NODRIVE_WS_PW_TOKEN NODRIVE_BK_TOKEN NODRIVE_WS_LOGIN_PASSWORD; do
                         value="${!name:-}"
                         [ -n "$value" ] || continue
                         if grep -rlaF --exclude=network.pcap -e "$value" build/device app/build/reports \

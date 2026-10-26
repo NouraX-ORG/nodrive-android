@@ -180,6 +180,10 @@ public class SettingsActivity extends PreferenceActivity
         // General
         setupGeneralCategory();
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.backup.BackupSettingsSection.install(this, preferenceScreen, user, viewThemeUtils);
+        // NoDrive: end
+
         // Synced folders
         setupAutoUploadCategory(preferenceScreen);
 

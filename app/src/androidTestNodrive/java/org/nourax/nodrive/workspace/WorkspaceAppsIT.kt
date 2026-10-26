@@ -25,6 +25,7 @@ import com.nextcloud.client.jobs.BackgroundJobManagerImpl
 import com.nextcloud.client.preferences.AppPreferencesImpl
 import com.nextcloud.test.GrantTestPermissionRule
 import com.owncloud.android.R
+import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
 import com.owncloud.android.ui.activity.FileDisplayActivity
 import org.hamcrest.Matchers.allOf
 import org.junit.After
@@ -71,6 +72,16 @@ class WorkspaceAppsIT {
             }
             assertTrue(titles.toString(), titles.contains("Dashboard"))
             assertFalse(titles.toString(), titles.any { it.equals("Files", ignoreCase = true) })
+            // NoDrive has its own Activity and Photos screens: the menu leaves the server's entries out. The positive
+            // control: the server did send both (the raw answer is cached), so the filter did the hiding.
+            val raw = checkNotNull(
+                WorkspaceAppsDataStore(support.currentAccountName(), ArbitraryDataProviderImpl(support.context)).load()
+            ).json
+            val hasEntry = { id: String -> Regex("\"id\"\\s*:\\s*\"$id\"").containsMatchIn(raw) }
+            assertTrue("the server answer has an activity entry", hasEntry("activity"))
+            assertTrue("the server answer has a photos entry", hasEntry("photos"))
+            assertFalse(titles.toString(), titles.any { it.equals("Activity", ignoreCase = true) })
+            assertFalse(titles.toString(), titles.any { it.equals("Photos", ignoreCase = true) })
             support.sleepForAnimation()
             support.screenshot("menu")
 

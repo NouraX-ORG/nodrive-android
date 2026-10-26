@@ -5,7 +5,7 @@
 # CI only. A throwaway Nextcloud server (the same release as drive.nourax.org) in Docker on the runner,
 # never drive.nourax.org. Used to prove, on the real server code, how the apps sign the in-app web view in
 # (docs: tools/ci/server_login_check.py).
-#   start  create the server, one user, two app passwords (with and without a login password, the second like
+#   start  create the server, one user, app passwords (with and without a login password, the second like
 #          a "Log in with Nourax" user), and theme it as "Nourax Workspace" so screenshots show no stock name.
 #          Credentials are random, masked in the log and exported through $GITHUB_ENV (never printed).
 #   check  run the checks of tools/ci/server_login_check.py against that server (report in build/server-login/).
@@ -50,7 +50,7 @@ start() {
 
     docker exec -u www-data -e OC_PASS="$login_pw" "$NAME" php occ user:add --password-from-env \
         --display-name "Demo User" "$USER_ID" > /dev/null
-    local pw_token sso_token remove_token
+    local pw_token sso_token remove_token bk_token
     pw_token=$(docker exec -u www-data -e NC_PASS="$login_pw" "$NAME" php occ user:auth-tokens:add \
         --password-from-env --name nodrive-ci "$USER_ID" | tail -n 1 | tr -d '\r')
     echo "::add-mask::$pw_token"
@@ -61,7 +61,12 @@ start() {
     remove_token=$(docker exec -u www-data "$NAME" php occ -n user:auth-tokens:add --name nodrive-ci-removal "$USER_ID" \
         | tail -n 1 | tr -d '\r')
     echo "::add-mask::$remove_token"
-    [ ${#pw_token} -ge 32 ] && [ ${#sso_token} -ge 32 ] && [ ${#remove_token} -ge 32 ] || { echo "app password creation failed"; exit 1; }
+    # A fourth one for the backup upload test (tools/ci/backup-device.sh).
+    bk_token=$(docker exec -u www-data "$NAME" php occ -n user:auth-tokens:add --name nodrive-ci-backup "$USER_ID" \
+        | tail -n 1 | tr -d '\r')
+    echo "::add-mask::$bk_token"
+    [ ${#pw_token} -ge 32 ] && [ ${#sso_token} -ge 32 ] && [ ${#remove_token} -ge 32 ] && [ ${#bk_token} -ge 32 ] \
+        || { echo "app password creation failed"; exit 1; }
 
     local envfile="$OUT/server.env"
     ( umask 077; {
@@ -70,10 +75,11 @@ start() {
         echo "NODRIVE_WS_PW_TOKEN=$pw_token"
         echo "NODRIVE_WS_SSO_TOKEN=$sso_token"
         echo "NODRIVE_WS_REMOVE_TOKEN=$remove_token"
+        echo "NODRIVE_BK_TOKEN=$bk_token"
         echo "NODRIVE_WS_LOGIN_PASSWORD=$login_pw"
     } > "$envfile" )
     if [ -n "${GITHUB_ENV:-}" ]; then cat "$envfile" >> "$GITHUB_ENV"; fi
-    echo "server up on port $PORT, user $USER_ID, three app passwords created (values masked)"
+    echo "server up on port $PORT, user $USER_ID, four app passwords created (values masked)"
 }
 
 case "${1:-}" in

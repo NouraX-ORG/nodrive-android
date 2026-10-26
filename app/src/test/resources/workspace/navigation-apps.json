@@ -32,6 +32,30 @@
         "unread": 0
       },
       {
+        "id": "activity",
+        "order": 1,
+        "href": "/apps/activity/",
+        "icon": "/apps/activity/img/activity.svg",
+        "type": "link",
+        "name": "Activity",
+        "app": "activity",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
+        "id": "photos",
+        "order": 1,
+        "href": "/apps/photos/",
+        "icon": "/apps/photos/img/app.svg",
+        "type": "link",
+        "name": "Photos",
+        "app": "photos",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
         "id": "mail",
         "order": 1,
         "href": "/apps/mail/",

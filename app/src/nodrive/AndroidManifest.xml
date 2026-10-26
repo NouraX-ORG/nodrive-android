@@ -57,5 +57,15 @@
         </activity>
         <!-- Workspace apps: pages of the account's own server, signed in, inside the app. -->
         <activity android:name="org.nourax.nodrive.workspace.WorkspaceWebActivity" android:exported="false" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+        <!-- Backup settings: the setup screen, the Stop Google backup helper and the Takeout guide. -->
+        <activity android:name="org.nourax.nodrive.backup.BackupSetupActivity" android:exported="false" />
+        <activity android:name="org.nourax.nodrive.backup.StopGoogleBackupActivity" android:exported="false" />
+        <activity android:name="org.nourax.nodrive.backup.MoveFromGoogleActivity" android:exported="false" />
     </application>
+    <!-- Package visibility for the Stop Google backup screen: only the apps whose backup it can open, never QUERY_ALL_PACKAGES. -->
+    <queries>
+        <package android:name="com.google.android.apps.photos" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
 </manifest>
