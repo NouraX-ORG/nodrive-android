@@ -22,7 +22,6 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.net.toUri
 import androidx.core.view.size
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
@@ -41,6 +40,7 @@ import com.owncloud.android.ui.fragment.notifications.NotificationsAdapterItemCl
 import com.owncloud.android.ui.fragment.notifications.NotificationsFragment
 import com.owncloud.android.utils.DisplayUtils
 import com.owncloud.android.utils.theme.ViewThemeUtils
+import org.nourax.nodrive.workspace.WorkspaceLinks
 
 @Suppress("TooManyFunctions")
 class NotificationListAdapter(
@@ -96,7 +96,7 @@ class NotificationListAdapter(
                 setTypeface(typeface, Typeface.BOLD)
                 text = subject
                 setOnClickListener {
-                    DisplayUtils.startLinkIntent(fragment.requireActivity(), notification.getLink())
+                    WorkspaceLinks.open(fragment.requireActivity(), accountManager.user, notification.getLink())
                 }
             }
         } else {
@@ -261,9 +261,7 @@ class NotificationListAdapter(
     private fun onActionClicked(holder: NotificationViewHolder, action: Action, notification: Notification) {
         setButtonEnabled(holder, false)
         if (ACTION_TYPE_WEB == action.type) {
-            fragment.requireActivity().startActivity(
-                Intent(Intent.ACTION_VIEW).apply { data = action.link?.toUri() }
-            )
+            WorkspaceLinks.open(fragment.requireActivity(), accountManager.user, action.link)
         } else {
             itemClick.onActionClick(holder, action, notification)
         }

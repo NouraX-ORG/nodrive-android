@@ -43,6 +43,7 @@ import com.owncloud.android.ui.events.AccountRemovedEvent
 import com.owncloud.android.utils.EncryptionUtils
 import com.owncloud.android.utils.PushUtils
 import org.greenrobot.eventbus.EventBus
+import org.nourax.nodrive.workspace.WorkspaceWebData
 import java.util.Optional
 
 /**
@@ -84,6 +85,7 @@ class AccountRemovalWork(
         val user = optionalUser.get()
         backgroundJobManager.cancelPeriodicContactsBackup(user)
         val userRemoved = userAccountManager.removeUser(user)
+        WorkspaceWebData.onAccountRemoved(context, user)
         val storageManager = FileDataStorageManager(user, context.contentResolver)
 
         // disable daily backup

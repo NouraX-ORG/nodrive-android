@@ -39,6 +39,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MAIN = "app/src/main"
 MAIN_RES = f"{MAIN}/res"
+WORKSPACE_RES = f"{MAIN_RES}/values/nodrive_workspace.xml"
+WORKSPACE_ACTIVITY = "org.nourax.nodrive.workspace.WorkspaceWebActivity"
 ND = "app/src/nodrive"
 ND_RES = f"{ND}/res"
 FASTLANE = "src/nodrive/fastlane/metadata"
@@ -378,12 +380,17 @@ def setup_xml() -> str:
     return xml_file("\n".join(body), source=src, upstream_spdx=holders, licence=licence)
 
 
-def values_override(src: str, items: list[tuple[str, str, str]], comment: str) -> str:
+def values_override(src: str, items: list[tuple[str, str, str]], comment: str,
+                    flavour_only: list[tuple[str, str, str]] | None = None) -> str:
     main_text = read(src)
     body = ["<resources>", f"    <!-- {comment} -->"]
     for rtype, name, value in items:
         attrs = main_resource_attrs(main_text, rtype, name, src)
         body.append(f'    <{rtype} name="{name}"{attrs}>{value}</{rtype}>')
+    for rtype, name, value in flavour_only or []:
+        # Declared (with its default) in a NoDrive-owned file of main, so other flavours still compile.
+        main_resource_attrs(read(WORKSPACE_RES), rtype, name, WORKSPACE_RES)
+        body.append(f'    <{rtype} name="{name}">{value}</{rtype}>')
     body.append("</resources>")
     holders, licence = upstream_spdx(main_text)
     return xml_file("\n".join(body), source=src, upstream_spdx=holders, licence=licence)
@@ -742,6 +749,10 @@ def manifest() -> str:
     application.append(ET.Comment(f" Generated from {src}: only https links to {HOST} (autoVerify=false until "
                                   "assetlinks.json exists), no Nextcloud ecosystem action. "))
     application.append(act)
+    application.append(ET.Comment(" Workspace apps: pages of the account's own server, signed in, inside the app. "))
+    application.append(ET.Element("activity", {
+        A + "name": WORKSPACE_ACTIVITY, A + "exported": "false",
+        A + "configChanges": "orientation|screenSize|screenLayout|keyboardHidden"}))
     ET.indent(root, space="    ")
     body = ET.tostring(root, encoding="unicode")
     body = body.replace(f'<manifest xmlns:android="{ANDROID_NS}" xmlns:tools="{TOOLS_NS}">',
@@ -758,7 +769,9 @@ def generated_files() -> dict[str, str]:
     out[f"{ND_RES}/values/setup.xml"] = setup_xml()
     out[f"{ND_RES}/values/bools.xml"] = values_override(
         f"{MAIN_RES}/values/bools.xml", [("bool", "show_push_warning", "false")],
-        "Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar")
+        "Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; "
+        "the Workspace apps menu and signed-in in-app pages are on",
+        flavour_only=[("bool", "nodrive_workspace_apps", "true")])
     out[f"{ND_RES}/values/colors.xml"] = values_override(
         f"{MAIN_RES}/values/colors.xml", [("color", "bg_default", "#F8FAFC")], "THEME_BIBLE light background")
     out[f"{ND_RES}/values-night/colors.xml"] = values_override(

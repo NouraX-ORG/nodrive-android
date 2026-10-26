@@ -55,5 +55,7 @@
                 <data android:pathPattern="/app/..*" />
             </intent-filter>
         </activity>
+        <!-- Workspace apps: pages of the account's own server, signed in, inside the app. -->
+        <activity android:name="org.nourax.nodrive.workspace.WorkspaceWebActivity" android:exported="false" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
     </application>
 </manifest>

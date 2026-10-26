@@ -111,6 +111,7 @@ import com.owncloud.android.utils.theme.CapabilityUtils;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
+import org.nourax.nodrive.workspace.WorkspaceAppsDrawer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -657,6 +658,9 @@ public abstract class DrawerActivity extends ToolbarActivity
             intent.setAction(FileDisplayActivity.LIST_GROUPFOLDERS);
             startActivity(intent);
         } else {
+            if (WorkspaceAppsDrawer.onItemClicked(this, menuItem, accountManager.getUser())) {
+                return;
+            }
             if (menuItem.getItemId() >= MENU_ITEM_EXTERNAL_LINK &&
                 menuItem.getItemId() <= MENU_ITEM_EXTERNAL_LINK + 100) {
                 // external link clicked
@@ -1096,6 +1100,9 @@ public abstract class DrawerActivity extends ToolbarActivity
     }
 
     private void updateExternalLinksInDrawer() {
+        if (drawerNavigationView != null) {
+            WorkspaceAppsDrawer.update(this, drawerNavigationView, accountManager.getUser());
+        }
         if (drawerNavigationView == null || !MDMConfig.INSTANCE.externalSiteSupport(this)) {
             return;
         }
@@ -1203,6 +1210,7 @@ public abstract class DrawerActivity extends ToolbarActivity
             }
         }
         updateExternalLinksInDrawer();
+        WorkspaceAppsDrawer.refresh(this, drawerNavigationView, accountManager.getUser());
         updateQuotaLink();
     }
 

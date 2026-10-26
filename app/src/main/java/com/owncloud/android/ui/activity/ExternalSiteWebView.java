@@ -135,7 +135,6 @@ public class ExternalSiteWebView extends FileActivity {
             });
         }
 
-        final ExternalSiteWebView self = this;
         getWebView().setWebViewClient(new NextcloudWebViewClient(getSupportFragmentManager()) {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 InputStream resources = getResources().openRawResource(R.raw.custom_error);
@@ -148,15 +147,23 @@ public class ExternalSiteWebView extends FileActivity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (!request.isRedirect()) {
-                    DisplayUtils.startLinkIntent(self, request.getUrl());
-                    return true;
-                }
-                return false;
+                return handleUrlLoading(view, request);
             }
         });
 
         new WebViewUtil().setProxyKKPlus(getWebView());
+        loadInitialUrl(url);
+    }
+
+    protected boolean handleUrlLoading(WebView view, WebResourceRequest request) {
+        if (!request.isRedirect()) {
+            DisplayUtils.startLinkIntent(this, request.getUrl());
+            return true;
+        }
+        return false;
+    }
+
+    protected void loadInitialUrl(String url) {
         getWebView().loadUrl(url);
     }
 

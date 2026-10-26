@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- Workspace apps menu, signed-in in-app pages and in-app notification links; only the nodrive flavour sets it true -->
+    <bool name="nodrive_workspace_apps">false</bool>
+</resources>
