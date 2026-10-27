@@ -15,12 +15,15 @@ NoDrive is the Android app for **Nourax Workspace** files at <https://drive.nour
   NoDrive, already signed in with the phone's app password, so there is no sign-in page. Links in the
   notification list that point to the Drive open there too. The password goes only to the account's
   own server and is never in a URL or a log. Signing out or removing the account clears the in-app
-  web data. Details: [docs/testing.md](docs/testing.md).
+  web data. Entries of the server on another https address (for example NoMail) are shown too and
+  open in an in-app browser panel (a Custom Tab) that never gets a NoDrive credential; you sign in
+  there yourself. Details: [docs/testing.md](docs/testing.md).
 - **Backup:** Settings > Backup has one switch, "Back up all photos and videos to NoDrive". It turns
   on Auto upload for every photo and video folder on the phone, also the files already there, into
   `Phone backup/<phone name>/<folder name>` on the Drive, and adds new media folders by itself. A
-  second switch adds Documents and Downloads. Switching off stops future uploads and never deletes
-  anything. The same section has "Stop Google backup" (guides and Open buttons for Google Photos,
+  second switch adds Documents and Downloads. Switching off stops the folders it turned on and their
+  running upload, and never deletes anything. Folders you turned off in Auto upload yourself are left
+  as they are. The same section has "Stop Google backup" (guides and Open buttons for Google Photos,
   Google's device backup and WhatsApp backup) and "Move your Google data to NoDrive" (a Google
   Takeout guide: export, unzip into the NoDrive folder on a computer, the desktop app uploads it
   with the same folder structure). Details: [docs/testing.md](docs/testing.md).

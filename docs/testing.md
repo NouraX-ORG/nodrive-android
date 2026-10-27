@@ -13,12 +13,15 @@
   the emulator signs in to it and the in-app pages are checked. The phone test of the real Drive is
   owner tests 12 to 14 (section 4).
 - **The Backup settings are proven in CI on the emulator** against the same kind of throwaway server:
-  the switch, the Auto upload rows, a photo that was already on the phone arriving on the server, the
-  Stop Google backup buttons and the Takeout button. The phone test of the real Drive is owner tests
+  the switch, the Auto upload rows, a photo that was already on the phone arriving on the server
+  exactly once (also after on, off, on), the Documents and Downloads switch, the Stop Google backup
+  buttons and the Takeout button. The phone test of the real Drive is owner tests
   15 to 21 (section 4).
 
-The Backup rows, the Workspace menu rows, the unit-test and the screenshot rows come from [run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749)
-on branch `feature/backup-settings` (`a6d9e8fe7a`, 2026-10-26; the commit that was merged into `main`).
+The Backup, Workspace menu and unit-test rows come from [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397)
+on branch `feature/backup-settings-fixes` (`5b09df7b08`, 2026-10-27): the Backup change plus the fixes of its independent review (S1 to S8, section 6). All 5 jobs are green.
+The 78-screen sweep and the other screenshots come from [run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749)
+on branch `feature/backup-settings` (`a6d9e8fe7a`, 2026-10-26); the `backup-*.png` and `workspace-*.png` images are from run 40441111397.
 The Workspace apps rows come from [run 40352108524](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40352108524) on branch `feature/workspace-apps`
 (`c02bc5970a`). The other CI rows are from [run 40188742857](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40188742857)
 on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: see the
@@ -31,9 +34,9 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Branding gate: rebrand and icons up to date, keyword sweep, pins, self-test | CI | pass | Job "Branding gate": "rebrand --check: up to date", "make-icons --check: all images up to date", "882 hits: internal 254, legal 628, unclassified 0", "PASS - no unclassified hit, every pin holds"; self-test on stock genericDebug: 1315 hits, 528 unclassified |
 | Builds a debug-signed APK of the nodrive flavour | CI | pass | Job "APK and unit tests": `app-nodrive-debug.apk`, SHA-256 `0c2ee105a34838b843a538575e9c36965dd3760571ec4e1bd6f10a1085356c63`, `apksigner verify` OK |
 | APK identity and side-by-side ids (package, labels, authorities, account type, scheme, link host, login URL, push URL, user agent) | CI | pass | `tools/check-apk.py`: "Result PASS"; 113 labels all "NoDrive"; all 7 authorities and the declared permission are `org.nourax.nodrive*`; links only `https://drive.nourax.org` |
-| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after it: 110 suites, 662 tests, 0 failed, 3 skipped |
+| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after the Backup change: 110 suites, 662 tests, 0 failed, 3 skipped. [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) with the review fixes: 110 suites, 679 tests, 0 failed, 3 skipped (counted from the unit-test report artifact) |
 | Lint | CI | pass | `lintNodriveDebug`: "No issues found." (upstream config, warnings are errors) |
-| Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 74 listed classes (81 in the JUnit report, which counts nested test classes on their own), 486 tests, 0 failed. The list and the reason for every class or method left out: `tools/ci/instrumented-tests.txt` |
+| Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 74 listed classes (81 in the JUnit report, which counts nested test classes on their own), 486 tests, 0 failed. The list and the reason for every class or method left out: `tools/ci/instrumented-tests.txt`. In [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): "instrumented tests: 74 classes, 6 method(s) left out" and "instrumented tests: PASS". The 6th method is an upstream clock flake (see "Known CI flakiness") |
 | App name, version, account type and ids at runtime | CI | pass | `NoDriveBrandingIT`: `nameAndVersion`, `accountTypeIsOurs`, `providerAuthoritiesAreOurs` |
 | Server is fixed; sign-in uses Login Flow v2 at drive.nourax.org | CI | pass | `NoDriveBrandingIT.serverIsFixed`, `linksOpenOnlyForDriveNouraxOrg` |
 | Push, updater, what's new, recommend, help, issue tracker are off | CI | pass | `NoDriveBrandingIT.nextcloudServicesAreOff` |
@@ -55,13 +58,16 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Workspace apps: removing the account clears the in-app web data | CI | pass | Emulator job: "workspace IT (removal): OK (1 test)". It runs last, because the removal revokes the app password and the server then throttles for a while |
 | Backup: planning and safety rules (which folders, the remote path, own versus the user's rows, no delete operation exists) | CI | pass | Unit tests in [run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749): `BackupPlannerTest` (21), `BackupControllerTest` (10), `BackupPathsTest` (9), `BackupStateTest` (5), `BackupSafetyTest` (2: the operation list has no delete, and a source check finds no delete, overwrite, move or delete-after-upload call in `org.nourax.nodrive.backup`). Plans are replayed on a fake store: switching on twice changes nothing, switching off touches only the rows the switch made, another account's rows are never touched |
 | Backup switch: turning it on makes Auto upload rows for the phone's media folders, with existing files, folder names kept, Wi-Fi only, remote root `/Phone backup/<phone name>`; Auto upload shows them | CI | pass | Emulator job: "backup IT settings (light): OK (4 tests)" and "(dark): OK (4 tests)" (`BackupSettingsIT`: row fields, the Auto upload list, the kept file, the result screen). Screens: [Settings](screenshots/android/backup-settings-light.png), [result](screenshots/android/backup-setup-result-light.png), [Auto upload](screenshots/android/backup-auto-upload-light.png) |
-| Backup switch: a photo that was already on the phone is uploaded, under the backup folder, on the server | CI | pass | Emulator job: "backup IT upload (light): OK (1 test)" (`BackupUploadIT`) and "backup server check: 1 file(s) under Phone backup on the server" (a `find` on the throwaway server's data folder). Not yet proven in CI: on, off, on again with an exact count of one copy (review item S7a; the server check counts at least one) |
-| Backup switch off: stops the folders it turned on, deletes nothing | CI | pass (partly) | Unit tests `BackupControllerTest` (only owned and enabled rows are disabled; user-made rows and other accounts' rows are never touched). Known gap from the independent review (S2): an upload that is already running when the switch is turned off may finish its pending files; the next scan stops. Listed as a to-do (section 6) |
+| Backup switch: a photo that was already on the phone is uploaded, under the backup folder, on the server | CI | pass | Emulator job: "backup IT upload (light): OK (1 test)" (`BackupUploadIT`) and "backup server check: 1 file(s) under Phone backup on the server" (a `find` on the throwaway server's data folder). [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) (fix S7): "backup IT upload (light): OK (2 tests)" including `onOffOnUploadsEveryFileExactlyOnce` (each photo once on the server, the first photo's etag unchanged), and "backup server check: exactly 3 file(s) under Phone backup on the server" (the check is now an exact count) |
+| Backup switch off: stops the folders it turned on, cancels their running upload job, deletes nothing (fix S2) | CI | pass | Unit tests `BackupControllerTest` and the synced-folder store tests (only owned rows of the same account are disabled; the folder's `immediate_files_sync_<id>` work is cancelled, then the row is disabled; user-made rows and other accounts' rows are never touched); [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): 125 Backup and Workspace unit tests passed. Emulator: "backup IT rows (light): OK (3 tests)", including `aRowTheUserMadeIsNeverRewrittenAndNeverEnabled` (16-field fingerprint identical after on and off). Known weak spot (R1 in the re-check): the device test waits for the work to finish but does not assert the CANCELLED state (section 6). Owner test 22 |
 | Stop Google backup: cards for Google Photos, WhatsApp and Google device backup; an app's card shows only when the app is installed (device backup always); every intent has a safe fallback; no QUERY_ALL_PACKAGES | CI | pass | Unit tests `GoogleBackupPlacesTest` (8). `BackupSettingsIT` checks the stubbed Open intents. `tools/check-apk.py`: QUERY_ALL_PACKAGES absent, and package visibility declared for `com.google.android.apps.photos`, `com.whatsapp`, `com.whatsapp.w4b`. Screen: [Stop Google backup](screenshots/android/backup-stop-google-light.png) |
 | Move your Google data to NoDrive: guide text and the Open Google Takeout button (browser tab at https://takeout.google.com, no NoDrive credential) | CI | pass | `BackupSettingsIT`: the button starts a Custom Tab with the data `https://takeout.google.com`; no header other than Accept-Language and no sign-in extra is sent. Screen: [Move from Google](screenshots/android/backup-move-google-light.png) |
 | First-sign-in offer: shown once, then not again | CI | pass | `BackupSettingsIT`: the dialog "Back up your photos and videos to NoDrive?" shows once for a new sign-in and not again. Screen: [offer](screenshots/android/backup-offer-light.png) |
 | Workspace menu leaves out the server's Files, Activity and Photos entries (NoDrive has its own) | CI | pass | Unit test `WorkspaceAppsParserTest` (hidden by id or by app name). Server proof: the throwaway server sends `dashboard, files, office, photos, circles, activity` and the menu shows Dashboard, Office and Teams ([menu](screenshots/android/workspace-menu-light.png)). `WorkspaceAppsIT` has a positive control that the server did send both entries |
-| Branding gate and checks with the Backup change | CI | pass | Run 40399452749: "rebrand --check: up to date"; "check-branding: PASS - no unclassified hit"; `check-apk.py` "Result PASS"; "backup tests: PASS", "workspace apps test: PASS", "screen sweep: PASS" (78/78 screens dumped, 0 hits for Nextcloud); lint green. No new string, layout or colour names Nextcloud |
+| Branding gate and checks with the Backup change | CI | pass | Run 40441111397 (fixes): `rebrand --check: up to date`, `check-branding: PASS - no unclassified hit, every pin holds`, `backup tests: PASS`, `workspace apps test: PASS`, `screen sweep: PASS`, `check-network: PASS - no Nextcloud GmbH host`; its sweep has 77 screens because the fourth Arabic settings page is not always reached. Run 40399452749: "rebrand --check: up to date"; "check-branding: PASS - no unclassified hit"; `check-apk.py` "Result PASS"; "backup tests: PASS", "workspace apps test: PASS", "screen sweep: PASS" (78/78 screens dumped, 0 hits for Nextcloud); lint green. No new string, layout or colour names Nextcloud |
+| Backup fixes S1 to S7: folders saved after each step; a user's own Auto upload rows are left alone and listed; auto-add of new folders reuses the detected folders; a battery-optimization note with an "Allow background activity" button; Arabic, Urdu and emoji phone names stay readable in the folder name; Documents and Downloads switch tested on the emulator; on, off, on uploads each file once | CI | pass | [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): unit tests `aFailurePartWayKeepsTheRowsAlreadyMadeAsOwned...`, `aRowOfTheUserIsNeverChangedAndIsReported`, `autoAddUsesTheFoldersItWasGiven...`, `anArabicPhoneNameStaysReadable`, `aStorageVolumeAsABucketIsSkipped`; emulator "backup IT docs-off (light): OK (1 test)" and "backup IT docs-on (light): OK (1 test)" (All files access set with `appops`: off shows no folders, on shows Download and Documents rows with the right remote paths, Wi-Fi only, no date folders, and the file stays). Screen: [result with the battery note](screenshots/android/backup-setup-result-light.png) |
+| Workspace menu shows the server's NoMail entry with its icon and opens it in an in-app browser panel (a Custom Tab), without any NoDrive credential (fix S8) | CI | pass | [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): unit tests `noMailOnAnotherOriginIsKeptAsAnOutsideEntry...`, `entriesOfAnotherOriginThatAreNotPlainHttpsAreDropped` (14 bad links are dropped: http, ftp, javascript, mailto, intent, user info, no host, ...), `workspaceEntriesOfAnotherHttpsOriginGoToACustomTabWithoutAnAccount`; emulator "workspace IT (light): OK (4 tests)": the test adds a NoMail entry with the href `https://nomail.invalid/` to the throwaway server's answer; NoMail is the last menu entry, a tap starts an `ACTION_VIEW` for that URL with no Authorization or Cookie header, and `WorkspaceWebActivity` does not open. In the [menu screenshot](screenshots/android/workspace-menu-light.png) the entry is below the visible part (to-do N3 in section 6). Owner test 23 |
+| Independent re-check of the fixes | CI artifacts, read-only | approved, no blocking finding | Review file `plans/backup-settings-fixes-review-1.md` (nodrive-clients folder) on head `5b09df7b08`: S1 to S8 fixed, data safety holds (no delete call added), no upstream file touched, 1 should-fix (R1) and 9 nits, listed in section 6 |
 | Independent review of the Backup change | CI artifacts, read-only | approved, no blocking finding | 7 should-fix and 13 nits, all with a fix in the review file `plans/backup-settings-review-1.md` (nodrive-clients folder). They are the to-dos in section 6 |
 | Sign in with "Log in with Nourax" (owner's normal account, not the emergency admin) | owner | pending | Owner test 2 |
 | The login pages in the browser show no Nextcloud text | owner | pending | Owner test 2 (server side, see section 5) |
@@ -85,6 +91,8 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Stop Google backup: each Open button takes you to the right place | owner | pending | Owner test 19 |
 | Move your Google data to NoDrive: the guide and the Open Google Takeout button | owner | pending | Owner test 20 |
 | Workspace menu: no second Activity and Photos entries | owner | pending | Owner test 21 |
+| Backup: switching the backup off during the first big upload stops the uploading | owner | pending | Owner test 22 |
+| Workspace menu: NoMail appears with its icon and opens in the in-app browser panel, not signed in to NoDrive | owner | pending | Owner test 23 |
 
 ### Known CI flakiness
 
@@ -93,6 +101,13 @@ The emulator job sometimes fails for reasons outside the app. Re-running the fai
 
 - **Run 40188742857, attempt 1:** in `en-light`, the browser did not take the focus in time
   ("sign-in opens the browser ... address bar=''"). Attempt 2 passed every check.
+- **Upstream clock test:** `UploadDateTests#getRelativeDateTimeStringReturnsRelativeStringForHoursAgo`
+  fails when the emulator's clock is between 00:00 and 02:00 UTC. It is left out of the list in
+  `tools/ci/instrumented-tests.txt` (6 methods are left out in total). It tests upstream's date text
+  only; no branding is involved.
+- **Run 40441111397:** three earlier runs of the same branch failed in the NoMail tap test of the
+  Workspace menu (the drawer runs a tap only after it has closed). Fixed in the later commits; the
+  head run is green.
 - **Earlier runs:** a system app's "not responding" dialog took the focus. `tools/ci/device.sh` now
   waits for it and closes it. It also retries up to 5 failed instrumented methods once, and shows
   both results in the report.
@@ -108,7 +123,7 @@ test too.
 ## 3. Screenshot index
 
 78 screens in [screenshots/android/](screenshots/android/README.md), taken by `tools/ci/sweep.py` in
-run [40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749). The Backup change added Settings pages (Settings has a new Backup section at the top) and moved the numbers, so every link below is to the new image. The
+run [40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749). The `backup-*.png` and `workspace-*.png` images were replaced by those of [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) (the review fixes; that run's own sweep has 77 screens, all with 0 Nextcloud hits). The Backup change added Settings pages (Settings has a new Backup section at the top) and moved the numbers, so every link below is to the new image. The
 emulator is Android 15 on a Pixel 6 profile.
 
 - The signed-in screens use a local stand-in account `demo@drive.nourax.org`, added in airplane mode.
@@ -152,7 +167,7 @@ only.
 
 Four extra screens from the same emulator run, taken against the throwaway server with the test user
 `citest`. They are in [screenshots/android/](screenshots/android/README.md), named `workspace-*.png`.
-The server sends Files, Activity and Photos too; the menu leaves them out.
+The server sends Files, Activity and Photos too; the menu leaves them out. The test server also sends a NoMail entry on another address: it is the last item, below the visible part of the menu in the screenshot.
 
 | Screen | Light | Dark |
 |---|---|---|
@@ -232,7 +247,7 @@ Use the same test build and the owner's normal Nourax account. Do these after te
 | 13 | Notification link | Open the notification list. Tap a notification that has a link to drive.nourax.org (for example a Talk message or a calendar invitation) | Did the page open inside NoDrive, signed in, instead of Chrome? Does a link to another website still open in the phone's browser? |
 | 14 | Sign out and in | Open one Workspace app. Then side menu > Sign out. Sign in again with "Log in with Nourax". Open a Workspace app again | After signing out, are the in-app pages signed out (open NoDrive's menu again only after signing in)? After signing in again, does a Workspace app open signed in with no sign-in page? |
 
-### Tests 15 to 21: Backup, Stop Google backup, Move from Google
+### Tests 15 to 23: Backup, Stop Google backup, Move from Google, NoMail
 
 Use the newest test build (install the `nodrive-android-apk` of the newest green run on `main`, over
 the old one) and the owner's normal Nourax account. Do these after test 2. **Do test 15 on Wi-Fi.**
@@ -253,6 +268,8 @@ conflict you decide on, and nothing is overwritten.
 | 19 | Stop Google backup | Settings > Backup > **Stop Google backup**. For each card tap **Open**: Google Photos (only if installed), Google device backup, WhatsApp (only if installed). Follow the short guide on the card and switch the backup off yourself | Which cards were listed? Did **Open** take you to Google Photos, to Android's Google backup settings (or to the main Settings screen with the guide), and to WhatsApp? Could you follow each guide and find the switch? Did anything crash or do nothing? |
 | 20 | Move from Google | Settings > Backup > **Move your Google data to NoDrive**. Read the guide. Tap **Open Google Takeout** | Is the guide clear (export Drive and Google Photos, download the zip files on a computer, unzip them all into one folder inside the NoDrive folder, the desktop app uploads it with the same folder structure)? Did the browser open takeout.google.com, with no NoDrive sign-in or password involved? |
 | 21 | No duplicates in the menu | Open the side menu | Below NoDrive's own entries (Activities, Media, Albums, ...) are the Workspace apps (for example Dashboard, Office, Talk). Is there **no** second "Activity", **no** second "Photos" and no "Files" there? |
+| 22 | Switch off during the first big upload | Do test 15 on a phone with many photos and videos. While the first upload is still running (the upload notification is visible, or Uploads shows files waiting), open Settings > Backup and switch the main switch **off** | Does the uploading stop within a minute or so (the notification goes away; at most the file that was being sent finishes)? Do no more new files appear on the Drive? Is Auto upload off for those folders? Is everything already on the Drive and everything on the phone still there? Switching on again: does it carry on and send only what is missing? |
+| 23 | NoMail in the menu | Open the side menu and scroll to the Workspace apps | Is **NoMail** listed, with its icon, in the server's order? Tap it: does it open in the in-app browser panel (a Custom Tab, with an address bar) at the NoMail address? Does it show NoMail's own sign-in (you sign in there yourself) and **not** your NoDrive account? Does back return to the files? |
 
 ## 5. Server-side items for the Workspace session
 
@@ -269,23 +286,43 @@ These belong to the Drive server, not to the app. They were found in the server 
 | S6 | The names of the Workspace apps in NoDrive's menu come straight from the server's navigation list (`GET /ocs/v2.php/core/navigation/apps`). If an app's name there still says "Nextcloud", NoDrive shows it as is | The app only displays what the server sends | Read the list on the Drive: every entry's name and icon should read "Nourax" or be neutral. NoDrive leaves out `files`, `activity` and `photos` (NoDrive has its own Activity and Photos screens; owner decision of 2026-10-26) |
 | S7 | The in-app pages are signed in with the phone's app password from Login Flow v2: one request to the server makes a web session. Revoking the password in Settings > Security > Devices stops new pages from opening signed in, but an already open web session is not ended at once (the CI server proof shows this) | Nextcloud's web sessions live on their own after they start | Expect a short delay after a revoke. Ending a web session on the server does not sign the phone out |
 
-## 6. To-dos for later (from the independent review of the Backup change)
+## 6. To-dos for later
 
-None of these blocks the owner's backup.
+Nothing here blocks the owner's backup. The independent review of the Backup change
+(`plans/backup-settings-review-1.md`) found 7 should-fix items, S1 to S7. All 7 are **fixed** on
+`main` (re-check `plans/backup-settings-fixes-review-1.md`, approved, head `5b09df7b08`):
 
-- **Stop a running upload when the switch is turned off** (review S2): cancel the folder's running
-  upload job when the folder is disabled. Today the running job may finish its pending files; the
-  next scan does not start again.
-- **User-made Auto upload rows that the switch takes over** (S3): save their options and restore them
-  at switch-off, or leave such rows alone. Needs an owner decision.
-- **Save the folders that were turned on after each step**, not only at the end (S1), with a test
-  that fails on the second step.
-- Offer the battery-optimization exemption on the result screen (S5); keep letters of any script in
-  the phone name of the backup folder, for example Arabic (S6); tests for on, off, on again with
-  exactly one copy on the server, for the Documents switch and for taking over a user's row (S7);
-  the smaller items N1 to N13 in the review file.
-- **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_backup.xml`).
-  German, Arabic and the other languages are still to do.
+| # | Was | Now |
+|---|---|---|
+| S1 | The folders were saved only at the end | Fixed: each created row is saved as owned right after it is made; unit test for a failure on the second step |
+| S2 | A running upload was not stopped at switch-off | Fixed: switching off cancels the folder's upload job, then disables the row (the file being sent finishes) |
+| S3 | The switch took over the user's own disabled rows | Fixed (decision: do not take over): such rows are never changed and are listed on the result screen |
+| S4 | Auto-add re-read the phone's folders | Fixed: it reuses the folders it was given |
+| S5 | No battery-optimization offer | Fixed: note and "Allow background activity" button on the result screen |
+| S6 | Arabic and other scripts were dropped from the phone name | Fixed: only illegal path characters are replaced |
+| S7 | Missing tests (on, off, on; Documents switch; user rows) | Fixed: device tests for each, and an exact server file count |
+| S8 | NoMail missing from the Workspace menu (owner report) | Fixed: entries on another https address open in a Custom Tab, never with a NoDrive credential |
+
+Still open (all optional):
+
+- **R1 (should-fix):** make the device test show the CANCELLED state of the upload work after
+  switch-off, for example with "charging only" plus `adb shell dumpsys battery unplug`, or a JVM test
+  with a mocked store (`BackupRowsIT.switchingOffStopsTheUploadWorkOfTheRowsItOwns`).
+- **N1:** after a failed or killed switch-on the rows made so far are on while the switch shows off;
+  stop them on failure, or show the switch on when any owned row is enabled.
+- **N2:** disable the row first, then cancel the work (closes a millisecond window in the synced-folder store).
+- **N3 and N4:** scroll the menu to NoMail before the screenshot; assert the Custom Tab extra and that
+  only `accept-language` is sent.
+- **N5:** merge the two KDoc blocks on `forget` in `BackupState.kt`.
+- **N7:** keep the upstream clock test `UploadDateTests#getRelativeDateTimeStringReturnsRelativeStringForHoursAgo`
+  by running it with a fixed clock.
+- From the first review: the Open-settings dialog only for a permanent denial (N2), database reads on
+  the main thread on resume (N5), an old sign-in never gets the offer and the offer is lost when the
+  screen is recreated (N11), two phones with the same name share one backup folder (N13).
+- **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_backup.xml`;
+  the fixes added `nodrive_backup_battery_note`, `nodrive_backup_battery_button` and
+  `nodrive_backup_result_left_alone`, and changed the docs summary). German, Arabic and the other
+  languages are still to do.
 - On the first real Takeout export, check the zip layout (`Takeout/Drive/...` and
   `Takeout/Google Photos/...`) and that the NoDrive desktop app uploads it with the same folder
   structure (design risk R9). Later name those two folders in the guide (review N12).

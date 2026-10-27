@@ -28,10 +28,11 @@ Screens: 78. Looks: en-light, en-dark, de-light, ar-light, ar-dark.
 
 ## Workspace apps screens
 
-Taken by the instrumented tests of the same run (https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) against a throwaway local Nextcloud
+Taken by the instrumented tests of run 40441111397 (https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397, branch `feature/backup-settings-fixes`, with the review fixes) against a throwaway local Nextcloud
 server 35 with the test user `citest`. They are not part of the 78-screen sweep above. The server
-sends six navigation entries (dashboard, files, office, photos, circles, activity); the menu shows
-only the apps that are not Files, Activity or Photos.
+sends seven navigation entries (dashboard, files, office, photos, circles, activity and a NoMail
+entry on another address); the menu shows all but Files, Activity and Photos. NoMail is the last
+item, below the visible part of the screenshot.
 
 | File | What it shows |
 |---|---|
