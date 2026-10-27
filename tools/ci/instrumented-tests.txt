@@ -38,6 +38,9 @@
 #   tests after it (run 40163420586: InjectionTestActivityTest, UsersAndGroupsSearchProviderIT).
 #   tools/ci/sweep.py tests this sign-in flow on purpose.
 -com.owncloud.android.utils.SessionMixinTest#startAccountCreation
+# - Upstream test that depends on the clock: it expects "2 hours ago" and gets "Yesterday, 23:xx" whenever
+#   the run starts within two hours after midnight UTC (run 40430238655, 01:10 UTC). No branding involved.
+-com.nextcloud.utils.UploadDateTests#getRelativeDateTimeStringReturnsRelativeStringForHoursAgo
 
 com.nextcloud.client.account.AnonymousUserTest
 com.nextcloud.client.account.MockUserTest

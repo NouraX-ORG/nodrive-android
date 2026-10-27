@@ -186,7 +186,9 @@ class WorkspaceAppsIT {
         val launched = support.waitFor("a Custom Tab intent for $NOMAIL_URL", INTENT_TIMEOUT_MILLIS) {
             Intents.getIntents().firstOrNull { it.action == Intent.ACTION_VIEW && it.data == target }
         }
-        assertFalse("no request header for NoMail", launched.hasExtra(Browser.EXTRA_HEADERS))
+        // The Custom Tabs library adds a language header itself; nothing of the account may be in the headers.
+        val headers = launched.getBundleExtra(Browser.EXTRA_HEADERS)?.keySet().orEmpty().map { it.lowercase() }
+        assertTrue("no credential header for NoMail: $headers", headers.none { it == "authorization" || it == "cookie" })
         assertFalse("not an in-app page", launched.component?.className.orEmpty().contains("WorkspaceWebActivity"))
         assertEquals("no NoDrive page was opened for NoMail", null, support.workspaceActivity())
     }
