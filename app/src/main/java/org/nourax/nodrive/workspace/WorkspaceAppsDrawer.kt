@@ -7,10 +7,11 @@
 package org.nourax.nodrive.workspace
 
 import android.graphics.drawable.Drawable
-import android.net.Uri
+
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.navigation.NavigationView
 import com.nextcloud.client.account.User
@@ -77,7 +78,7 @@ object WorkspaceAppsDrawer {
             WorkspaceAppRoute.SIGNED_IN ->
                 activity.startActivity(WorkspaceWebActivity.intent(activity, user, app.href, app.name))
             // Another origin (NoMail): the in-app browser panel, which has its own cookies; no NoDrive credential.
-            WorkspaceAppRoute.CUSTOM_TAB -> WorkspaceLinks.openInCustomTab(activity, Uri.parse(app.href))
+            WorkspaceAppRoute.CUSTOM_TAB -> WorkspaceLinks.openInCustomTab(activity, app.href.toUri())
             WorkspaceAppRoute.IGNORE -> Unit
         }
         return true
