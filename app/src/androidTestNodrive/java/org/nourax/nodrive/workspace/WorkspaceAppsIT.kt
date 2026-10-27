@@ -183,6 +183,9 @@ class WorkspaceAppsIT {
         val target = Uri.parse(NOMAIL_URL)
         intending(allOf(hasAction(Intent.ACTION_VIEW), hasData(target)))
             .respondWith(Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null))
+        // The drawer runs a tap after it has closed, so it has to be open first.
+        scenario.onActivity { it.openDrawer() }
+        support.sleepForAnimation()
         tap(scenario, NOMAIL_TITLE)
         val launched = support.waitFor("a Custom Tab intent for $NOMAIL_URL", INTENT_TIMEOUT_MILLIS) {
             Intents.getIntents().firstOrNull { it.action == Intent.ACTION_VIEW && it.data == target }
