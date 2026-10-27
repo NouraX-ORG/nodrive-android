@@ -7,6 +7,7 @@
 package org.nourax.nodrive.workspace
 
 import com.google.gson.JsonParseException
+import com.google.gson.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -21,10 +22,73 @@ class WorkspaceAppsParserTest {
             .bufferedReader().use { it.readText() }
 
     @Test
-    fun filesActivityPhotosExternalAndForeignEntriesAreDroppedAndOrderIsKept() {
+    fun filesActivityPhotosAndExternalEntriesAreDroppedAndOrderIsKept() {
         val apps = WorkspaceAppsParser.parse(fixture(), base)
-        assertEquals(listOf("dashboard", "mail", "calendar", "spreed", "notes"), apps.map { it.id })
-        assertEquals(listOf("Dashboard", "Mail", "Calendar", "Talk", "Notes"), apps.map { it.name })
+        assertEquals(
+            listOf("dashboard", "mail", "calendar", "spreed", "elsewhere", "nourax_nomail", "notes"),
+            apps.map { it.id }
+        )
+        assertEquals(
+            listOf("Dashboard", "Mail", "Calendar", "Talk", "Elsewhere", "NoMail", "Notes"),
+            apps.map { it.name }
+        )
+    }
+
+    @Test
+    fun noMailOnAnotherOriginIsKeptAsAnOutsideEntryWithItsOwnOriginIcon() {
+        val apps = WorkspaceAppsParser.parse(fixture(), base)
+        val nomail = apps.first { it.id == "nourax_nomail" }
+        assertEquals("https://mail.nourax.org/", nomail.href)
+        assertEquals("https://drive.nourax.org/apps/nourax_branding/img/nomail.svg", nomail.iconUrl)
+        assertTrue(nomail.outside)
+        // An icon on another origin is never requested: the entry keeps the default icon.
+        val elsewhere = apps.first { it.id == "elsewhere" }
+        assertTrue(elsewhere.outside)
+        assertNull(elsewhere.iconUrl)
+        assertTrue(apps.filter { it.id !in setOf("nourax_nomail", "elsewhere") }.none { it.outside })
+    }
+
+    @Test
+    fun entriesOfAnotherOriginThatAreNotPlainHttpsAreDropped() {
+        val hrefs = listOf(
+            "http://mail.nourax.org/",
+            "ftp://mail.nourax.org/",
+            "javascript:alert(1)",
+            "mailto:a@b.example",
+            "intent://x#Intent;end",
+            "https://drive.nourax.org@mail.nourax.org/",
+            "https://user:pw@mail.nourax.org/",
+            "https:///nohost",
+            "https://",
+            "//mail.nourax.org/",
+            "\\mail.nourax.org",
+            "mail.nourax.org",
+            "https://mail.nourax.org/a b",
+            ""
+        )
+        val entries = hrefs.mapIndexed { i, href ->
+            """{"id":"e$i","type":"link","name":"E$i","href":${JsonPrimitive(href)}}"""
+        }
+        val json = """{"ocs":{"data":[${entries.joinToString(",")},
+            {"id":"ok","type":"link","name":"Ok","href":"https://mail.nourax.org/"}]}}"""
+        assertEquals(listOf("ok"), WorkspaceAppsParser.parse(json, base).map { it.id })
+    }
+
+    @Test
+    fun outsideEntriesStillFollowTheOtherFilters() {
+        val json = """{"ocs":{"data":[
+            {"id":"files","type":"link","name":"Files","href":"https://mail.nourax.org/","app":"files"},
+            {"id":"x","type":"link","name":"X","href":"https://mail.nourax.org/","app":"external"},
+            {"id":"y","type":"settings","name":"Y","href":"https://mail.nourax.org/"},
+            {"id":"z","type":"link","name":" ","href":"https://mail.nourax.org/"}]}}"""
+        assertTrue(WorkspaceAppsParser.parse(json, base).isEmpty())
+    }
+
+    @Test
+    fun anAbsoluteHrefOnTheAccountOriginIsNotOutside() {
+        val json = """{"ocs":{"data":[{"id":"m","type":"link","name":"M","href":"https://drive.nourax.org/apps/m/"}]}}"""
+        val app = WorkspaceAppsParser.parse(json, base).single()
+        assertEquals(false, app.outside)
     }
 
     @Test
@@ -41,6 +105,7 @@ class WorkspaceAppsParserTest {
     @Test
     fun hrefAndIconAreResolvedAgainstTheAccountOrigin() {
         val mail = WorkspaceAppsParser.parse(fixture(), base).first { it.id == "mail" }
+        assertEquals(false, mail.outside)
         assertEquals("https://drive.nourax.org/apps/mail/", mail.href)
         assertEquals("https://drive.nourax.org/apps/mail/img/app.svg", mail.iconUrl)
         assertEquals("mail", mail.appId)

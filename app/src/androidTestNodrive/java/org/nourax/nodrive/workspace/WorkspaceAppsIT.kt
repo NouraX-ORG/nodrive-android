@@ -10,6 +10,7 @@ import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
 import android.net.Uri
+import android.provider.Browser
 import android.webkit.CookieManager
 import android.webkit.WebView
 import androidx.test.core.app.ActivityScenario
@@ -20,6 +21,8 @@ import androidx.test.espresso.intent.matcher.IntentMatchers.hasData
 import androidx.test.rule.GrantPermissionRule
 import androidx.work.WorkManager
 import com.google.android.material.navigation.NavigationView
+import com.google.gson.JsonParser
+import com.nextcloud.client.account.UserAccountManagerImpl
 import com.nextcloud.client.core.ClockImpl
 import com.nextcloud.client.jobs.BackgroundJobManagerImpl
 import com.nextcloud.client.preferences.AppPreferencesImpl
@@ -82,8 +85,25 @@ class WorkspaceAppsIT {
             assertTrue("the server answer has a photos entry", hasEntry("photos"))
             assertFalse(titles.toString(), titles.any { it.equals("Activity", ignoreCase = true) })
             assertFalse(titles.toString(), titles.any { it.equals("Photos", ignoreCase = true) })
+            // The throwaway server has no nourax_branding app: add its NoMail entry (another origin) to the cached
+            // answer, the way the production server lists it, and show the menu again from that cache.
+            addNoMailToTheCachedAnswer()
+            scenario.onActivity { activity ->
+                WorkspaceAppsDrawer.update(
+                    activity,
+                    activity.findViewById(R.id.nav_view),
+                    UserAccountManagerImpl.fromContext(support.context).user
+                )
+            }
+            val withNoMail = support.waitFor("NoMail in the side menu", MENU_TIMEOUT_MILLIS) {
+                workspaceTitles(scenario).takeIf { NOMAIL_TITLE in it }
+            }
+            assertEquals("NoMail comes last, as in the server's list", NOMAIL_TITLE, withNoMail.last())
+            assertTrue(withNoMail.toString(), withNoMail.containsAll(titles))
             support.sleepForAnimation()
             support.screenshot("menu")
+
+            assertNoMailOpensInACustomTab(scenario)
 
             tap(scenario, "Dashboard")
             val activity = support.waitFor("the in-app page", MENU_TIMEOUT_MILLIS) { support.workspaceActivity() }
@@ -141,6 +161,36 @@ class WorkspaceAppsIT {
         }
     }
 
+    private fun addNoMailToTheCachedAnswer() {
+        val store = WorkspaceAppsDataStore(support.currentAccountName(), ArbitraryDataProviderImpl(support.context))
+        val cache = checkNotNull(store.load())
+        val root = JsonParser.parseString(cache.json).asJsonObject
+        val data = root.getAsJsonObject("ocs").getAsJsonArray("data")
+        if (data.none { it.asJsonObject.get("id")?.asString == "nourax_nomail" }) {
+            data.add(
+                JsonParser.parseString(
+                    """{"id":"nourax_nomail","order":9,"href":"$NOMAIL_URL","type":"link","name":"$NOMAIL_TITLE",
+                    "icon":"/apps/dashboard/img/app.svg","app":"nourax_branding","active":false,"classes":"","unread":0}"""
+                )
+            )
+        }
+        store.save(cache.copy(json = root.toString(), fetchedAtMillis = System.currentTimeMillis()))
+    }
+
+    /** A tap on NoMail opens its URL in the browser panel with nothing of the account, and not in the signed-in page. */
+    private fun assertNoMailOpensInACustomTab(scenario: ActivityScenario<FileDisplayActivity>) {
+        val target = Uri.parse(NOMAIL_URL)
+        intending(allOf(hasAction(Intent.ACTION_VIEW), hasData(target)))
+            .respondWith(Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null))
+        tap(scenario, NOMAIL_TITLE)
+        val launched = support.waitFor("a Custom Tab intent for $NOMAIL_URL", INTENT_TIMEOUT_MILLIS) {
+            Intents.getIntents().firstOrNull { it.action == Intent.ACTION_VIEW && it.data == target }
+        }
+        assertFalse("no request header for NoMail", launched.hasExtra(Browser.EXTRA_HEADERS))
+        assertFalse("not an in-app page", launched.component?.className.orEmpty().contains("WorkspaceWebActivity"))
+        assertEquals("no NoDrive page was opened for NoMail", null, support.workspaceActivity())
+    }
+
     private fun workspaceTitles(scenario: ActivityScenario<FileDisplayActivity>): List<String> {
         var titles = emptyList<String>()
         scenario.onActivity { activity ->
@@ -180,5 +230,7 @@ class WorkspaceAppsIT {
         const val REMOVAL_TIMEOUT_MILLIS = 60_000L
         const val INTENT_TIMEOUT_MILLIS = 20_000L
         const val FOREIGN_PORT = 8081
+        const val NOMAIL_TITLE = "NoMail"
+        const val NOMAIL_URL = "https://mail.nourax.org/"
     }
 }

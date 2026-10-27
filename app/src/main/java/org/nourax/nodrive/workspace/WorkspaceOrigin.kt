@@ -57,6 +57,15 @@ object WorkspaceOrigin {
         return if (isSameOrigin(href, base)) href else null
     }
 
+    /**
+     * True for a plain https URL with a host and no userinfo: the only kind of link to another origin that the
+     * Workspace menu may offer (it opens in a Custom Tab without any credential). http and other schemes are refused.
+     */
+    fun isOutsideHttps(href: String?): Boolean {
+        val uri = parse(href) ?: return false
+        return uri.scheme?.lowercase(Locale.ROOT) == HTTPS && webUri(uri) != null
+    }
+
     fun isLoginPath(url: String, base: String): Boolean = pathBelowWebroot(url, base)?.let(loginPath::matches) == true
 
     fun isLogoutPath(url: String, base: String): Boolean = pathBelowWebroot(url, base)?.let(logoutPath::matches) == true

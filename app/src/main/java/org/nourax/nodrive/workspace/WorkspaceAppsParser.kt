@@ -37,8 +37,12 @@ object WorkspaceAppsParser {
         val name = entry.text("name")?.trim()
         if (id.isNullOrEmpty() || name.isNullOrEmpty() || entry.text("type") != TYPE_LINK) return null
         if (id in HIDDEN_APPS || appId in HIDDEN_APPS || appId == APP_EXTERNAL) return null
-        val href = WorkspaceOrigin.resolve(entry.text("href"), base) ?: return null
-        return WorkspaceApp(id, appId, name, href, WorkspaceOrigin.resolve(entry.text("icon"), base))
+        val rawHref = entry.text("href")
+        val ownHref = WorkspaceOrigin.resolve(rawHref, base)
+        // An https entry of another origin (NoMail on mail.nourax.org) stays in the menu as an "outside" entry.
+        val href = ownHref ?: rawHref?.takeIf(WorkspaceOrigin::isOutsideHttps) ?: return null
+        // The icon is only ever read from the account's own origin.
+        return WorkspaceApp(id, appId, name, href, WorkspaceOrigin.resolve(entry.text("icon"), base), ownHref == null)
     }
 
     private fun JsonObject.text(key: String): String? =

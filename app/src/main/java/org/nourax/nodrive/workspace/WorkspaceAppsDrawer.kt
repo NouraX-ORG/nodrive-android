@@ -7,6 +7,7 @@
 package org.nourax.nodrive.workspace
 
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
@@ -72,7 +73,13 @@ object WorkspaceAppsDrawer {
         val navView = activity.findViewById<NavigationView>(R.id.nav_view) ?: return false
         val app = shown[navView]?.getOrNull(item.itemId - ITEM_BASE) ?: return false
         activity.closeDrawer()
-        activity.startActivity(WorkspaceWebActivity.intent(activity, user, app.href, app.name))
+        when (WorkspaceLinkRouter.routeApp(app.href, WorkspaceAccess.baseUrl(user))) {
+            WorkspaceAppRoute.SIGNED_IN ->
+                activity.startActivity(WorkspaceWebActivity.intent(activity, user, app.href, app.name))
+            // Another origin (NoMail): the in-app browser panel, which has its own cookies; no NoDrive credential.
+            WorkspaceAppRoute.CUSTOM_TAB -> WorkspaceLinks.openInCustomTab(activity, Uri.parse(app.href))
+            WorkspaceAppRoute.IGNORE -> Unit
+        }
         return true
     }
 

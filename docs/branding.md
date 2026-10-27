@@ -86,7 +86,7 @@ All in `app/src/nodrive/res/values/setup.xml` and `bools.xml`.
 | `license_enabled` | `true` | The one licence row stays (see NOTICE.md) |
 | `osm_geocoder_contact` | empty | No Nextcloud contact address sent to OpenStreetMap Nominatim |
 | `show_drawer_logout` | `true` | "Sign out" in the drawer |
-| `nodrive_workspace_apps` | `true` (declared `false` in `app/src/main/res/values/nodrive_workspace.xml`, so the other flavours compile) | Workspace apps menu, signed-in in-app pages and in-app notification links. No new string: the app names come from the server. The menu leaves out the server's `files`, `activity` and `photos` entries |
+| `nodrive_workspace_apps` | `true` (declared `false` in `app/src/main/res/values/nodrive_workspace.xml`, so the other flavours compile) | Workspace apps menu, signed-in in-app pages and in-app notification links. No new string: the app names come from the server. The menu leaves out the server's `files`, `activity` and `photos` entries. An https entry on another origin (NoMail on mail.nourax.org) stays in the menu and opens in a Custom Tab with no NoDrive credential; its icon is only read from the account's own origin |
 | `nodrive_backup` | `true` (declared `false` in `app/src/main/res/values/nodrive_backup.xml`, so the other flavours compile) | Settings > Backup (one backup switch, Documents and Downloads switch, Stop Google backup, Move your Google data), the one-time offer after the first sign-in, and new media folders added while the switch is on. All new texts are in `nodrive_backup.xml` (English only, no Nextcloud name). The remote root is the fixed folder name `Phone backup` |
 
 ## 4. Colours

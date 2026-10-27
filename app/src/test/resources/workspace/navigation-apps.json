@@ -116,6 +116,18 @@
         "unread": 0
       },
       {
+        "id": "nourax_nomail",
+        "order": 6,
+        "href": "https://mail.nourax.org/",
+        "icon": "/apps/nourax_branding/img/nomail.svg",
+        "type": "link",
+        "name": "NoMail",
+        "app": "nourax_branding",
+        "active": false,
+        "classes": "",
+        "unread": 0
+      },
+      {
         "id": "notes",
         "href": "/apps/notes/",
         "icon": "/apps/notes/img/app.svg",

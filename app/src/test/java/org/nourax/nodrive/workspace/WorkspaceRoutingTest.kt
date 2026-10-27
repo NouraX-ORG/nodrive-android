@@ -14,6 +14,8 @@ class WorkspaceRoutingTest {
 
     private fun route(url: String?) = WorkspaceLinkRouter.route(url, base)
 
+    private fun routeApp(href: String?) = WorkspaceLinkRouter.routeApp(href, base)
+
     private fun decide(url: String) = WorkspaceNavigationPolicy.decide(url, base)
 
     @Test
@@ -36,6 +38,27 @@ class WorkspaceRoutingTest {
         assertEquals(WorkspaceRoute.IGNORE, route(""))
         assertEquals(WorkspaceRoute.IGNORE, route("   "))
         assertEquals(WorkspaceRoute.IGNORE, route("not a url"))
+    }
+
+    @Test
+    fun workspaceEntriesOfTheOwnOriginAreSignedIn() {
+        assertEquals(WorkspaceAppRoute.SIGNED_IN, routeApp("https://drive.nourax.org/apps/mail/"))
+        assertEquals(WorkspaceAppRoute.SIGNED_IN, routeApp("https://drive.nourax.org:443/apps/mail/"))
+    }
+
+    @Test
+    fun workspaceEntriesOfAnotherHttpsOriginGoToACustomTabWithoutAnAccount() {
+        assertEquals(WorkspaceAppRoute.CUSTOM_TAB, routeApp("https://mail.nourax.org/"))
+        assertEquals(WorkspaceAppRoute.CUSTOM_TAB, routeApp("https://drive.nourax.org:8443/apps/mail/"))
+        assertEquals(WorkspaceAppRoute.CUSTOM_TAB, routeApp("https://example.org/x?y=1"))
+    }
+
+    @Test
+    fun workspaceEntriesThatAreNotPlainHttpsOpenNowhere() {
+        listOf(
+            "http://mail.nourax.org/", "http://drive.nourax.org/", "mailto:a@b.example", "javascript:alert(1)",
+            "https://drive.nourax.org@evil.example/", "https:///x", "", "not a url", null
+        ).forEach { assertEquals(it, WorkspaceAppRoute.IGNORE, routeApp(it)) }
     }
 
     @Test

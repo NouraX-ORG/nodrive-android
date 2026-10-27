@@ -11,5 +11,7 @@ data class WorkspaceApp(
     val appId: String?,
     val name: String,
     val href: String,
-    val iconUrl: String?
+    val iconUrl: String?,
+    /** An https entry of another origin (such as NoMail): it opens in a Custom Tab, never signed in. */
+    val outside: Boolean = false
 )
