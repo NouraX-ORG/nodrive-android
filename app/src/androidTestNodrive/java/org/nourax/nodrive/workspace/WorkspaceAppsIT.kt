@@ -103,8 +103,6 @@ class WorkspaceAppsIT {
             support.sleepForAnimation()
             support.screenshot("menu")
 
-            assertNoMailOpensInACustomTab(scenario)
-
             tap(scenario, "Dashboard")
             val activity = support.waitFor("the in-app page", MENU_TIMEOUT_MILLIS) { support.workspaceActivity() }
             val web = support.webViewOf(activity)
@@ -125,6 +123,9 @@ class WorkspaceAppsIT {
 
             assertOtherHostGoesToTheBrowser(web)
             support.onMain { activity.finish() }
+
+            // Last, so that nothing can come between the page checks above and a stubbed browser panel.
+            assertNoMailOpensInACustomTab(scenario)
         }
     }
 
@@ -233,6 +234,6 @@ class WorkspaceAppsIT {
         const val INTENT_TIMEOUT_MILLIS = 20_000L
         const val FOREIGN_PORT = 8081
         const val NOMAIL_TITLE = "NoMail"
-        const val NOMAIL_URL = "https://mail.nourax.org/"
+        const val NOMAIL_URL = "https://nomail.invalid/" // never resolves: the test must not reach any real site
     }
 }
