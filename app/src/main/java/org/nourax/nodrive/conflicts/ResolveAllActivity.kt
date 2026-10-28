@@ -33,7 +33,15 @@ class ResolveAllActivity : AppCompatActivity() {
         // this see-through window is never left on top without one. Count first, off the main thread: nothing to
         // resolve is a short message, not a dialog of choices.
         thread(name = "nodrive-conflict-count") {
-            val waiting = ConflictNotifications.countWaiting(account)
+            // A database failure here must not crash the app: the window is simply closed.
+            @Suppress("TooGenericExceptionCaught")
+            val waiting = try {
+                ConflictNotifications.countWaiting(account)
+            } catch (e: RuntimeException) {
+                Log_OC.w(TAG, "waiting conflicts not counted: ${e.javaClass.simpleName}")
+                runOnUiThread { if (!isFinishing && !isDestroyed) finish() }
+                return@thread
+            }
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
                     dialog = if (waiting == 0) showNone(account) else showChoices(account)

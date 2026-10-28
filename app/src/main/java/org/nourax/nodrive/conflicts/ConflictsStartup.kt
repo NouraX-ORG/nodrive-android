@@ -15,7 +15,7 @@ import kotlin.concurrent.thread
 object ConflictsStartup {
     private const val TAG = "ConflictsStartup"
 
-    /** Runs the one-time migration and swaps old per-file notifications for the summary, off the main thread. Never throws. */
+    /** Runs the one-time migration, puts the backup rows right and swaps old per-file notifications for the summary, off the main thread. Never throws. */
     @JvmStatic
     fun onAppCreate(context: Context) {
         val app = context.applicationContext
@@ -23,7 +23,9 @@ object ConflictsStartup {
         thread(name = "nodrive-conflicts-startup") {
             @Suppress("TooGenericExceptionCaught")
             try {
-                ConflictSettings.create(app).ensureMigrated()
+                val settings = ConflictSettings.create(app)
+                settings.ensureMigrated()
+                settings.healAll()
                 ConflictNotifications.replaceOldPerFileNotifications(app)
             } catch (e: RuntimeException) {
                 Log_OC.w(TAG, "startup work failed: ${e.javaClass.simpleName}")

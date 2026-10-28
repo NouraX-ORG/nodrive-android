@@ -16,6 +16,8 @@ case is "same size"). So, per case:
   keep-setting  b1a: the setting says "keep the phone copy" and Resolve all says Smart: file 37 bytes stays, "(2)" copy
               b1b: the setting says "keep the NoDrive copy" and Resolve all says "keep the phone copy": the file has the
               phone's size
+  stale       review round 3: a stale Auto upload write (Keep the phone copy / Keep both -> Smart) must not act any more:
+              stale-a: 37 bytes stays, "(2)" copy;  stale-b (same size): stays, no "(2)"
   action      the notification action's dialog, Keep both: 37 bytes stays, "(2)" copy next to each
   note        three files, 37 bytes, no "(2)" (the conflicts were only reported, never resolved)
 Nothing may be missing and no unexpected "nodrive-cf-" file may exist. Exit code 1 on any mismatch.
@@ -76,6 +78,10 @@ def main() -> int:
             want(f"nodrive-cf-b1a-{look}-1 (2).jpg", not_size=OLD)
             want(f"nodrive-cf-b1b-{look}-1.jpg", not_size=OLD)
             absent(f"nodrive-cf-b1b-{look}-1 (2).jpg")
+            want(f"nodrive-cf-stale-a-{look}-1.jpg", size_is=OLD)
+            want(f"nodrive-cf-stale-a-{look}-1 (2).jpg", not_size=OLD)
+            want(f"nodrive-cf-stale-b-{look}-1.jpg", not_size=OLD)
+            absent(f"nodrive-cf-stale-b-{look}-1 (2).jpg")
             for i in (1, 2):
                 want(f"nodrive-cf-action-{look}-{i}.jpg", size_is=OLD)
                 want(f"nodrive-cf-action-{look}-{i} (2).jpg", not_size=OLD)

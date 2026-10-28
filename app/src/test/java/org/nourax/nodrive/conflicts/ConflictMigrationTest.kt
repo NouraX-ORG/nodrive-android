@@ -192,12 +192,112 @@ class ConflictMigrationTest {
         assertEquals("another account, user's row", skip, policyOf(store, 5))
     }
 
+    // ---- healing: a row put back by upstream's Auto upload (a run that began earlier) is made right again
+
     @Test
-    fun forgetRemovesTheChoiceOfTheAccount() {
+    fun smartWithAStaleOverwriteRowPutsTheRowBackToAsk() {
         val data = MemoryData()
-        val settings = ConflictSettings(data, FakeRows(emptyList()), Any())
-        settings.setChoice("a@h", ConflictChoice.KEEP_BOTH)
-        settings.forget("a@h")
+        own(data, "a@h", 1, 2)
+        val store = FakeRows(listOf(row(1, "a@h", ask), row(2, "a@h", ask), row(3, "a@h", overwrite)))
+        val settings = ConflictSettings(data, store, Any())
+        settings.setChoice("a@h", ConflictChoice.KEEP_PHONE)
+        settings.setChoice("a@h", ConflictChoice.SMART)
+        // the run that was going while the user switched writes its old row back
+        store.rows = store.rows.map { if (it.id == 1L) it.copy(policy = overwrite) else it }
+        assertEquals(ask, settings.healRow(store.rows.first { it.id == 1L }))
+        assertEquals(ask, policyOf(store, 1))
+        settings.healAll()
+        assertEquals(ask, policyOf(store, 2))
+        assertEquals("a row of the user is never touched", overwrite, policyOf(store, 3))
+    }
+
+    @Test
+    fun everyChoiceHealsAStaleRowToItsOwnValue() {
+        val values = mapOf(
+            ConflictChoice.SMART to ask,
+            ConflictChoice.ASK to ask,
+            ConflictChoice.KEEP_NODRIVE to skip,
+            ConflictChoice.KEEP_PHONE to overwrite,
+            ConflictChoice.KEEP_BOTH to rename
+        )
+        for ((choice, value) in values) {
+            for (stale in listOf(ask, skip, overwrite, rename)) {
+                val data = MemoryData()
+                own(data, "a@h", 1)
+                val store = FakeRows(listOf(row(1, "a@h", ask)))
+                val settings = ConflictSettings(data, store, Any())
+                settings.setChoice("a@h", choice)
+                store.rows = store.rows.map { it.copy(policy = stale) }
+                settings.healAll()
+                assertEquals("$choice, stale $stale", value, policyOf(store, 1))
+            }
+        }
+    }
+
+    @Test
+    fun aRowTheMigrationKeptOnRenameIsLeftAlone() {
+        val data = MemoryData()
+        own(data, "a@h", 1, 2)
+        val store = FakeRows(listOf(row(1, "a@h", rename), row(2, "a@h", skip)))
+        val settings = ConflictSettings(data, store, Any())
+        settings.ensureMigrated()
         assertEquals(ConflictChoice.SMART, settings.choice("a@h"))
+        assertEquals(rename, settings.expectedPolicy("a@h", 1))
+        assertEquals(ask, settings.expectedPolicy("a@h", 2))
+        // a stale write of the old Skip on row 2 is healed, the kept Rename of row 1 is not touched
+        store.rows = store.rows.map { if (it.id == 2L) it.copy(policy = skip) else it }
+        val writes = store.writes
+        settings.healAll()
+        assertEquals(rename, policyOf(store, 1))
+        assertEquals(ask, policyOf(store, 2))
+        assertEquals(writes + 1, store.writes)
+    }
+
+    @Test
+    fun aChoiceMadeByHandEndsTheKeptRows() {
+        val data = MemoryData()
+        own(data, "a@h", 1, 2)
+        val store = FakeRows(listOf(row(1, "a@h", rename), row(2, "a@h", ask)))
+        val settings = ConflictSettings(data, store, Any())
+        settings.ensureMigrated()
+        settings.setChoice("a@h", ConflictChoice.KEEP_PHONE)
+        settings.healAll()
+        assertEquals(overwrite, policyOf(store, 1))
+        assertEquals(overwrite, policyOf(store, 2))
+    }
+
+    @Test
+    fun theKeptRowsOfAnotherAccountAndGoneRowsDoNotMatter() {
+        val plan = ConflictMigration.plan(
+            listOf(row(1, "a@h", rename), row(2, "a@h", ask), row(3, "b@h", overwrite)),
+            mapOf("a@h" to setOf(1L, 2L), "b@h" to setOf(3L)),
+            emptyMap()
+        )
+        assertEquals(mapOf("a@h" to mapOf(1L to rename)), plan.kept)
+        assertEquals(mapOf(1L to rename, 5L to ask), KeptPolicies.parse(KeptPolicies.format(mapOf(1L to rename, 5L to ask))))
+        assertEquals(emptyMap<Long, Int>(), KeptPolicies.parse("x:1,2,,3:y"))
+        assertEquals(emptyMap<Long, Int>(), KeptPolicies.parse(null))
+    }
+
+    @Test
+    fun healingARowThatIsNotOwnedDoesNothing() {
+        val data = MemoryData()
+        own(data, "a@h", 1)
+        val store = FakeRows(listOf(row(1, "a@h", ask), row(9, "a@h", skip)))
+        val settings = ConflictSettings(data, store, Any())
+        assertEquals(null, settings.healRow(store.rows.first { it.id == 9L }))
+        assertEquals(skip, policyOf(store, 9))
+    }
+
+    @Test
+    fun removingTheAccountClearsTheChoiceAndTheKeptRows() {
+        val data = MemoryData()
+        own(data, "a@h", 1, 2)
+        val settings = ConflictSettings(data, FakeRows(listOf(row(1, "a@h", rename), row(2, "a@h", ask))), Any())
+        settings.ensureMigrated()
+        assertEquals("1:$rename", data.getValue("a@h", ConflictSettings.KEY_KEPT))
+        BackupState.forget("a@h", data)
+        assertEquals(ConflictChoice.SMART, settings.choice("a@h"))
+        assertTrue(data.values.keys.none { it.startsWith("a@h|") })
     }
 }

@@ -93,16 +93,6 @@ class SmartUploadsMatchTest {
     }
 
     @Test
-    fun healingPutsTheChoiceBackIntoTheFolderRowOnlyWhenItDiffers() {
-        val store = Store()
-        val row = PolicyRow(7, "a@h", "/l", "/r", ask.serialize())
-        SmartUploads.heal(ConflictChoice.KEEP_BOTH, row, store)
-        assertEquals(listOf(7L to NameCollisionPolicy.RENAME.serialize()), store.writes)
-        SmartUploads.heal(ConflictChoice.KEEP_BOTH, row.copy(policy = NameCollisionPolicy.RENAME.serialize()), store)
-        assertEquals(1, store.writes.size)
-    }
-
-    @Test
     fun theSizeAnswerMapsToSkipRenameOrTheOriginalFailure() {
         assertEquals(
             SmartOutcome(NameCollisionPolicy.SKIP, null),

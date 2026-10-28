@@ -402,6 +402,16 @@ CONFLICTS_FOLDER_BLOCK = f"""        {BEGIN}
 # 5. the one-time migration and the swap of old per-file notifications, in the background at app start.
 CONFLICTS_START_FILE = f"{MAIN}/java/com/owncloud/android/MainApp.java"
 CONFLICTS_START_ANCHOR = '        Log_OC.d(TAG, "scheduleContentObserverJob, called");\n'
+# 6. Auto upload writes its whole folder row back when a run ends, with the value it read when the run began: a choice made
+# during a run would be undone. At the start of every run an owned folder is put back to its saved choice first.
+CONFLICTS_RUN_FILE = f"{MAIN}/java/com/nextcloud/client/jobs/autoUpload/AutoUploadWorker.kt"
+CONFLICTS_RUN_ANCHOR = "            Log_OC.d(TAG, syncedFolder.getLog())\n"
+CONFLICTS_RUN_BLOCK = f"""            {BEGIN}
+            {CONFLICTS_PKG}.OwnedFolderPolicy.healBeforeRun(context, syncedFolder)
+            {END}
+
+"""
+
 CONFLICTS_START_BLOCK = f"""        {BEGIN}
         {CONFLICTS_PKG}.ConflictsStartup.onAppCreate(this);
         {END}
@@ -425,6 +435,7 @@ HOOKS = {
     CONFLICTS_MENU_FILE: [(CONFLICTS_MENU_ANCHOR, CONFLICTS_MENU_BLOCK)],
     CONFLICTS_FOLDER_FILE: [(CONFLICTS_FOLDER_ANCHOR, CONFLICTS_FOLDER_BLOCK)],
     CONFLICTS_START_FILE: [(CONFLICTS_START_ANCHOR, CONFLICTS_START_BLOCK)],
+    CONFLICTS_RUN_FILE: [(CONFLICTS_RUN_ANCHOR, CONFLICTS_RUN_BLOCK)],
 }
 
 

@@ -72,7 +72,8 @@ class BackupState(private val account: String, private val data: ArbitraryDataPr
             KEY_OWNED,
             KEY_SEEN,
             KEY_OFFER,
-            org.nourax.nodrive.conflicts.ConflictSettings.KEY_CHOICE
+            org.nourax.nodrive.conflicts.ConflictSettings.KEY_CHOICE,
+            org.nourax.nodrive.conflicts.ConflictSettings.KEY_KEPT
         )
         private val GSON = Gson()
 

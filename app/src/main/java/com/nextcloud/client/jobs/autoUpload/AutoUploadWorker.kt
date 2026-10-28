@@ -99,6 +99,10 @@ class AutoUploadWorker(
             syncedFolder = syncedFolderProvider.getSyncedFolderByID(syncFolderId)
                 ?.takeIf { it.isEnabled } ?: return Result.failure()
 
+            // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+            org.nourax.nodrive.conflicts.OwnedFolderPolicy.healBeforeRun(context, syncedFolder)
+            // NoDrive: end
+
             Log_OC.d(TAG, syncedFolder.getLog())
 
             if (isBlocked(syncFolderId)) {

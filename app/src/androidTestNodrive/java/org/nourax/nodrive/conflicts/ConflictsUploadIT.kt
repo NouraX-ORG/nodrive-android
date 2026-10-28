@@ -244,6 +244,51 @@ class ConflictsUploadIT {
         assertResolved("keep the phone copy with the setting on keep the NoDrive copy")
     }
 
+    // ---- 3b. The review's last should-fix: upstream's Auto upload reads its folder row when a run begins and writes the
+    // whole row back when it ends. A choice made in between is undone by that write. These cases reproduce exactly that
+    // with upstream's own provider (the stale object is read before the switch and written after it), then start a run.
+
+    @Test
+    fun switchingFromKeepThePhoneCopyToSmartDuringARunNeverOverwritesTheDriveFile() {
+        val folder = support.cameraRemoteFolder(acct)
+        val clash = createClashes(folder, "nodrive-cf-stale-a-${backup.look}", count = 1, sameSize = 0).single()
+        val etag = support.etagOnServer("$folder/${clash.base}.jpg")
+        val rows = switchWithAStaleWrite(ConflictChoice.KEEP_PHONE)
+
+        startRun(rows)
+        backup.waitFor("the second copy of the other-size file", UPLOAD_TIMEOUT_MILLIS) {
+            support.sizeOnServer("$folder/${clash.base} (2).jpg")
+        }
+        backup.waitForAutoUploadToStop(rows, UPLOAD_TIMEOUT_MILLIS)
+
+        assertEquals("the Drive file was not replaced", etag, support.etagOnServer("$folder/${clash.base}.jpg"))
+        assertEquals(OTHER_SIZE, support.sizeOnServer("$folder/${clash.base}.jpg"))
+        assertOwnedRowsHold(ConflictChoice.SMART)
+        assertEquals(0, support.waitingConflicts(acct))
+        assertPhoneFilesUnchanged()
+    }
+
+    @Test
+    fun switchingFromKeepBothToSmartDuringARunStillCountsTheSameSizeAsBackedUp() {
+        val folder = support.cameraRemoteFolder(acct)
+        val clash = createClashes(folder, "nodrive-cf-stale-b-${backup.look}", count = 1, sameSize = 1).single()
+        val etag = support.etagOnServer("$folder/${clash.base}.jpg")
+        val rows = switchWithAStaleWrite(ConflictChoice.KEEP_BOTH)
+
+        startRun(rows)
+        backup.waitFor("the same-size file counted as backed up", UPLOAD_TIMEOUT_MILLIS) {
+            support.uploadOf("$folder/${clash.base}.jpg")?.takeIf {
+                it.status == UploadStatus.UPLOAD_SUCCEEDED.value && it.lastResult == UploadResult.SKIPPED.value
+            }
+        }
+        backup.waitForAutoUploadToStop(rows, UPLOAD_TIMEOUT_MILLIS)
+
+        assertNull("no duplicate of the same-size file", support.remoteFile("$folder/${clash.base} (2).jpg"))
+        assertEquals(etag, support.etagOnServer("$folder/${clash.base}.jpg"))
+        assertOwnedRowsHold(ConflictChoice.SMART)
+        assertPhoneFilesUnchanged()
+    }
+
     // ---- 4. The notification action and the empty case
 
     @Test
@@ -386,6 +431,48 @@ class ConflictsUploadIT {
         backup.sleepForAnimation()
         if (first) support.screenshot("resolve-all")
         onView(withText("Apply")).perform(click())
+    }
+
+    /**
+     * Makes the backup's rows without running them, gives them the choice [from], lets an "Auto upload run that began
+     * then" keep its copy of the row, switches to Smart, and lets that run end: it writes its old row back, exactly as
+     * upstream does. Checks that the row really is stale before the test goes on.
+     */
+    private fun switchWithAStaleWrite(from: ConflictChoice): List<Long> {
+        val rows = BackupControllers.create(backup.context, backup.provider, ClockImpl(), acct)
+            .enableMedia(BackupDefaults(wifiOnly = false)).rowsToStart
+        assertTrue("a row for the camera folder", rows.isNotEmpty())
+        startedRows = rows
+        WorkManager.getInstance(backup.context).cancelAllWork().result.get()
+        backup.waitForAutoUploadToStop(rows, UPLOAD_TIMEOUT_MILLIS)
+        support.settings().setChoice(acct, from)
+        val stale = rows.map { checkNotNull(backup.provider.getSyncedFolderByID(it)) }
+        support.settings().setChoice(acct, ConflictChoice.SMART)
+        stale.forEach { backup.provider.updateSyncFolder(it) }
+        val staleValue = from.upstreamPolicy().serialize()
+        assertTrue(
+            "the run's write-back made the rows stale",
+            backup.rows().filter { it.id in rows }.all { it.nameCollisionPolicyInt == staleValue }
+        )
+        return rows
+    }
+
+    private fun startRun(rows: List<Long>) {
+        val jobs = BackgroundJobManagerImpl(
+            WorkManager.getInstance(backup.context),
+            ClockImpl(),
+            AppPreferencesImpl.fromContext(backup.context)
+        )
+        rows.forEach { id ->
+            jobs.startAutoUpload(checkNotNull(backup.provider.getSyncedFolderByID(id)), overridePowerSaving = true)
+        }
+    }
+
+    private fun assertOwnedRowsHold(choice: ConflictChoice) {
+        val wanted = choice.upstreamPolicy().serialize()
+        val owned = backup.state(acct).read().owned
+        val held = backup.rows().filter { it.id in owned }.map { it.nameCollisionPolicyInt }
+        assertTrue("owned rows hold $wanted, they hold $held", held.isNotEmpty() && held.all { it == wanted })
     }
 
     private fun phoneFile(name: String): File {

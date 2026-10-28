@@ -8,8 +8,28 @@ package org.nourax.nodrive.conflicts
 
 import com.owncloud.android.files.services.NameCollisionPolicy
 
-/** What the one-time migration changes: policy columns of rows (by id) and the account choices that are still missing. */
-data class MigrationPlan(val policyChanges: Map<Long, Int>, val choices: Map<String, ConflictChoice>)
+/**
+ * What the one-time migration changes: policy columns of rows (by id), the account choices that are still missing, and
+ * per account the rows that keep a value other than the account's choice (a Rename or Overwrite row in a mixed account).
+ */
+data class MigrationPlan(
+    val policyChanges: Map<Long, Int>,
+    val choices: Map<String, ConflictChoice>,
+    val kept: Map<String, Map<Long, Int>> = emptyMap()
+)
+
+/** The text form of the kept rows ("id:policy,id:policy"); unreadable parts are ignored. */
+object KeptPolicies {
+    fun parse(text: String?): Map<Long, Int> =
+        text.orEmpty().split(',').mapNotNull { part ->
+            val pair = part.split(':')
+            val id = pair.getOrNull(0)?.trim()?.toLongOrNull()
+            val policy = pair.getOrNull(1)?.trim()?.toIntOrNull()
+            if (pair.size == 2 && id != null && policy != null) id to policy else null
+        }.toMap()
+
+    fun format(kept: Map<Long, Int>): String = kept.entries.joinToString(",") { "${it.key}:${it.value}" }
+}
 
 /**
  * The one-time migration of the owned backup folders (round 3 contract, A): "Ask" and "Skip" become Smart, "Rename" and
@@ -43,6 +63,12 @@ object ConflictMigration {
                     else -> ConflictChoice.SMART
                 }
             }
-        return MigrationPlan(changes, choices)
+        val kept = choices.mapValues { (account, choice) ->
+            val choiceValue = choice.upstreamPolicy().serialize()
+            ownedRows.filter { it.account == account }
+                .mapNotNull { row -> (changes[row.id] ?: row.policy).takeIf { it != choiceValue }?.let { row.id to it } }
+                .toMap()
+        }.filterValues { it.isNotEmpty() }
+        return MigrationPlan(changes, choices, kept)
     }
 }

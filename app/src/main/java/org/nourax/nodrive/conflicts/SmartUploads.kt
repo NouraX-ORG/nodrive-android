@@ -72,8 +72,9 @@ object SmartUploads {
                 ?: return SmartOutcome.NO_CHANGE
             val choice = settings.choice(account)
             // Upstream's Auto upload writes its whole row back at the end of a run, with the value it read at the start.
-            // A choice the user made while it ran can be undone that way, so the folder row is healed here.
-            if (choice in KEEP_CHOICES) heal(choice, row, rowStore)
+            // A choice made while it ran can be undone that way, so the folder row is put back to its saved value here,
+            // whatever the choice is (the next run then starts right).
+            settings.healRow(row)
             when (val next = step(true, choice, policy, encrypted)) {
                 UploadStep.NoChange -> SmartOutcome.NO_CHANGE
                 is UploadStep.Use -> SmartOutcome(next.policy, null)
@@ -108,12 +109,6 @@ object SmartUploads {
             encrypted -> UploadStep.Use(NameCollisionPolicy.RENAME)
             else -> UploadStep.CompareSizes
         }
-
-    /** The row says something else than the explicit choice (a stale write): put the choice back into the column. */
-    internal fun heal(choice: ConflictChoice, row: PolicyRow, store: ConflictRowStore) {
-        val wanted = choice.upstreamPolicy().serialize()
-        if (row.policy != wanted) store.setPolicy(row.id, wanted)
-    }
 
     private fun isAutoUpload(createdBy: Int) =
         createdBy == UploadFileOperation.CREATED_AS_INSTANT_PICTURE || createdBy == UploadFileOperation.CREATED_AS_INSTANT_VIDEO

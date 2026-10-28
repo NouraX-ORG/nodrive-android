@@ -7,11 +7,13 @@
 package org.nourax.nodrive.conflicts
 
 import android.app.Activity
+import android.content.Context
 import android.view.View
 import android.widget.TextView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.owncloud.android.R
 import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
+import com.owncloud.android.datamodel.SyncedFolder
 import com.owncloud.android.files.services.NameCollisionPolicy
 import com.owncloud.android.lib.common.utils.Log_OC
 import org.nourax.nodrive.backup.BackupState
@@ -23,6 +25,31 @@ import org.nourax.nodrive.backup.BackupState
  */
 object OwnedFolderPolicy {
     private const val TAG = "OwnedFolderPolicy"
+
+    /**
+     * Called by a marked hook when upstream's Auto upload starts a run on [folder] (read from the database a moment ago).
+     * An owned folder that holds an old value, written back by an earlier run, is put right in the database and in this
+     * object, so the whole run uses the saved choice. Never throws: the run must start even if this cannot be applied.
+     */
+    @JvmStatic
+    @Suppress("TooGenericExceptionCaught")
+    fun healBeforeRun(context: Context, folder: SyncedFolder) {
+        try {
+            if (!context.resources.getBoolean(R.bool.nodrive_conflicts)) return
+            val account = folder.account ?: return
+            val row = PolicyRow(
+                folder.id,
+                account,
+                folder.localPath.orEmpty(),
+                folder.remotePath.orEmpty(),
+                folder.nameCollisionPolicyInt
+            )
+            val wanted = ConflictSettings.create(context).healRow(row) ?: return
+            if (folder.nameCollisionPolicyInt != wanted) folder.setNameCollisionPolicy(wanted)
+        } catch (e: RuntimeException) {
+            Log_OC.w(TAG, "folder not put right before the run: ${e.javaClass.simpleName}")
+        }
+    }
 
     /** Never throws: the dialog must open even if this cannot be applied. */
     @JvmStatic
