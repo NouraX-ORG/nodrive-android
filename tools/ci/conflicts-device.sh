@@ -23,7 +23,7 @@ TEST_APK=app/build/outputs/apk/androidTest/nodrive/debug/app-nodrive-debug-andro
 SETTINGS=org.nourax.nodrive.conflicts.ConflictsSettingsIT
 MIGRATION=org.nourax.nodrive.conflicts.ConflictsMigrationIT
 UPLOAD=org.nourax.nodrive.conflicts.ConflictsUploadIT
-# Test counts: ConflictsSettingsIT 2, ConflictsMigrationIT 2, ConflictsUploadIT 6 (dark look: the 2 that take screenshots).
+# Test counts: ConflictsSettingsIT 2, ConflictsMigrationIT 2, ConflictsUploadIT 10 (dark look: the 2 that take screenshots).
 SHOTS="$OUT/screens/conflicts"
 status=0
 
@@ -53,7 +53,7 @@ run_it dark "$SETTINGS" settings 2
 run_it light "$MIGRATION" migration 2
 
 if [ -n "${NODRIVE_WS_URL:-}" ] && [ -n "${NODRIVE_CF_TOKEN:-}" ]; then
-    run_it light "$UPLOAD" upload 6
+    run_it light "$UPLOAD" upload 10
     "$ADB" shell cmd uimode night yes > /dev/null 2>&1 || true
     run_it dark "$UPLOAD#threeConflictsGiveOneSummaryNotificationAndNoPerFileOne,$UPLOAD#resolveAllKeepBothUploadsACopyNextToEveryOldFile" upload 2
     "$ADB" shell cmd uimode night no > /dev/null 2>&1 || true

@@ -13,6 +13,10 @@ case is "same size"). So, per case:
   nodrive     old file 37 bytes stays, no "(2)"
   phone       the file now has the phone's size (not 37), no "(2)"
   smart-all   file 1 (same size) stays with no "(2)"; file 2: 37 bytes stays and a "(2)" copy
+  keep-setting  b1a: the setting says "keep the phone copy" and Resolve all says Smart: file 37 bytes stays, "(2)" copy
+              b1b: the setting says "keep the NoDrive copy" and Resolve all says "keep the phone copy": the file has the
+              phone's size
+  action      the notification action's dialog, Keep both: 37 bytes stays, "(2)" copy next to each
   note        three files, 37 bytes, no "(2)" (the conflicts were only reported, never resolved)
 Nothing may be missing and no unexpected "nodrive-cf-" file may exist. Exit code 1 on any mismatch.
 """
@@ -68,6 +72,13 @@ def main() -> int:
             absent(f"nodrive-cf-smart-{look}-1 (2).jpg")
             want(f"nodrive-cf-smart-{look}-2.jpg", size_is=OLD)
             want(f"nodrive-cf-smart-{look}-2 (2).jpg", not_size=OLD)
+            want(f"nodrive-cf-b1a-{look}-1.jpg", size_is=OLD)
+            want(f"nodrive-cf-b1a-{look}-1 (2).jpg", not_size=OLD)
+            want(f"nodrive-cf-b1b-{look}-1.jpg", not_size=OLD)
+            absent(f"nodrive-cf-b1b-{look}-1 (2).jpg")
+            for i in (1, 2):
+                want(f"nodrive-cf-action-{look}-{i}.jpg", size_is=OLD)
+                want(f"nodrive-cf-action-{look}-{i} (2).jpg", not_size=OLD)
     for look in args.looks.split(","):
         for i in (1, 2):
             want(f"nodrive-cf-both-{look}-{i}.jpg", size_is=OLD)

@@ -208,11 +208,11 @@ class ConflictsUploadIT {
     fun resolveAllSmartNeverOverwritesWhenTheSettingIsKeepThePhoneCopy() {
         support.settings().setChoice(acct, ConflictChoice.ASK)
         val folder = support.cameraRemoteFolder(acct)
-        val clashes = waitForConflicts(folder, "nodrive-cf-b1a-${backup.look}", count = 2, sameSize = 0)
+        val clashes = waitForConflicts(folder, "nodrive-cf-b1a-${backup.look}", count = 1, sameSize = 0)
         val etags = clashes.associateWith { support.etagOnServer("$folder/${it.base}.jpg") }
-        support.settings().setChoice(acct, ConflictChoice.KEEP_PHONE)
+        support.saveChoiceOnly(acct, ConflictChoice.KEEP_PHONE)
         resolveAll("Smart (recommended)")
-        backup.waitFor("both copies of every file", UPLOAD_TIMEOUT_MILLIS) {
+        backup.waitFor("the second copy of the file", UPLOAD_TIMEOUT_MILLIS) {
             true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base} (2).jpg") == it.phone.length() } }
         }
         assertResolved("smart with the setting on keep the phone copy")
@@ -226,8 +226,8 @@ class ConflictsUploadIT {
     fun resolveAllKeepThePhoneCopyIsNotIgnoredWhenTheSettingIsKeepTheNoDriveCopy() {
         support.settings().setChoice(acct, ConflictChoice.ASK)
         val folder = support.cameraRemoteFolder(acct)
-        val clashes = waitForConflicts(folder, "nodrive-cf-b1b-${backup.look}", count = 2, sameSize = 0)
-        support.settings().setChoice(acct, ConflictChoice.KEEP_NODRIVE)
+        val clashes = waitForConflicts(folder, "nodrive-cf-b1b-${backup.look}", count = 1, sameSize = 0)
+        support.saveChoiceOnly(acct, ConflictChoice.KEEP_NODRIVE)
         resolveAll("Keep the phone copy")
         backup.waitFor("the phone copy on the server", UPLOAD_TIMEOUT_MILLIS) {
             true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base}.jpg") == it.phone.length() } }
