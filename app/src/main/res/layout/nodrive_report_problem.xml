@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_default">
+
+    <include layout="@layout/toolbar_standard" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/standard_padding">
+
+            <TextView
+                android:id="@+id/nodrive_report_explain"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/nodrive_reports_switch_summary"
+                android:textColor="@color/secondary_text_color"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/nodrive_report_note_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/standard_padding"
+                android:hint="@string/nodrive_reports_note_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/nodrive_report_note"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="top|start"
+                    android:importantForAutofill="no"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:minLines="4" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:id="@+id/nodrive_report_included"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/standard_half_padding"
+                android:minHeight="48dp"
+                android:gravity="center_vertical"
+                android:text="@string/nodrive_reports_included_link"
+                android:textColor="?attr/colorPrimary"
+                android:textSize="16sp" />
+
+            <ProgressBar
+                android:id="@+id/nodrive_report_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:indeterminate="true"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/nodrive_report_send"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/standard_half_padding"
+                android:text="@string/nodrive_reports_send" />
+
+            <TextView
+                android:id="@+id/nodrive_report_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/standard_padding"
+                android:textColor="@color/text_color"
+                android:textSize="16sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

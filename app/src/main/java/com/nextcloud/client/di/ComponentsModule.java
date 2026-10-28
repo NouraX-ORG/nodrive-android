@@ -197,6 +197,11 @@ abstract class ComponentsModule {
 
     // NoDrive: end
 
+    // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+    @ContributesAndroidInjector
+    abstract org.nourax.nodrive.reports.ReportProblemActivity reportProblemActivity();
+    // NoDrive: end
+
     @ContributesAndroidInjector
     abstract FileDisplayActivity fileDisplayActivity();
 

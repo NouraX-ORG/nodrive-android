@@ -67,6 +67,10 @@
     <!-- Drawer -->
     <bool name="show_drawer_logout">true</bool>
 
+    <!-- Problem reports (round 3): the app keeps its own log (private to the app, 4 rotating files of 1 MB) so a report has logs; the DAVx5 entry in Settings is not offered -->
+    <bool name="logger_enabled">true</bool>
+    <bool name="davdroid_integration_enabled">false</bool>
+
     <!-- Colours (THEME_BIBLE: primary #2563EB) -->
     <color name="primary">#2563EB</color>
     <color name="primary_dark">#2563EB</color>

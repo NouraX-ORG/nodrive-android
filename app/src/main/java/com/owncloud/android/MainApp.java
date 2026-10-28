@@ -290,6 +290,10 @@ public class MainApp extends Application implements HasAndroidInjector, NetworkC
 
         registerActivityLifecycleCallbacks(new ActivityInjector());
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.reports.ProblemReports.onAppCreate(this);
+        // NoDrive: end
+
         //update the app restart count when app is launched by the user
         inAppReviewHelper.resetAndIncrementAppRestartCounter();
 

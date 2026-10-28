@@ -199,6 +199,10 @@ public class SettingsActivity extends PreferenceActivity
         // More
         setupMoreCategory();
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.reports.ReportsSettingsSection.install(this, preferenceScreen, user, viewThemeUtils);
+        // NoDrive: end
+
         // About
         setupAboutCategory(appVersion);
 

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- Problem reports (the switch, "Report a problem", the crash question; the app's own log is kept for them); only the nodrive flavour sets it true -->
+    <bool name="nodrive_reports">false</bool>
+
+    <!-- Settings rows. These texts are fixed by the round 3 contract (B). -->
+    <string name="nodrive_reports_switch_title">Send problem reports to Nourax</string>
+    <string name="nodrive_reports_switch_summary">If the app has a problem, send a report to Nourax Support so we can fix it. Reports are saved in your NoDrive and shared with Nourax Support. They never include passwords.</string>
+    <string name="nodrive_reports_report_title">Report a problem</string>
+
+    <!-- The report screen -->
+    <string name="nodrive_reports_note_hint">What went wrong?</string>
+    <string name="nodrive_reports_included_link">What\'s included</string>
+    <string name="nodrive_reports_send">Send</string>
+    <string name="nodrive_reports_included_title">What\'s included</string>
+    <!-- Proposed wording (the contract only asks for the list in plain words); to be approved by the owner. -->
+    <string name="nodrive_reports_included_body">• What you type in \"What went wrong?\"\n• The app version, the Android version, the phone model and the language\n• The date and time, and the name of your NoDrive server\n• If the app crashed: the technical details of the crash\n• The recent activity log of the app on this phone. It includes the names of your files and folders, because we need them to find the problem.\n\nNever included: passwords, app passwords, sign-in tokens and cookies. Email addresses are replaced with &lt;email&gt;.\n\nThe report is saved in your NoDrive, in the folder \"Problem reports\", and shared read-only with Nourax Support.</string>
+
+    <!-- Messages -->
+    <string name="nodrive_reports_sent">Problem report sent</string>
+    <string name="nodrive_reports_saved">Saved in your NoDrive › Problem reports.</string>
+    <!-- Proposed wording -->
+    <string name="nodrive_reports_waiting">The report is saved on this phone. NoDrive sends it as soon as it can reach your server.</string>
+    <string name="nodrive_reports_failed">The report could not be made.</string>
+
+    <!-- After a crash or an unclean exit; the question is fixed by the contract (B). -->
+    <string name="nodrive_reports_crash_prompt">NoDrive closed unexpectedly. Send a problem report?</string>
+    <string name="nodrive_reports_not_now">Not now</string>
+</resources>

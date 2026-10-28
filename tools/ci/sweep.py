@@ -21,7 +21,8 @@ Checks, exit code 1 when one fails:
 - sign-in opens a browser at drive.nourax.org (address bar or the activity start in logcat); with --sign-in-offline
   (CI, where that name is blocked on purpose) this is only listed;
 - no text on any screen names Nextcloud (browser pages, which the server serves, are only listed);
-- no screen except browser pages has more than 0.5 % of its pixels in Nextcloud blue.
+- no screen except browser pages has more than 0.5 % of its pixels in Nextcloud blue;
+- no text on any screen names DAVx5 or DAVdroid (round 3: the Settings entry is switched off in the nodrive flavour).
 Writes index.md (screens and checks), checks.json and contact sheets in sheets/ (needs Pillow).
 """
 from __future__ import annotations
@@ -44,6 +45,7 @@ SWEEP_TEST = "org.nourax.nodrive.NoDriveSweepAccount"
 # The name and its transliterations, as in tools/rebrand.py.
 NAME_RE = re.compile(r"next\s*cloud|owncloud|نكست\s*كلاود|نکست[‌\s]*کلود|некстклауд|nekstklaud|nexcloud"
                      r"|next\s+bulut", re.I)
+DAVX_RE = re.compile(r"davx|davdroid", re.I)
 NEXTCLOUD_BLUES = [(0x00, 0x82, 0xC9), (0x00, 0x67, 0x9E), (0x00, 0x6A, 0xA3)]
 BLUE_TOLERANCE = 10
 BLUE_LIMIT = 0.005
@@ -76,6 +78,7 @@ class Screen:
     note: str = ""
     browser: bool = False
     text_hits: list[str] = field(default_factory=list)
+    davx_hits: list[str] = field(default_factory=list)
     blue: float | None = None
 
 
@@ -204,6 +207,7 @@ class Sweep:
         is_browser = browser if browser is not None else bool(self.browser_pkg) and focus.startswith(self.browser_pkg)
         s = Screen(number, self.look.name, name, png.name, f"{base}.xml" if xml else None, focus, note, is_browser)
         s.text_hits = [f"{pkg}: {t}" for pkg, t in texts(xml) if NAME_RE.search(t)]
+        s.davx_hits = [f"{pkg}: {t}" for pkg, t in texts(xml) if DAVX_RE.search(t)]
         self.screens.append(s)
         print(f"  shot {png.name} focus={focus}", flush=True)
         return s
@@ -588,6 +592,9 @@ class Sweep:
         web = [f"{s.png}: {h}" for s in self.screens if s.browser for h in s.text_hits]
         dumped = sum(1 for s in self.screens if s.xml)
         self.check("no screen text names Nextcloud", not app, "; ".join(app[:20]) if app else
+                   f"{dumped}/{len(self.screens)} screens dumped, 0 hits")
+        davx = [f"{s.png}: {h}" for s in self.screens if not s.browser for h in s.davx_hits]
+        self.check("no screen text names DAVx5 or DAVdroid", not davx, "; ".join(davx[:20]) if davx else
                    f"{dumped}/{len(self.screens)} screens dumped, 0 hits")
         self.check("browser pages naming Nextcloud (server side, listed only)", None, "; ".join(web[:10]) or "none")
 

@@ -50,7 +50,7 @@ start() {
 
     docker exec -u www-data -e OC_PASS="$login_pw" "$NAME" php occ user:add --password-from-env \
         --display-name "Demo User" "$USER_ID" > /dev/null
-    local pw_token sso_token remove_token bk_token cf_token
+    local pw_token sso_token remove_token bk_token cf_token rp_token
     pw_token=$(docker exec -u www-data -e NC_PASS="$login_pw" "$NAME" php occ user:auth-tokens:add \
         --password-from-env --name nodrive-ci "$USER_ID" | tail -n 1 | tr -d '\r')
     echo "::add-mask::$pw_token"
@@ -69,8 +69,13 @@ start() {
     cf_token=$(docker exec -u www-data "$NAME" php occ -n user:auth-tokens:add --name nodrive-ci-conflicts "$USER_ID" \
         | tail -n 1 | tr -d '\r')
     echo "::add-mask::$cf_token"
+    # A sixth one for the problem report tests (tools/ci/reports-device.sh). The user nourax-support is NOT made here:
+    # that script makes it in the middle of its run, to test the report that ends without the share.
+    rp_token=$(docker exec -u www-data "$NAME" php occ -n user:auth-tokens:add --name nodrive-ci-reports "$USER_ID" \
+        | tail -n 1 | tr -d '\r')
+    echo "::add-mask::$rp_token"
     [ ${#pw_token} -ge 32 ] && [ ${#sso_token} -ge 32 ] && [ ${#remove_token} -ge 32 ] && [ ${#bk_token} -ge 32 ] \
-        && [ ${#cf_token} -ge 32 ] || { echo "app password creation failed"; exit 1; }
+        && [ ${#cf_token} -ge 32 ] && [ ${#rp_token} -ge 32 ] || { echo "app password creation failed"; exit 1; }
 
     local envfile="$OUT/server.env"
     ( umask 077; {
@@ -81,10 +86,11 @@ start() {
         echo "NODRIVE_WS_REMOVE_TOKEN=$remove_token"
         echo "NODRIVE_BK_TOKEN=$bk_token"
         echo "NODRIVE_CF_TOKEN=$cf_token"
+        echo "NODRIVE_RP_TOKEN=$rp_token"
         echo "NODRIVE_WS_LOGIN_PASSWORD=$login_pw"
     } > "$envfile" )
     if [ -n "${GITHUB_ENV:-}" ]; then cat "$envfile" >> "$GITHUB_ENV"; fi
-    echo "server up on port $PORT, user $USER_ID, five app passwords created (values masked)"
+    echo "server up on port $PORT, user $USER_ID, six app passwords created (values masked)"
 }
 
 case "${1:-}" in

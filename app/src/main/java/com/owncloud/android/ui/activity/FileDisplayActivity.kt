@@ -1409,6 +1409,10 @@ class FileDisplayActivity :
         this.listFragmentJustCreated = false
 
         // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.reports.ProblemReports.onMainScreen(this, userAccountManager.user)
+        // NoDrive: end
+
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
         org.nourax.nodrive.backup.BackupOffer.maybeShow(this, userAccountManager.user)
         // NoDrive: end
 

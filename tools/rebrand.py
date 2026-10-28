@@ -46,6 +46,8 @@ WORKSPACE_ACTIVITY = "org.nourax.nodrive.workspace.WorkspaceWebActivity"
 BACKUP_RES = f"{MAIN_RES}/values/nodrive_backup.xml"
 CONFLICTS_RES = f"{MAIN_RES}/values/nodrive_conflicts.xml"
 CONFLICTS_PKG = "org.nourax.nodrive.conflicts"
+REPORTS_RES = f"{MAIN_RES}/values/nodrive_reports.xml"
+REPORTS_PKG = "org.nourax.nodrive.reports"
 BACKUP_PKG = "org.nourax.nodrive.backup"
 BACKUP_ACTIVITIES = [f"{BACKUP_PKG}.BackupSetupActivity", f"{BACKUP_PKG}.StopGoogleBackupActivity",
                      f"{BACKUP_PKG}.MoveFromGoogleActivity"]
@@ -418,23 +420,54 @@ CONFLICTS_START_BLOCK = f"""        {BEGIN}
 
 """
 
+# Problem reports (org.nourax.nodrive.reports, round 3): small marked calls, each a no-op unless R.bool.nodrive_reports.
+# 1. app start: the crash recorder and the look at earlier exits.
+REPORTS_START_FILE = f"{MAIN}/java/com/owncloud/android/MainApp.java"
+REPORTS_START_ANCHOR = "        //update the app restart count when app is launched by the user\n"
+REPORTS_START_BLOCK = f"""        {BEGIN}
+        {REPORTS_PKG}.ProblemReports.onAppCreate(this);
+        {END}
+
+"""
+# 2. Settings > More: the switch and "Report a problem" (and no raw "Logs" row).
+REPORTS_SETTINGS_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/SettingsActivity.java"
+REPORTS_SETTINGS_ANCHOR = "        // About\n        setupAboutCategory(appVersion);\n"
+REPORTS_SETTINGS_BLOCK = f"""        {BEGIN}
+        {REPORTS_PKG}.ReportsSettingsSection.install(this, preferenceScreen, user, viewThemeUtils);
+        {END}
+
+"""
+# 3. the main screen: send what waits, ask about a crash. Same anchor as the Backup offer; the reports block comes first.
+REPORTS_SCREEN_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/FileDisplayActivity.kt"
+REPORTS_SCREEN_ANCHOR = "        folderRefreshScheduler.start()\n"
+REPORTS_SCREEN_BLOCK = f"""        {BEGIN}
+        {REPORTS_PKG}.ProblemReports.onMainScreen(this, userAccountManager.user)
+        {END}
+
+"""
+# 4. the report screen is injected like the Backup screens.
+REPORTS_DI_ANCHOR = BACKUP_DI_ANCHOR
+REPORTS_DI_BLOCK = (f"    {BEGIN}\n    @ContributesAndroidInjector\n"
+                    f"    abstract {REPORTS_PKG}.ReportProblemActivity reportProblemActivity();\n    {END}\n\n")
+
 # file -> [(anchor, block)]: a file may carry several marked blocks, each anchor must be found exactly once.
 HOOKS = {
     AUTH_FILE: [(AUTH_ANCHOR, AUTH_BLOCK), (BACKUP_PENDING_ANCHOR, BACKUP_PENDING_BLOCK)],
     ERROR_FILE: [(ERROR_ANCHOR, ERROR_BLOCK)],
     NOTES_FILE: [(NOTES_ANCHOR, NOTES_BLOCK)],
-    BACKUP_SETTINGS_FILE: [(BACKUP_SETTINGS_ANCHOR, BACKUP_SETTINGS_BLOCK)],
+    BACKUP_SETTINGS_FILE: [(BACKUP_SETTINGS_ANCHOR, BACKUP_SETTINGS_BLOCK),
+                           (REPORTS_SETTINGS_ANCHOR, REPORTS_SETTINGS_BLOCK)],
     BACKUP_DETECT_FILE: [(BACKUP_DETECT_ANCHOR, BACKUP_DETECT_BLOCK)],
-    BACKUP_OFFER_FILE: [(BACKUP_OFFER_ANCHOR, BACKUP_OFFER_BLOCK)],
+    BACKUP_OFFER_FILE: [(REPORTS_SCREEN_ANCHOR, REPORTS_SCREEN_BLOCK), (BACKUP_OFFER_ANCHOR, BACKUP_OFFER_BLOCK)],
     BACKUP_FORGET_FILE: [(BACKUP_FORGET_ANCHOR, BACKUP_FORGET_BLOCK)],
-    BACKUP_DI_FILE: [(BACKUP_DI_ANCHOR, BACKUP_DI_BLOCK)],
+    BACKUP_DI_FILE: [(BACKUP_DI_ANCHOR, BACKUP_DI_BLOCK), (REPORTS_DI_ANCHOR, REPORTS_DI_BLOCK)],
     CONFLICTS_UPLOAD_FILE: [(CONFLICTS_UPLOAD_ANCHOR, CONFLICTS_UPLOAD_BLOCK)],
     CONFLICTS_NOTIFY_FILE: [(CONFLICTS_NOTIFY_ANCHOR, CONFLICTS_NOTIFY_BLOCK),
                             (CONFLICTS_DISMISS_ANCHOR, CONFLICTS_DISMISS_BLOCK)],
     CONFLICTS_APPWIDE_FILE: [(CONFLICTS_APPWIDE_ANCHOR, CONFLICTS_APPWIDE_BLOCK)],
     CONFLICTS_MENU_FILE: [(CONFLICTS_MENU_ANCHOR, CONFLICTS_MENU_BLOCK)],
     CONFLICTS_FOLDER_FILE: [(CONFLICTS_FOLDER_ANCHOR, CONFLICTS_FOLDER_BLOCK)],
-    CONFLICTS_START_FILE: [(CONFLICTS_START_ANCHOR, CONFLICTS_START_BLOCK)],
+    CONFLICTS_START_FILE: [(CONFLICTS_START_ANCHOR, CONFLICTS_START_BLOCK), (REPORTS_START_ANCHOR, REPORTS_START_BLOCK)],
     CONFLICTS_RUN_FILE: [(CONFLICTS_RUN_ANCHOR, CONFLICTS_RUN_BLOCK)],
 }
 
@@ -516,6 +549,11 @@ SETUP = [
     ("Drawer", [
         ("bool", "show_drawer_logout", "true"),
     ]),
+    ("Problem reports (round 3): the app keeps its own log (private to the app, 4 rotating files of 1 MB) so a report "
+     "has logs; the DAVx5 entry in Settings is not offered", [
+        ("bool", "logger_enabled", "true"),
+        ("bool", "davdroid_integration_enabled", "false"),
+    ]),
     ("Colours (THEME_BIBLE: primary #2563EB)", [
         ("color", "primary", "#2563EB"),
         ("color", "primary_dark", "#2563EB"),
@@ -556,8 +594,8 @@ def values_override(src: str, items: list[tuple[str, str, str]], comment: str,
         body.append(f'    <{rtype} name="{name}"{attrs}>{value}</{rtype}>')
     for rtype, name, value in flavour_only or []:
         # Declared (with its default) in a NoDrive-owned file of main, so other flavours still compile.
-        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES) + read(CONFLICTS_RES), rtype, name,
-                            f"{WORKSPACE_RES}, {BACKUP_RES} or {CONFLICTS_RES}")
+        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES) + read(CONFLICTS_RES) + read(REPORTS_RES), rtype, name,
+                            f"{WORKSPACE_RES}, {BACKUP_RES}, {CONFLICTS_RES} or {REPORTS_RES}")
         body.append(f'    <{rtype} name="{name}">{value}</{rtype}>')
     body.append("</resources>")
     holders, licence = upstream_spdx(main_text)
@@ -929,6 +967,8 @@ def manifest() -> str:
     application.append(ET.Element("activity", {
         A + "name": f"{CONFLICTS_PKG}.ResolveAllActivity", A + "exported": "false",
         A + "theme": "@style/Theme.NoBackground"}))
+    application.append(ET.Comment(" Problem reports: the Report a problem screen. "))
+    application.append(ET.Element("activity", {A + "name": f"{REPORTS_PKG}.ReportProblemActivity", A + "exported": "false"}))
     root.append(ET.Comment(" Package visibility for the Stop Google backup screen: only the apps whose backup it "
                            "can open, never QUERY_ALL_PACKAGES. "))
     queries = ET.SubElement(root, "queries")
@@ -951,9 +991,9 @@ def generated_files() -> dict[str, str]:
     out[f"{ND_RES}/values/bools.xml"] = values_override(
         f"{MAIN_RES}/values/bools.xml", [("bool", "show_push_warning", "false")],
         "Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; "
-        "the Workspace apps menu, signed-in in-app pages, the Backup settings and Smart conflicts are on",
+        "the Workspace apps menu, signed-in in-app pages, the Backup settings, Smart conflicts and Problem reports are on",
         flavour_only=[("bool", "nodrive_workspace_apps", "true"), ("bool", "nodrive_backup", "true"),
-                      ("bool", "nodrive_conflicts", "true")])
+                      ("bool", "nodrive_conflicts", "true"), ("bool", "nodrive_reports", "true")])
     out[f"{ND_RES}/values/colors.xml"] = values_override(
         f"{MAIN_RES}/values/colors.xml", [("color", "bg_default", "#F8FAFC")], "THEME_BIBLE light background")
     out[f"{ND_RES}/values-night/colors.xml"] = values_override(

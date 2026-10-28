@@ -63,6 +63,8 @@
         <activity android:name="org.nourax.nodrive.backup.MoveFromGoogleActivity" android:exported="false" />
         <!-- Smart conflicts: the Resolve all conflicts dialog (a see-through window with one dialog). -->
         <activity android:name="org.nourax.nodrive.conflicts.ResolveAllActivity" android:exported="false" android:theme="@style/Theme.NoBackground" />
+        <!-- Problem reports: the Report a problem screen. -->
+        <activity android:name="org.nourax.nodrive.reports.ReportProblemActivity" android:exported="false" />
     </application>
     <!-- Package visibility for the Stop Google backup screen: only the apps whose backup it can open, never QUERY_ALL_PACKAGES. -->
     <queries>

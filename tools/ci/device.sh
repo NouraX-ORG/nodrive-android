@@ -6,9 +6,10 @@
 # 1. the instrumented tests in tools/ci/instrumented-tests.txt (Gradle, nodriveDebug);
 # 2. the backup tests (tools/ci/backup-device.sh; its upload test needs the throwaway server);
 # 3. the Smart conflicts tests (tools/ci/conflicts-device.sh; its upload tests need the throwaway server);
-# 4. the Workspace apps test against the throwaway server (tools/ci/workspace-device.sh, only when the
+# 4. the problem report tests (tools/ci/reports-device.sh; its upload tests need the throwaway server);
+# 5. the Workspace apps test against the throwaway server (tools/ci/workspace-device.sh, only when the
 #    workflow started that server);
-# 5. the screen sweep (tools/ci/sweep.py), which installs the APKs again and takes the screenshots.
+# 6. the screen sweep (tools/ci/sweep.py), which installs the APKs again and takes the screenshots.
 # All of them always run; the exit code is non-zero when either failed. Output goes to build/device/.
 set -uo pipefail
 
@@ -159,6 +160,13 @@ if ADB="$ADB" bash tools/ci/conflicts-device.sh; then
 else
     status=1
     echo "conflicts tests: FAIL"
+fi
+
+if ADB="$ADB" bash tools/ci/reports-device.sh; then
+    echo "problem reports tests: PASS"
+else
+    status=1
+    echo "problem reports tests: FAIL"
 fi
 
 if ADB="$ADB" bash tools/ci/workspace-device.sh; then
