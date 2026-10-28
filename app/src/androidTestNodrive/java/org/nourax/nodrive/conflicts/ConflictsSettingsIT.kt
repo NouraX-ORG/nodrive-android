@@ -94,8 +94,15 @@ class ConflictsSettingsIT {
 
     private fun ownedRows() = backup.rows().filter { it.id in backup.state(account).read().owned }
 
-    private fun waitForOwnedPolicy(policy: Int) = backup.waitFor("every owned row at policy $policy", TIMEOUT_MILLIS) {
-        true.takeIf { ownedRows().isNotEmpty() && ownedRows().all { it.nameCollisionPolicyInt == policy } }
+    private fun waitForOwnedPolicy(policy: Int) {
+        try {
+            backup.waitFor("every owned row at policy $policy", TIMEOUT_MILLIS) {
+                true.takeIf { ownedRows().isNotEmpty() && ownedRows().all { it.nameCollisionPolicyInt == policy } }
+            }
+        } catch (e: AssertionError) {
+            val state = ownedRows().map { "${it.id}:${it.nameCollisionPolicyInt}" }
+            throw AssertionError("${e.message}; owned rows now $state, saved choice ${support.settings().choice(account)}", e)
+        }
     }
 
     @Test
