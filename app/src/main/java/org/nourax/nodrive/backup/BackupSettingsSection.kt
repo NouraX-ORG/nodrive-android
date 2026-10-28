@@ -103,7 +103,7 @@ object BackupSettingsSection {
             )
         )
 
-        val refreshNow = {
+        val refreshNow: () -> Unit = {
             refresh(activity, user, media, docs)
             conflicts?.let { ConflictSettingsItem.refresh(activity, it, user.accountName) }
         }

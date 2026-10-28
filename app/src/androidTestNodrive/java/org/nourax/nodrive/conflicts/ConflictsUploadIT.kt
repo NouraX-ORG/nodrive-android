@@ -1,0 +1,304 @@
+/*
+ * NoDrive by Nourax
+ *
+ * SPDX-FileCopyrightText: 2026 Nourax
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+package org.nourax.nodrive.conflicts
+
+import android.net.Uri
+import androidx.core.app.NotificationManagerCompat
+import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withText
+import androidx.work.WorkManager
+import com.nextcloud.client.core.ClockImpl
+import com.nextcloud.client.jobs.BackgroundJobManagerImpl
+import com.nextcloud.client.preferences.AppPreferencesImpl
+import com.owncloud.android.datamodel.UploadsStorageManager.UploadStatus
+import com.owncloud.android.db.UploadResult
+import com.owncloud.android.ui.activity.UploadListActivity
+import org.hamcrest.Matchers.containsString
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.nourax.nodrive.backup.BackupControllers
+import org.nourax.nodrive.backup.BackupDefaults
+import org.nourax.nodrive.backup.BackupState
+import org.nourax.nodrive.backup.BackupTestSupport
+import java.io.File
+
+/**
+ * The real thing against the throwaway Nextcloud of the CI job: the Smart rule in the upload path, the one grouped
+ * notification and "Resolve all conflicts…" with each choice. The files on the phone are checked by SHA-256 before and
+ * after every case: they must never change. The app password is made for these tests only.
+ */
+class ConflictsUploadIT {
+    @get:Rule
+    val permissions = BackupTestSupport.grantRule()
+
+    private val support = ConflictsTestSupport()
+    private val backup = support.backup
+    private val created = mutableListOf<Uri>()
+    private val phoneHashes = mutableMapOf<File, String>()
+    private var account: String? = null
+
+    private val acct: String get() = checkNotNull(account)
+
+    @Before
+    fun requireServer() {
+        assumeTrue("needs the CI test server", support.hasServer)
+        account = support.addServerAccount().name
+    }
+
+    @After
+    fun tearDown() {
+        NotificationManagerCompat.from(backup.context).cancelAll()
+        created.forEach { backup.deleteMedia(it) }
+        backup.wipeAllAccountsAndRowsCiEmulatorOnly()
+        account?.let { BackupState.forget(backup.context, it) }
+    }
+
+    // ---- 1. Smart
+
+    @Test
+    fun smartCountsTheSameSizeAsBackedUpAndKeepsBothForAnotherSize() {
+        assertEquals("Smart is the default", ConflictChoice.SMART, support.settings().choice(acct))
+        val same = phoneFile("nodrive-cf-same.jpg")
+        val diff = phoneFile("nodrive-cf-diff.jpg")
+        val folder = support.cameraRemoteFolder(acct)
+        support.putOnServer("$folder/${same.name}", same)
+        support.putOnServer("$folder/${diff.name}", support.otherBytes("cf-diff-old.bin"))
+        val sameEtag = support.etagOnServer("$folder/${same.name}")
+        val diffEtag = support.etagOnServer("$folder/${diff.name}")
+        val oldDiffSize = support.sizeOnServer("$folder/${diff.name}")
+
+        val rows = startBackup()
+
+        backup.waitFor("the same-size file counted as backed up", UPLOAD_TIMEOUT_MILLIS) {
+            support.uploadOf("$folder/${same.name}")?.takeIf {
+                it.status == UploadStatus.UPLOAD_SUCCEEDED.value && it.lastResult == UploadResult.SKIPPED.value
+            }
+        }
+        val copy = backup.waitFor("the second copy of the other-size file", UPLOAD_TIMEOUT_MILLIS) {
+            support.sizeOnServer("$folder/nodrive-cf-diff (2).jpg")
+        }
+        stopBackup(rows)
+
+        assertEquals("the second copy has the size of the phone file", diff.length(), copy)
+        assertEquals("the old copy is unchanged", oldDiffSize, support.sizeOnServer("$folder/${diff.name}"))
+        assertEquals(diffEtag, support.etagOnServer("$folder/${diff.name}"))
+        assertEquals("the same-size file was not sent again", sameEtag, support.etagOnServer("$folder/${same.name}"))
+        assertNull("no copy of the same-size file", support.remoteFile("$folder/nodrive-cf-same (2).jpg"))
+        assertEquals("no conflict waits", 0, support.waitingConflicts(acct))
+        assertTrue("no conflict notification", support.summaries().isEmpty())
+        assertPhoneFilesUnchanged()
+    }
+
+    // ---- 2. One grouped notification
+
+    @Test
+    fun threeConflictsGiveOneSummaryNotificationAndNoPerFileOne() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = createClashes(folder, "nodrive-cf-note-${backup.look}", count = 3, sameSize = 0)
+
+        val rows = startBackup()
+        backup.waitFor("three waiting conflicts", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { support.waitingConflicts(acct) == clashes.size }
+        }
+        backup.waitFor("the summary says three", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { support.summaries().singleOrNull()?.let { support.title(it) } == "3 files are already in NoDrive" }
+        }
+        val summary = support.summaries().single()
+        assertTrue("Resolve all is an action", "Resolve all" in support.actionTitles(summary))
+        val perFile = support.activeNotifications().filter {
+            it.tag == null && it.notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ==
+                "File upload conflict"
+        }
+        assertTrue("no per-file notification: ${perFile.map { it.id }}", perFile.isEmpty())
+        support.shadeScreenshot("notification")
+        stopBackup(rows)
+        assertPhoneFilesUnchanged()
+    }
+
+    // ---- 3. Resolve all conflicts…  (one test per choice; the backup stays on, because switching it off would also
+    // drop the queued upload rows of its folder, and these rows are what is being resolved)
+
+    @Test
+    fun resolveAllKeepBothUploadsACopyNextToEveryOldFile() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-both-${backup.look}", count = 2, sameSize = 0)
+        resolveAll("Keep both", first = true)
+        backup.waitFor("both copies of every file", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base} (2).jpg") == it.phone.length() } }
+        }
+        clashes.forEach { assertEquals("old copy stays", OTHER_SIZE, support.sizeOnServer("$folder/${it.base}.jpg")) }
+        assertResolved("keep both")
+    }
+
+    @Test
+    fun resolveAllKeepTheNoDriveCopyChangesNothingOnTheDrive() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-nodrive-${backup.look}", count = 2, sameSize = 0)
+        val etags = clashes.associateWith { support.etagOnServer("$folder/${it.base}.jpg") }
+        resolveAll("Keep the NoDrive copy")
+        backup.waitFor("no waiting conflict", UPLOAD_TIMEOUT_MILLIS) { true.takeIf { support.waitingConflicts(acct) == 0 } }
+        clashes.forEach {
+            assertEquals("server file unchanged", etags[it], support.etagOnServer("$folder/${it.base}.jpg"))
+            assertNull("no extra copy", support.remoteFile("$folder/${it.base} (2).jpg"))
+            val row = support.uploadOf("$folder/${it.base}.jpg")
+            assertNotNull(row)
+            assertEquals(UploadStatus.UPLOAD_SUCCEEDED.value, row!!.status)
+            assertEquals(UploadResult.SKIPPED.value, row.lastResult)
+        }
+        assertResolved("keep the nodrive copy")
+    }
+
+    @Test
+    fun resolveAllKeepThePhoneCopyReplacesTheDriveFile() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-phone-${backup.look}", count = 2, sameSize = 0)
+        resolveAll("Keep the phone copy")
+        backup.waitFor("the phone copy on the server", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base}.jpg") == it.phone.length() } }
+        }
+        clashes.forEach { assertNull("no extra copy", support.remoteFile("$folder/${it.base} (2).jpg")) }
+        assertResolved("keep the phone copy")
+    }
+
+    @Test
+    fun resolveAllSmartSkipsTheSameSizeAndKeepsBothForTheRest() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-smart-${backup.look}", count = 2, sameSize = 1)
+        val same = clashes.first { it.sameSize }
+        val other = clashes.first { !it.sameSize }
+        val sameEtag = support.etagOnServer("$folder/${same.base}.jpg")
+        resolveAll("Smart (recommended)")
+        backup.waitFor("the second copy of the other-size file", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { support.sizeOnServer("$folder/${other.base} (2).jpg") == other.phone.length() }
+        }
+        assertResolved("smart")
+        assertEquals("the same-size file was not sent again", sameEtag, support.etagOnServer("$folder/${same.base}.jpg"))
+        assertNull("no copy of the same-size file", support.remoteFile("$folder/${same.base} (2).jpg"))
+        assertEquals("the old copy of the other file stays", OTHER_SIZE, support.sizeOnServer("$folder/${other.base}.jpg"))
+    }
+
+    // ---- helpers
+
+    private class Clash(val base: String, val phone: File, val sameSize: Boolean)
+
+    /** Files on the phone, and a file of the same name on the Drive: of the same bytes ([sameSize] of them) or of 37 bytes. */
+    private fun createClashes(folder: String, prefix: String, count: Int, sameSize: Int): List<Clash> =
+        (1..count).map { index ->
+            val base = "$prefix-$index"
+            val phone = phoneFile("$base.jpg")
+            val same = index <= sameSize
+            support.putOnServer("$folder/$base.jpg", if (same) phone else support.otherBytes("$base.bin"))
+            Clash(base, phone, same)
+        }
+
+    /**
+     * Makes the clashes, runs the backup and waits until every one waits as a conflict (the choice is Ask). The backup
+     * stays on afterwards.
+     */
+    private fun waitForConflicts(folder: String, prefix: String, count: Int, sameSize: Int): List<Clash> {
+        val clashes = createClashes(folder, prefix, count, sameSize)
+        val rows = startBackup()
+        backup.waitFor("$count waiting conflicts", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { support.waitingConflicts(acct) == count }
+        }
+        backup.waitForAutoUploadToStop(rows, UPLOAD_TIMEOUT_MILLIS)
+        return clashes
+    }
+
+    private fun assertResolved(what: String) {
+        backup.waitFor("no waiting conflict after $what", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { support.waitingConflicts(acct) == 0 }
+        }
+        backup.waitFor("the summary notification is gone after $what", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { support.summaries().isEmpty() }
+        }
+        assertPhoneFilesUnchanged()
+    }
+
+    /** The Uploads screen, the overflow menu, "Resolve all conflicts…", one choice, Apply. */
+    private fun resolveAll(choiceText: String, first: Boolean = false) {
+        ActivityScenario.launch(UploadListActivity::class.java).use {
+            backup.sleepForAnimation()
+            openActionBarOverflowOrOptionsMenu(backup.context)
+            backup.waitFor("the menu item", UPLOAD_TIMEOUT_MILLIS) {
+                onView(withText("Resolve all conflicts…")).check(matches(isDisplayed()))
+                true
+            }
+            if (first) support.screenshot("uploads-menu")
+            onView(withText("Resolve all conflicts…")).perform(click())
+            backup.waitFor("the dialog", UPLOAD_TIMEOUT_MILLIS) {
+                onView(withText(containsString("Skip it if it's the same size, otherwise keep both"))).check(matches(isDisplayed()))
+                true
+            }
+            listOf("Keep the NoDrive copy", "Keep the phone copy", "Keep both").forEach {
+                onView(withText(it)).check(matches(isDisplayed()))
+            }
+            val label = if (choiceText.startsWith("Smart")) containsString("Smart (recommended)") else containsString(choiceText)
+            onView(withText(label)).perform(click())
+            backup.sleepForAnimation()
+            if (first) support.screenshot("resolve-all")
+            onView(withText("Apply")).perform(click())
+        }
+    }
+
+    private fun phoneFile(name: String): File {
+        created += backup.insertJpeg(name)
+        val file = backup.cameraFolder().resolve(name)
+        assertTrue("the phone file exists", file.exists())
+        phoneHashes[file] = support.sha256(file)
+        return file
+    }
+
+    private fun assertPhoneFilesUnchanged() {
+        phoneHashes.forEach { (file, hash) ->
+            assertTrue("${file.name} is still on the phone", file.exists())
+            assertEquals("${file.name} is unchanged", hash, support.sha256(file))
+        }
+    }
+
+    private fun startBackup(): List<Long> {
+        val controller = BackupControllers.create(backup.context, backup.provider, ClockImpl(), acct)
+        val rows = controller.enableMedia(BackupDefaults(wifiOnly = false)).rowsToStart
+        assertTrue("a row for the camera folder", rows.isNotEmpty())
+        val jobs = BackgroundJobManagerImpl(
+            WorkManager.getInstance(backup.context),
+            ClockImpl(),
+            AppPreferencesImpl.fromContext(backup.context)
+        )
+        rows.forEach { id ->
+            jobs.startAutoUpload(checkNotNull(backup.provider.getSyncedFolderByID(id)), overridePowerSaving = true)
+        }
+        return rows
+    }
+
+    private fun stopBackup(rows: List<Long>) {
+        BackupControllers.create(backup.context, backup.provider, ClockImpl(), acct).disableMedia()
+        backup.waitForAutoUploadToStop(rows, UPLOAD_TIMEOUT_MILLIS)
+    }
+
+    private companion object {
+        const val UPLOAD_TIMEOUT_MILLIS = 300_000L
+        const val OTHER_SIZE = 37L
+    }
+}

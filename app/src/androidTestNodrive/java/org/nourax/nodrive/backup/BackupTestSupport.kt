@@ -59,7 +59,7 @@ class BackupTestSupport {
     fun addServerAccount(): Account =
         addAccount(checkNotNull(userId), checkNotNull(serverUrl), checkNotNull(serverToken))
 
-    private fun addAccount(user: String, url: String, password: String): Account {
+    fun addAccount(user: String, url: String, password: String): Account {
         val manager = AccountManager.get(context)
         val type = MainApp.getAccountType(context)
         manager.getAccountsByType(type).forEach {

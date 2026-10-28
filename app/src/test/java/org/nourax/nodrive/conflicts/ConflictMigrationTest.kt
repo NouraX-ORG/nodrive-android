@@ -82,6 +82,7 @@ class ConflictMigrationTest {
         val rows = listOf(row(1, "a@h", skip))
         val plan = ConflictMigration.plan(rows, mapOf("a@h" to setOf(1L)), mapOf("a@h" to ConflictChoice.KEEP_BOTH))
         assertTrue(plan.choices.isEmpty())
+        assertTrue("the rows of an account with a saved choice are left alone", plan.policyChanges.isEmpty())
     }
 
     // ---- ensureMigrated: the flag, idempotence, fresh install

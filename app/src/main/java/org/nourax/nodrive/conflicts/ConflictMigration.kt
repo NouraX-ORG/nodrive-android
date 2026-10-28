@@ -30,8 +30,9 @@ object ConflictMigration {
      * choice, so Settings tells the truth; any other mix is Smart.
      */
     fun plan(rows: List<PolicyRow>, owned: Map<String, Set<Long>>, existing: Map<String, ConflictChoice?>): MigrationPlan {
+        // An account that already has a saved choice was migrated before (or chose by hand): its rows are left alone.
         val ownedRows = rows.filter { it.id in owned[it.account].orEmpty() }
-        val changes = ownedRows.filter { it.policy == skip }.associate { it.id to ask }
+        val changes = ownedRows.filter { it.policy == skip && existing[it.account] == null }.associate { it.id to ask }
         val choices = ownedRows.groupBy { it.account }
             .filterKeys { existing[it] == null }
             .mapValues { (_, accountRows) ->

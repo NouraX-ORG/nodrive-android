@@ -348,7 +348,7 @@ jobs:
                     rc=0
                     python3 tools/ci/probe-server.py --check build/device/probe.jsonl --min-requests 1 > build/device/probe-check.txt || rc=1
                     cat build/device/probe-check.txt
-                    for name in NODRIVE_WS_SSO_TOKEN NODRIVE_WS_REMOVE_TOKEN NODRIVE_WS_PW_TOKEN NODRIVE_BK_TOKEN NODRIVE_WS_LOGIN_PASSWORD; do
+                    for name in NODRIVE_WS_SSO_TOKEN NODRIVE_WS_REMOVE_TOKEN NODRIVE_WS_PW_TOKEN NODRIVE_BK_TOKEN NODRIVE_CF_TOKEN NODRIVE_WS_LOGIN_PASSWORD; do
                         value="${!name:-}"
                         [ -n "$value" ] || continue
                         if grep -rlaF --exclude=network.pcap -e "$value" build/device app/build/reports \
