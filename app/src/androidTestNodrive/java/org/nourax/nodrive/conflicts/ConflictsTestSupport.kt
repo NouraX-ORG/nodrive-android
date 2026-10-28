@@ -91,7 +91,7 @@ class ConflictsTestSupport {
     fun namesOnServer(folder: String): List<String> {
         val result = ReadFolderRemoteOperation(folder).execute(client())
         if (!result.isSuccess) return emptyList()
-        return result.data.filterIsInstance<RemoteFile>().map { it.remotePath.trimEnd('/').substringAfterLast('/') }
+        return result.data.filterIsInstance<RemoteFile>().map { it.remotePath?.trimEnd('/')?.substringAfterLast('/').orEmpty() }
     }
 
     // ---- the upload rows
