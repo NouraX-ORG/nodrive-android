@@ -46,7 +46,7 @@ object OwnedFolderPolicy {
                 MaterialAlertDialogBuilder(activity)
                     .setTitle(R.string.nodrive_conflicts_setting_title)
                     .setMessage(R.string.nodrive_conflicts_folder_explanation)
-                    .setPositiveButton(R.string.nodrive_conflicts_resolve_all_ok, null)
+                    .setPositiveButton(R.string.common_ok, null)
                     .show()
             }
         } catch (e: RuntimeException) {

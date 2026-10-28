@@ -44,23 +44,28 @@ object ResolveAll {
         }
     }
 
-    /** The notification action: opens the Resolve all dialog for that account (no broadcast hop, so it works on Android 12+). */
-    fun pendingIntent(context: Context, account: String): PendingIntent {
-        val intent = Intent(context, ResolveAllActivity::class.java).apply {
+    /** The intent of the notification action: the Resolve all dialog for that account. */
+    fun intent(context: Context, account: String): Intent =
+        Intent(context, ResolveAllActivity::class.java).apply {
             putExtra(EXTRA_ACCOUNT, account)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        return PendingIntent.getActivity(
+
+    /** The notification action: opens the Resolve all dialog for that account (no broadcast hop, so it works on Android 12+). */
+    fun pendingIntent(context: Context, account: String): PendingIntent =
+        PendingIntent.getActivity(
             context,
             account.hashCode(),
-            intent,
+            intent(context, account),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-    }
 
     fun accountOf(intent: Intent?): String? = intent?.getStringExtra(EXTRA_ACCOUNT)
 
-    /** One run at a time per account; a second tap while it runs is ignored. */
+    /**
+     * One run at a time per account. A second Resolve all while one runs waits for it and then handles what still
+     * waits with its own choice (so a different choice is never dropped, and a repeated tap finds nothing left to do).
+     */
     fun start(context: Context, account: String, choice: ConflictChoice) {
         val request = OneTimeWorkRequestBuilder<ResolveAllWorker>()
             .setInputData(
@@ -71,6 +76,6 @@ object ResolveAll {
             )
             .build()
         WorkManager.getInstance(context)
-            .enqueueUniqueWork("nodrive_resolve_all_$account", ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork("nodrive_resolve_all_$account", ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 }

@@ -31,7 +31,5 @@
     <string name="nodrive_conflicts_resolve_all_title">Resolve all conflicts</string>
     <string name="nodrive_conflicts_resolve_all_apply">Apply</string>
     <string name="nodrive_conflicts_resolve_all_none">There are no conflicts to resolve.</string>
-    <string name="nodrive_conflicts_resolve_all_ok">OK</string>
-    <string name="nodrive_conflicts_resolve_all_cancel">Cancel</string>
     <string name="nodrive_conflicts_folder_explanation">NoDrive backup folders all use one choice. Change it in Settings › Backup › If a file is already in NoDrive.</string>
 </resources>

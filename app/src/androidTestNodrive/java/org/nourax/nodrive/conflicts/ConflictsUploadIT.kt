@@ -127,6 +127,10 @@ class ConflictsUploadIT {
                 "File upload conflict"
         }
         assertTrue("no per-file notification: ${perFile.map { it.id }}", perFile.isEmpty())
+        assertTrue(
+            "upstream's app-wide conflict notification (id 112) is replaced by the summary",
+            support.activeNotifications().none { it.tag == null && it.id == UPSTREAM_APP_WIDE_CONFLICT_ID }
+        )
         support.shadeScreenshot("notification")
         stopBackup(rows)
         assertPhoneFilesUnchanged()
@@ -198,6 +202,67 @@ class ConflictsUploadIT {
         assertEquals("the old copy of the other file stays", OTHER_SIZE, support.sizeOnServer("$folder/${other.base}.jpg"))
     }
 
+    // The review's blocking finding: an account choice must never replace the policy a Resolve all gave an upload.
+
+    @Test
+    fun resolveAllSmartNeverOverwritesWhenTheSettingIsKeepThePhoneCopy() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-b1a-${backup.look}", count = 2, sameSize = 0)
+        val etags = clashes.associateWith { support.etagOnServer("$folder/${it.base}.jpg") }
+        support.settings().setChoice(acct, ConflictChoice.KEEP_PHONE)
+        resolveAll("Smart (recommended)")
+        backup.waitFor("both copies of every file", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base} (2).jpg") == it.phone.length() } }
+        }
+        assertResolved("smart with the setting on keep the phone copy")
+        clashes.forEach {
+            assertEquals("the old copy is unchanged", etags[it], support.etagOnServer("$folder/${it.base}.jpg"))
+            assertEquals(OTHER_SIZE, support.sizeOnServer("$folder/${it.base}.jpg"))
+        }
+    }
+
+    @Test
+    fun resolveAllKeepThePhoneCopyIsNotIgnoredWhenTheSettingIsKeepTheNoDriveCopy() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-b1b-${backup.look}", count = 2, sameSize = 0)
+        support.settings().setChoice(acct, ConflictChoice.KEEP_NODRIVE)
+        resolveAll("Keep the phone copy")
+        backup.waitFor("the phone copy on the server", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base}.jpg") == it.phone.length() } }
+        }
+        assertResolved("keep the phone copy with the setting on keep the NoDrive copy")
+    }
+
+    // ---- 4. The notification action and the empty case
+
+    @Test
+    fun theNotificationActionOpensTheDialogForItsAccountAndResolves() {
+        support.settings().setChoice(acct, ConflictChoice.ASK)
+        val folder = support.cameraRemoteFolder(acct)
+        val clashes = waitForConflicts(folder, "nodrive-cf-action-${backup.look}", count = 2, sameSize = 0)
+        ActivityScenario.launch<ResolveAllActivity>(ResolveAll.intent(backup.context, acct)).use {
+            chooseAndApply("Keep both", first = false)
+        }
+        backup.waitFor("both copies of every file", UPLOAD_TIMEOUT_MILLIS) {
+            true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base} (2).jpg") == it.phone.length() } }
+        }
+        assertResolved("the notification action")
+    }
+
+    @Test
+    fun resolveAllForAnAccountWithoutConflictsSaysSoAndChangesNothing() {
+        ActivityScenario.launch<ResolveAllActivity>(ResolveAll.intent(backup.context, "nobody@example.invalid")).use {
+            backup.waitFor("the message", UPLOAD_TIMEOUT_MILLIS) {
+                onView(withText("There are no conflicts to resolve.")).check(matches(isDisplayed()))
+                true
+            }
+            onView(withText("OK")).perform(click())
+        }
+        assertEquals(0, support.waitingConflicts(acct))
+    }
+
     // ---- helpers
 
     private class Clash(val base: String, val phone: File, val sameSize: Boolean)
@@ -247,19 +312,24 @@ class ConflictsUploadIT {
             }
             if (first) support.screenshot("uploads-menu")
             onView(withText("Resolve all conflicts…")).perform(click())
-            backup.waitFor("the dialog", UPLOAD_TIMEOUT_MILLIS) {
-                onView(withText(containsString("Skip it if it's the same size, otherwise keep both"))).check(matches(isDisplayed()))
-                true
-            }
-            listOf("Keep the NoDrive copy", "Keep the phone copy", "Keep both").forEach {
-                onView(withText(it)).check(matches(isDisplayed()))
-            }
-            val label = if (choiceText.startsWith("Smart")) containsString("Smart (recommended)") else containsString(choiceText)
-            onView(withText(label)).perform(click())
-            backup.sleepForAnimation()
-            if (first) support.screenshot("resolve-all")
-            onView(withText("Apply")).perform(click())
+            chooseAndApply(choiceText, first)
         }
+    }
+
+    /** The Resolve all dialog is on the screen: checks its choices, picks one and taps Apply. */
+    private fun chooseAndApply(choiceText: String, first: Boolean) {
+        backup.waitFor("the dialog", UPLOAD_TIMEOUT_MILLIS) {
+            onView(withText(containsString("Skip it if it's the same size, otherwise keep both"))).check(matches(isDisplayed()))
+            true
+        }
+        listOf("Keep the NoDrive copy", "Keep the phone copy", "Keep both").forEach {
+            onView(withText(it)).check(matches(isDisplayed()))
+        }
+        val label = if (choiceText.startsWith("Smart")) containsString("Smart (recommended)") else containsString(choiceText)
+        onView(withText(label)).perform(click())
+        backup.sleepForAnimation()
+        if (first) support.screenshot("resolve-all")
+        onView(withText("Apply")).perform(click())
     }
 
     private fun phoneFile(name: String): File {
@@ -300,5 +370,6 @@ class ConflictsUploadIT {
     private companion object {
         const val UPLOAD_TIMEOUT_MILLIS = 300_000L
         const val OTHER_SIZE = 37L
+        const val UPSTREAM_APP_WIDE_CONFLICT_ID = 112
     }
 }

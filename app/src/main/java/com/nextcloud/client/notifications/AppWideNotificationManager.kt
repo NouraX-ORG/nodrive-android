@@ -51,6 +51,12 @@ object AppWideNotificationManager {
     }
 
     fun showSyncConflictNotification(context: Context) {
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        if (org.nourax.nodrive.conflicts.ConflictNotifications.replaceAppWide(context)) {
+            return
+        }
+        // NoDrive: end
+
         val pendingIntent = getUploadListPendingIntent(context)
 
         val actionIntent = Intent(context, SyncConflictNotificationBroadcastReceiver::class.java).apply {

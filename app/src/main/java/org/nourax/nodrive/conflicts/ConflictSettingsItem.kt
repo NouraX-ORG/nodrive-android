@@ -58,7 +58,7 @@ object ConflictSettingsItem {
             ConflictChoice.entries,
             current,
             null,
-            R.string.nodrive_conflicts_resolve_all_cancel
+            R.string.common_cancel
         ) { choice -> save(activity, item, account, choice) }
     }
 

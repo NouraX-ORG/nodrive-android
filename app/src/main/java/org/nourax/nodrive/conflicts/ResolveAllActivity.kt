@@ -8,6 +8,7 @@ package org.nourax.nodrive.conflicts
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.nextcloud.client.account.UserAccountManagerImpl
@@ -22,49 +23,55 @@ import kotlin.concurrent.thread
  */
 class ResolveAllActivity : AppCompatActivity() {
     private var fromNotification = false
+    private var dialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fromNotification = ResolveAll.accountOf(intent) != null
         val account = ResolveAll.accountOf(intent) ?: UserAccountManagerImpl.fromContext(this).user.accountName
-        if (savedInstanceState == null) {
-            // Count first, off the main thread: nothing to resolve is a short message, not a dialog of choices.
-            thread(name = "nodrive-conflict-count") {
-                val waiting = ConflictNotifications.countWaiting(account)
-                runOnUiThread {
-                    if (!isFinishing) {
-                        if (waiting == 0) showNone(account) else showChoices(account)
-                    }
+        // On every start, also after a rotation or a new process: the dialog is not kept, so it is shown again, and
+        // this see-through window is never left on top without one. Count first, off the main thread: nothing to
+        // resolve is a short message, not a dialog of choices.
+        thread(name = "nodrive-conflict-count") {
+            val waiting = ConflictNotifications.countWaiting(account)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    dialog = if (waiting == 0) showNone(account) else showChoices(account)
                 }
             }
         }
     }
 
-    private fun showNone(account: String) {
+    override fun onDestroy() {
+        dialog?.dismiss()
+        dialog = null
+        super.onDestroy()
+    }
+
+    private fun showNone(account: String): AlertDialog {
         ConflictNotifications.refreshAsync(this, account)
-        MaterialAlertDialogBuilder(this)
+        return MaterialAlertDialogBuilder(this)
             .setTitle(R.string.nodrive_conflicts_resolve_all_title)
             .setMessage(R.string.nodrive_conflicts_resolve_all_none)
-            .setPositiveButton(R.string.nodrive_conflicts_resolve_all_ok) { _, _ -> done() }
+            .setPositiveButton(R.string.common_ok) { _, _ -> done() }
             .setOnCancelListener { done() }
             .show()
     }
 
-    private fun showChoices(account: String) {
+    private fun showChoices(account: String): AlertDialog =
         ChoiceDialog.show(
             this,
             R.string.nodrive_conflicts_resolve_all_title,
             ConflictChoice.RESOLVE_ALL_CHOICES,
             null,
             R.string.nodrive_conflicts_resolve_all_apply,
-            R.string.nodrive_conflicts_resolve_all_cancel,
+            R.string.common_cancel,
             onCancel = { finish() }
         ) { choice ->
             Log_OC.d(TAG, "resolve all conflicts with ${choice.key}")
             ResolveAll.start(applicationContext, account, choice)
             done()
         }
-    }
 
     /** From the notification the Uploads screen opens, where the rows change as they are resolved. */
     private fun done() {

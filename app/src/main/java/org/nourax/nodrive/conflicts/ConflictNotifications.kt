@@ -88,16 +88,20 @@ object ConflictNotifications {
         thread(name = "nodrive-conflict-refresh") { refresh(context.applicationContext, account) }
     }
 
-    /** Hook after upstream's per-file resolve: the count may have changed. Never creates a notification. */
+    /**
+     * Hook after upstream's per-file resolve (and at app start): the count may have changed. Creates a notification only
+     * when [createIfMissing].
+     */
     @JvmStatic
+    @JvmOverloads
     @Suppress("TooGenericExceptionCaught")
-    fun refreshAll(context: Context) {
+    fun refreshAll(context: Context, createIfMissing: Boolean = false) {
         val app = context.applicationContext
         if (!enabled(app)) return
         thread(name = "nodrive-conflict-refresh") {
             try {
                 FileUploadHelper.instance().accountManager.allUsers.filterNotNull().forEach {
-                    refresh(app, it.accountName, createIfMissing = false)
+                    refresh(app, it.accountName, createIfMissing)
                 }
             } catch (e: RuntimeException) {
                 Log_OC.w(NOTIFICATION_TAG_LOG, "summaries not refreshed: ${e.javaClass.simpleName}")
@@ -106,12 +110,27 @@ object ConflictNotifications {
     }
 
     /**
+     * Hook for upstream's app-wide "File upload conflicts" notification, which "retry failed uploads" posts at every app
+     * start and network change. The one summary says the same, so it is refreshed (and created) instead. Returns true
+     * when upstream's notification is not to be shown, false (upstream shows it) when the feature is off.
+     */
+    @JvmStatic
+    fun replaceAppWide(context: Context): Boolean {
+        if (!enabled(context)) return false
+        refreshAll(context, createIfMissing = true)
+        return true
+    }
+
+    /**
      * After an update: the previous version showed one notification per waiting file (no tag, the upload id as id). Those
-     * are removed and the one summary is posted instead.
+     * are removed and the one summary is posted instead. Upstream's own app-wide conflict notification is removed too
+     * (the summary replaces it), and a summary that is out of date (for example after "clear failed uploads") is
+     * refreshed or removed, but never created for nothing.
      */
     fun replaceOldPerFileNotifications(context: Context) {
         if (!enabled(context)) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        manager.cancel(null, UPSTREAM_APP_WIDE_CONFLICT_ID)
         FileUploadHelper.instance().accountManager.allUsers.filterNotNull().forEach { user ->
             val ids = runBlocking { waitingIds(user.accountName) }
             val old = manager.activeNotifications.filter {
@@ -119,7 +138,7 @@ object ConflictNotifications {
                     it.notification.channelId == NotificationUtils.NOTIFICATION_CHANNEL_UPLOAD
             }
             old.forEach { manager.cancel(it.tag, it.id) }
-            if (old.isNotEmpty()) refresh(context, user.accountName)
+            refresh(context, user.accountName, createIfMissing = old.isNotEmpty())
         }
     }
 

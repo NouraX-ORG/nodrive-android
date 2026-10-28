@@ -313,7 +313,8 @@ jobs:
             -   name: Local DNS that never resolves nourax.org names
                 run: |
                     sudo apt-get install -y --no-install-recommends dnsmasq-base
-                    sudo dnsmasq --conf-file=/dev/null --no-resolv --no-hosts --listen-address=127.0.0.2 --bind-interfaces                         --address=/nourax.org/ --server=127.0.0.53 --pid-file=/tmp/nodrive-dnsmasq.pid
+                    sudo dnsmasq --conf-file=/dev/null --no-resolv --no-hosts --listen-address=127.0.0.2 --bind-interfaces \
+                        --address=/nourax.org/ --server=127.0.0.53 --pid-file=/tmp/nodrive-dnsmasq.pid
                     sleep 1
                     python3 tools/ci/dns-check.py --server 127.0.0.2 --blocked drive.nourax.org --control github.com
 

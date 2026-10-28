@@ -365,6 +365,17 @@ CONFLICTS_DISMISS_BLOCK = f"""        {BEGIN}
         {END}
 
 """
+# 2b. upstream's app-wide "File upload conflicts" notification (id 112, posted by "retry failed uploads") would be a second
+# notification for the same conflicts: the one summary is refreshed instead.
+CONFLICTS_APPWIDE_FILE = f"{MAIN}/java/com/nextcloud/client/notifications/AppWideNotificationManager.kt"
+CONFLICTS_APPWIDE_ANCHOR = "        val pendingIntent = getUploadListPendingIntent(context)\n"
+CONFLICTS_APPWIDE_BLOCK = f"""        {BEGIN}
+        if ({CONFLICTS_PKG}.ConflictNotifications.replaceAppWide(context)) {{
+            return
+        }}
+        {END}
+
+"""
 # 3. "Resolve all conflicts..." in the Uploads screen's overflow menu.
 CONFLICTS_MENU_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/UploadListActivity.kt"
 CONFLICTS_MENU_ANCHOR = "        menu.findItem(R.id.action_toggle_global_pause)?.let { updateGlobalPauseIcon(it) }\n"
@@ -410,6 +421,7 @@ HOOKS = {
     CONFLICTS_UPLOAD_FILE: [(CONFLICTS_UPLOAD_ANCHOR, CONFLICTS_UPLOAD_BLOCK)],
     CONFLICTS_NOTIFY_FILE: [(CONFLICTS_NOTIFY_ANCHOR, CONFLICTS_NOTIFY_BLOCK),
                             (CONFLICTS_DISMISS_ANCHOR, CONFLICTS_DISMISS_BLOCK)],
+    CONFLICTS_APPWIDE_FILE: [(CONFLICTS_APPWIDE_ANCHOR, CONFLICTS_APPWIDE_BLOCK)],
     CONFLICTS_MENU_FILE: [(CONFLICTS_MENU_ANCHOR, CONFLICTS_MENU_BLOCK)],
     CONFLICTS_FOLDER_FILE: [(CONFLICTS_FOLDER_ANCHOR, CONFLICTS_FOLDER_BLOCK)],
     CONFLICTS_START_FILE: [(CONFLICTS_START_ANCHOR, CONFLICTS_START_BLOCK)],
