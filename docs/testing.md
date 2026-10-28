@@ -17,6 +17,16 @@
   exactly once (also after on, off, on), the Documents and Downloads switch, the Stop Google backup
   buttons and the Takeout button. The phone test of the real Drive is owner tests
   15 to 21 (section 4).
+- **Smart conflicts are proven in CI on the emulator** against the same kind of throwaway server:
+  the "If a file is already in NoDrive" setting, the Smart rule (same size is skipped, another size
+  keeps both), the one-time migration, "Resolve all conflicts…" and the one summary notification. The
+  test server's own data folder is checked afterwards, file by file. The phone test of the real Drive
+  is owner tests 24 to 28 (section 4).
+
+The Smart conflicts rows come from [run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863) on branch `feature/smart-conflicts`
+(`8ca686e975`, 2026-10-28): the change, three rounds of independent review and their fixes. All 5 jobs
+are green. The same commit is then fast-forwarded to `main`, whose own run repeats every row. The
+`conflicts-*.png` images are from that run.
 
 The Backup, Workspace menu and unit-test rows come from [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397)
 on branch `feature/backup-settings-fixes` (`5b09df7b08`, 2026-10-27): the Backup change plus the fixes of its independent review (S1 to S8, section 6). All 5 jobs are green.
@@ -34,7 +44,7 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Branding gate: rebrand and icons up to date, keyword sweep, pins, self-test | CI | pass | Job "Branding gate": "rebrand --check: up to date", "make-icons --check: all images up to date", "882 hits: internal 254, legal 628, unclassified 0", "PASS - no unclassified hit, every pin holds"; self-test on stock genericDebug: 1315 hits, 528 unclassified |
 | Builds a debug-signed APK of the nodrive flavour | CI | pass | Job "APK and unit tests": `app-nodrive-debug.apk`, SHA-256 `0c2ee105a34838b843a538575e9c36965dd3760571ec4e1bd6f10a1085356c63`, `apksigner verify` OK |
 | APK identity and side-by-side ids (package, labels, authorities, account type, scheme, link host, login URL, push URL, user agent) | CI | pass | `tools/check-apk.py`: "Result PASS"; 113 labels all "NoDrive"; all 7 authorities and the declared permission are `org.nourax.nodrive*`; links only `https://drive.nourax.org` |
-| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after the Backup change: 110 suites, 662 tests, 0 failed, 3 skipped. [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) with the review fixes: 110 suites, 679 tests, 0 failed, 3 skipped (counted from the unit-test report artifact) |
+| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after the Backup change: 110 suites, 662 tests, 0 failed, 3 skipped. [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) with the review fixes: 110 suites, 679 tests, 0 failed, 3 skipped (counted from the unit-test report artifact). [Run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863) with Smart conflicts: 117 suites, 739 tests, 0 failed, 3 skipped (counted from the unit-test report artifact) |
 | Lint | CI | pass | `lintNodriveDebug`: "No issues found." (upstream config, warnings are errors) |
 | Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 74 listed classes (81 in the JUnit report, which counts nested test classes on their own), 486 tests, 0 failed. The list and the reason for every class or method left out: `tools/ci/instrumented-tests.txt`. In [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): "instrumented tests: 74 classes, 6 method(s) left out" and "instrumented tests: PASS". The 6th method is an upstream clock flake (see "Known CI flakiness") |
 | App name, version, account type and ids at runtime | CI | pass | `NoDriveBrandingIT`: `nameAndVersion`, `accountTypeIsOurs`, `providerAuthoritiesAreOurs` |
@@ -69,6 +79,15 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Workspace menu shows the server's NoMail entry with its icon and opens it in an in-app browser panel (a Custom Tab), without any NoDrive credential (fix S8) | CI | pass | [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): unit tests `noMailOnAnotherOriginIsKeptAsAnOutsideEntry...`, `entriesOfAnotherOriginThatAreNotPlainHttpsAreDropped` (14 bad links are dropped: http, ftp, javascript, mailto, intent, user info, no host, ...), `workspaceEntriesOfAnotherHttpsOriginGoToACustomTabWithoutAnAccount`; emulator "workspace IT (light): OK (4 tests)": the test adds a NoMail entry with the href `https://nomail.invalid/` to the throwaway server's answer; NoMail is the last menu entry, a tap starts an `ACTION_VIEW` for that URL with no Authorization or Cookie header, and `WorkspaceWebActivity` does not open. In the [menu screenshot](screenshots/android/workspace-menu-light.png) the entry is below the visible part (to-do N3 in section 6). Owner test 23 |
 | Independent re-check of the fixes | CI artifacts, read-only | approved, no blocking finding | Review file `plans/backup-settings-fixes-review-1.md` (nodrive-clients folder) on head `5b09df7b08`: S1 to S8 fixed, data safety holds (no delete call added), no upstream file touched, 1 should-fix (R1) and 9 nits, listed in section 6 |
 | Independent review of the Backup change | CI artifacts, read-only | approved, no blocking finding | 7 should-fix and 13 nits, all with a fix in the review file `plans/backup-settings-review-1.md` (nodrive-clients folder). They are the to-dos in section 6 |
+| Smart conflicts: the Smart rule. Same size on the Drive is counted as backed up (no upload, no notification); another size is uploaded under a new numbered name and both are kept; a size that cannot be read is retried later, never guessed | CI | pass | [Run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863): unit tests `SmartRuleTest` (7), `SmartUploadsMatchTest` (10). Emulator: "conflicts IT upload (light): OK (12 tests)", "(dark): OK (2 tests)", including `smartCountsTheSameSizeAsBackedUpAndKeepsBothForAnotherSize`. "conflicts server check: PASS - 34 file(s), exactly the expected ones" (a listing of the throwaway server's data folder: the same-size file stays alone, the other-size file stays and a `(2)` copy sits next to it) |
+| Smart conflicts: nothing is ever deleted, and Smart never overwrites | CI | pass | Unit tests `ConflictSafetyTest` (4: the code of `org.nourax.nodrive.conflicts` has no delete, move or remove call; the word OVERWRITE appears only in `ConflictChoice.kt`; every requeue keeps the phone file; the guard itself is tested). Emulator: `resolveAllSmartNeverOverwritesWhenTheSettingIsKeepThePhoneCopy` and the two switch-during-a-run cases (the Drive file's etag is unchanged and a `(2)` copy exists); the server check confirms them independently |
+| Smart is the default and one setting covers every folder the backup switch made: "If a file is already in NoDrive" with Smart (recommended), Keep the NoDrive copy, Keep the phone copy, Keep both, Ask me every time | CI | pass | Emulator "conflicts IT settings (light): OK (2 tests)" and "(dark): OK (2 tests)" (`ConflictsSettingsIT`: Smart shows by default; a change reaches only the owned folders and never a row the user made; the Auto upload folder dialog tells owned folders to use the Settings choice and keeps upstream's picker for other folders). Screens: [Settings](screenshots/android/conflicts-setting-light.png), [choice list](screenshots/android/conflicts-setting-dialog-light.png), [folder dialog](screenshots/android/conflicts-folder-dialog-light.png) |
+| Smart conflicts: one-time migration. Backup folders that were set to Ask or Skip become Smart; Rename and Overwrite stay; rows the user made are never touched; it runs once and never undoes a later choice | CI | pass | Unit test `ConflictMigrationTest` (17, on a fake store, including running it twice). Emulator "conflicts IT migration (light): OK (2 tests)" (`ownedAskAndSkipBecomeSmartRenameAndOverwriteStayAndUserRowsAreNeverTouched`, `aChoiceTheUserMakesLaterIsNeverUndoneByAnotherRun`) |
+| Smart conflicts: an old Auto upload run cannot put an old choice back (review finding R2-S1) | CI | pass | Owned rows are put back to the saved choice at the start of every Auto upload run, in the upload hook and at app start (hook `OwnedFolderPolicy.healBeforeRun`). Unit tests in `ConflictMigrationTest` (`everyChoiceHealsAStaleRowToItsOwnValue`, 5 choices times 4 stale values, and others). Emulator: `switchingFromKeepThePhoneCopyToSmartDuringARunNeverOverwritesTheDriveFile`, `switchingFromKeepBothToSmartDuringARunStillCountsTheSameSizeAsBackedUp`. Known limit: see "Smart conflicts: what the owner should know" in section 4 |
+| Smart conflicts: "Resolve all conflicts…" in the Uploads menu with the four choices, for every waiting conflict of the account; the phone's files are never deleted | CI | pass | Emulator (`ConflictsUploadIT`): `resolveAllKeepBothUploadsACopyNextToEveryOldFile`, `resolveAllKeepTheNoDriveCopyChangesNothingOnTheDrive`, `resolveAllKeepThePhoneCopyReplacesTheDriveFile`, `resolveAllSmartSkipsTheSameSizeAndKeepsBothForTheRest`, `resolveAllKeepThePhoneCopyIsNotIgnoredWhenTheSettingIsKeepTheNoDriveCopy`, `resolveAllForAnAccountWithoutConflictsSaysSoAndChangesNothing`. Unit test `ResolveAllPlannerTest` (9: the plan has no delete action). Screens: [Uploads menu](screenshots/android/conflicts-uploads-menu-light.png), [dialog](screenshots/android/conflicts-resolve-all-light.png) |
+| Smart conflicts: one summary notification "N files are already in NoDrive" with a "Resolve all" action, not one per file; the per-file "Resolve conflict" flow stays | CI | pass | Emulator: `threeConflictsGiveOneSummaryNotificationAndNoPerFileOne`, `theNotificationActionOpensTheDialogForItsAccountAndResolves` (the server check: three files, nothing resolved by the notice alone). Screen: [notification](screenshots/android/conflicts-notification-light.png) |
+| Smart conflicts: branding, upstream hooks and the CI network rule | CI | pass | [Run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863): `rebrand --check: up to date`, `make-icons --check: all images up to date`, `check-branding: PASS - no unclassified hit, every pin holds` (882 hits, 0 unclassified); `instrumented tests: PASS` (74 classes, 6 methods left out as before); lint green; "screen sweep" 78/78 screens, 0 hits for Nextcloud. 8 marked hooks in upstream files, none removed. The emulator no longer reaches drive.nourax.org at all: `dns-check: drive.nourax.org -> rcode 3, 0 answer(s): blocked`, and `check-network` passes |
+| Independent review of Smart conflicts | CI artifacts, read-only | approved, no blocking finding | Three rounds. Round 1: 1 blocking and 2 should-fix items, fixed. Round 2: 1 should-fix (a stale Auto upload write), fixed. Round 3 on head `8ca686e975`: approved; 4 nits, listed in section 6. Review files `plans/round3-android-conflicts-review-1.md`, `-2.md`, `-3.md` (nodrive-clients folder) |
 | Sign in with "Log in with Nourax" (owner's normal account, not the emergency admin) | owner | pending | Owner test 2 |
 | The login pages in the browser show no Nextcloud text | owner | pending | Owner test 2 (server side, see section 5) |
 | Device name under web Settings > Security > Devices | owner | pending | Owner test 3: read it out |
@@ -93,6 +112,11 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Workspace menu: no second Activity and Photos entries | owner | pending | Owner test 21 |
 | Backup: switching the backup off during the first big upload stops the uploading | owner | pending | Owner test 22 |
 | Workspace menu: NoMail appears with its icon and opens in the in-app browser panel, not signed in to NoDrive | owner | pending | Owner test 23 |
+| Smart conflicts: backing up a phone whose photos are already on the Drive no longer asks once per file; the same photos are counted as done | owner | pending | Owner test 24 |
+| Smart conflicts: a different photo with the same name is kept next to the old one, never replacing it | owner | pending | Owner test 25 |
+| Smart conflicts: "If a file is already in NoDrive" in Settings > Backup, and the old Ask or Skip folders switch to Smart | owner | pending | Owner test 26 |
+| Smart conflicts: "Resolve all conflicts…" and the one summary notification | owner | pending | Owner test 27 |
+| Smart conflicts: Keep the phone copy replaces the Drive file, and only when you choose it | owner | pending | Owner test 28 |
 
 ### Known CI flakiness
 
@@ -187,6 +211,20 @@ Twelve extra screens from the same run (`BackupSettingsIT`), named `backup-*.png
 | Stop Google backup | [backup-stop-google-light.png](screenshots/android/backup-stop-google-light.png) | [backup-stop-google-dark.png](screenshots/android/backup-stop-google-dark.png) |
 | Move your Google data to NoDrive | [backup-move-google-light.png](screenshots/android/backup-move-google-light.png) | [backup-move-google-dark.png](screenshots/android/backup-move-google-dark.png) |
 
+### Smart conflicts screens
+
+Twelve extra screens from the same run (`ConflictsSettingsIT` and `ConflictsUploadIT`), named
+`conflicts-*.png`, light and dark. The file names in the lists are test names.
+
+| Screen | Light | Dark |
+|---|---|---|
+| Settings, Backup section with "If a file is already in NoDrive: Smart (recommended)" | [conflicts-setting-light.png](screenshots/android/conflicts-setting-light.png) | [conflicts-setting-dark.png](screenshots/android/conflicts-setting-dark.png) |
+| The choice list (five choices) | [conflicts-setting-dialog-light.png](screenshots/android/conflicts-setting-dialog-light.png) | [conflicts-setting-dialog-dark.png](screenshots/android/conflicts-setting-dialog-dark.png) |
+| Auto upload folder dialog of a backup folder: the text that points to the Settings choice | [conflicts-folder-dialog-light.png](screenshots/android/conflicts-folder-dialog-light.png) | [conflicts-folder-dialog-dark.png](screenshots/android/conflicts-folder-dialog-dark.png) |
+| Uploads menu with "Resolve all conflicts…" | [conflicts-uploads-menu-light.png](screenshots/android/conflicts-uploads-menu-light.png) | [conflicts-uploads-menu-dark.png](screenshots/android/conflicts-uploads-menu-dark.png) |
+| Resolve all conflicts dialog (Smart, Keep the NoDrive copy, Keep the phone copy, Keep both) | [conflicts-resolve-all-light.png](screenshots/android/conflicts-resolve-all-light.png) | [conflicts-resolve-all-dark.png](screenshots/android/conflicts-resolve-all-dark.png) |
+| The one summary notification "3 files are already in NoDrive" with "Resolve all" | [conflicts-notification-light.png](screenshots/android/conflicts-notification-light.png) | [conflicts-notification-dark.png](screenshots/android/conflicts-notification-dark.png) |
+
 ## 4. Owner tests (at home, on the owner's Android phone)
 
 Use the owner's normal Nourax account ("Log in with Nourax"), **not** the emergency admin account.
@@ -256,8 +294,8 @@ The first backup can be large: leave the phone on Wi-Fi (plugged in if you like)
 Where things are on the Drive: everything goes under the folder **Phone backup**, then a folder with
 the phone's name, then the phone's own folder names (for example `Phone backup/Pixel 8/Camera`,
 `.../Screenshots`, `.../WhatsApp Images`). No date folders. Two phones with the same default name
-(for example two "Pixel 8") would share one folder; a different file with the same name becomes a
-conflict you decide on, and nothing is overwritten.
+(for example two "Pixel 8") would share one folder; a different file with the same name is kept next
+to the old one (the "Smart" choice, tests 24 to 28), and nothing is overwritten.
 
 | # | Test | What to do | What to report |
 |---|---|---|---|
@@ -270,6 +308,34 @@ conflict you decide on, and nothing is overwritten.
 | 21 | No duplicates in the menu | Open the side menu | Below NoDrive's own entries (Activities, Media, Albums, ...) are the Workspace apps (for example Dashboard, Office, Talk). Is there **no** second "Activity", **no** second "Photos" and no "Files" there? |
 | 22 | Switch off during the first big upload | Do test 15 on a phone with many photos and videos. While the first upload is still running (the upload notification is visible, or Uploads shows files waiting), open Settings > Backup and switch the main switch **off** | Does the uploading stop within a minute or so (the notification goes away; at most the file that was being sent finishes)? Do no more new files appear on the Drive? Is Auto upload off for those folders? Is everything already on the Drive and everything on the phone still there? Switching on again: does it carry on and send only what is missing? |
 | 23 | NoMail in the menu | Open the side menu and scroll to the Workspace apps | Is **NoMail** listed, with its icon, in the server's order? Tap it: does it open in the in-app browser panel (a Custom Tab, with an address bar) at the NoMail address? Does it show NoMail's own sign-in (you sign in there yourself) and **not** your NoDrive account? Does back return to the files? |
+
+### Tests 24 to 28: Smart conflicts ("If a file is already in NoDrive")
+
+Use the newest test build (install the `nodrive-android-apk` of the newest green run on `main`, over
+the old one) and the owner's normal Nourax account. Do these after tests 2 and 15. **Use Wi-Fi.**
+What changed in plain words: the backup no longer asks "the file already exists, what to do?" once for
+every photo. By default ("Smart") a photo that is already on the Drive with the same size is counted as
+backed up and left alone; a photo with the same name but another size is uploaded under a new numbered
+name, for example `IMG_1234 (2).jpg`, so both are kept. Smart never replaces and never deletes anything.
+
+| # | Test | What to do | What to report |
+|---|---|---|---|
+| 24 | Photos already on the Drive | On a phone whose photos are already in **Phone backup** on the Drive (for example after a reinstall, or if you used the old backup): open NoDrive > Settings > Backup and switch the backup on (off and on again if it was on). Wait a few minutes. Then look at the notification shade and at the **Uploads** screen | Did NoDrive stop asking "file already exists" for every photo? Were the photos that are already on the Drive simply left alone (no new copies, no `(2)` names for them)? Is there at most **one** notice, "N files are already in NoDrive", and not hundreds? |
+| 25 | Same name, another photo | Take a photo and let it upload. On a computer, replace that file on the Drive with a **different** picture of a different size under the same name (or upload another file named like a phone photo). On the phone, make the backup look at it again (switch the backup off and on). Wait a few minutes | Did the Drive keep your computer's file unchanged **and** get a second file with a number, for example `name (2).jpg`, holding the phone's photo? Was nothing replaced and nothing deleted, on the phone or on the Drive? |
+| 26 | The setting | Settings > Backup: find **If a file is already in NoDrive**. Open it. Then open Settings > Auto upload and tap one of the backup folders, then **What to do if the file already exists?** | Does it show **Smart (recommended)** with the choices Keep the NoDrive copy, Keep the phone copy, Keep both and Ask me every time? In Auto upload, does a backup folder tell you to change it in Settings > Backup (and a folder you made yourself still show Android's usual picker)? If a backup folder was set to Ask or Skip before this update, does it now say Smart? (A folder set to Keep both or Keep the phone copy keeps that choice.) |
+| 27 | Resolve all | Open the **Uploads** screen. Open its three-dot menu and tap **Resolve all conflicts…** (if conflicts are waiting, you will also see the one notice "N files are already in NoDrive" with a **Resolve all** button: tap it). Pick **Smart (recommended)** and tap **Apply**. Look at the Uploads screen again | Is **Resolve all conflicts…** in the menu? Does the box offer Smart, Keep the NoDrive copy, Keep the phone copy and Keep both? After Apply, are the waiting conflicts gone from the list, with the same-size files counted as done and the others kept as numbered copies? Are all your phone files still on the phone? If nothing waits, does it say "There are no conflicts to resolve."? |
+| 28 | Keep the phone copy | **Only on a test file.** Settings > Backup > If a file is already in NoDrive > **Keep the phone copy**. Make a file on the phone that has the same name as one on the Drive (backed-up folder) but different content. Wait for the backup | Did the Drive file now hold the phone's content (this choice replaces the Drive file, as its name says)? Then set the choice back to **Smart (recommended)** and say so |
+
+### Smart conflicts: what the owner should know
+
+- **Same size means the same file.** Smart compares the size in bytes only (the rule in the contract). A different photo with the same name **and** the same size would count as backed up.
+- **After a reinstall,** a photo that once got a numbered copy (`name (2).jpg`) is compared only with `name.jpg`, so it can get another copy (`name (3).jpg`). Checking the numbered copies too is a proposal, not built.
+- **A Keep choice also settles files that already wait.** Choosing Keep the phone copy in Settings replaces the Drive file of every conflict that is already waiting, without Resolve all. Keep the NoDrive copy and Keep both settle them too. Use Smart if unsure.
+- **One summary notice per account**, not one for the whole app, because Resolve all works per account.
+- **A run that is already going** when you change the choice finishes with the choice it started with. This matters only when you switch away from Keep the phone copy during a running backup: the rest of that one run can still replace files. The next run uses the new choice.
+- **The database still says "Ask".** A backup folder with Smart is stored as Ask in the upstream column; the NoDrive choice is the truth. Anyone reading the Auto upload database sees that.
+- Waiting conflicts from before the update are not changed by the migration. Tap Resolve all once.
+- Release-only behaviour (the crash screen) is not exercised in CI, which builds the debug flavour.
 
 ## 5. Server-side items for the Workspace session
 
@@ -326,3 +392,19 @@ Still open (all optional):
 - On the first real Takeout export, check the zip layout (`Takeout/Drive/...` and
   `Takeout/Google Photos/...`) and that the NoDrive desktop app uploads it with the same folder
   structure (design risk R9). Later name those two folders in the guide (review N12).
+
+### To-dos for Smart conflicts
+
+From the independent review (round 3, approved). None of them blocks the owner:
+
+- **N1 (known limit):** a backup run that was already going when the choice moved away from Keep the phone
+  copy still replaces the remaining clashes of that run. Optional fix: when the choice leaves Keep the phone copy,
+  cancel and restart the owned rows' unique Auto upload work (`JOB_IMMEDIATE_FILES_SYNC_<rowId>`), as
+  `BackupControllers.cancelAutoUpload` does; `healBeforeRun` then repairs any write the old run still makes.
+- **N3 (tests):** in the two stale-write emulator cases add `assertNull(support.uploadOf(...))` before `startRun`
+  so they prove the clash was still unhandled; add a unit test for `healAll` pruning the kept values of rows that are gone.
+- **N4 (style):** in `tools/rebrand.py` move the `CONFLICTS_RUN_*` block below `CONFLICTS_START_BLOCK`.
+- **R3 (proposal):** compare numbered copies too (after a reinstall) so that no `(3)` copy appears. It needs the same
+  rule on iOS, so it is only listed.
+- **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_conflicts.xml`). German,
+  Arabic and the other languages are still to do.

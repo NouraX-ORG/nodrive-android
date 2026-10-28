@@ -52,6 +52,20 @@ Taken by `BackupSettingsIT` in the same run, on the emulator, against the throwa
 | `backup-stop-google-light.png`, `backup-stop-google-dark.png` | Stop Google backup: one card per place with a short guide and an Open button |
 | `backup-move-google-light.png`, `backup-move-google-dark.png` | Move your Google data to NoDrive: the Takeout guide and the "Open Google Takeout" button |
 
+## Smart conflicts screens
+
+Taken by `ConflictsSettingsIT` and `ConflictsUploadIT` in run [40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863) (branch `feature/smart-conflicts`,
+`8ca686e975`), on the emulator, against the throwaway server. Light and dark. The file names in the lists are test names.
+
+| File | What it shows |
+|---|---|
+| `conflicts-setting-light.png`, `conflicts-setting-dark.png` | Settings: Backup section with "If a file is already in NoDrive: Smart (recommended)" |
+| `conflicts-setting-dialog-light.png`, `conflicts-setting-dialog-dark.png` | The choice list |
+| `conflicts-folder-dialog-light.png`, `conflicts-folder-dialog-dark.png` | Auto upload folder dialog of a backup folder: the text that points to the Settings choice |
+| `conflicts-uploads-menu-light.png`, `conflicts-uploads-menu-dark.png` | Uploads screen menu with "Resolve all conflicts…" |
+| `conflicts-resolve-all-light.png`, `conflicts-resolve-all-dark.png` | The Resolve all conflicts dialog with its four choices |
+| `conflicts-notification-light.png`, `conflicts-notification-dark.png` | The one summary notification "3 files are already in NoDrive" with the "Resolve all" action |
+
 ## Checks
 
 | Check | Result | Evidence |
