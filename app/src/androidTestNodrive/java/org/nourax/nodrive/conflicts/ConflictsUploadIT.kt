@@ -10,12 +10,14 @@ import android.net.Uri
 import androidx.core.app.NotificationManagerCompat
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.NoMatchingViewException
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.work.WorkManager
+import com.nextcloud.client.account.UserAccountManagerImpl
 import com.nextcloud.client.core.ClockImpl
 import com.nextcloud.client.jobs.BackgroundJobManagerImpl
 import com.nextcloud.client.preferences.AppPreferencesImpl
@@ -28,6 +30,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
@@ -255,7 +258,7 @@ class ConflictsUploadIT {
     fun resolveAllForAnAccountWithoutConflictsSaysSoAndChangesNothing() {
         ActivityScenario.launch<ResolveAllActivity>(ResolveAll.intent(backup.context, "nobody@example.invalid")).use {
             backup.waitFor("the message", UPLOAD_TIMEOUT_MILLIS) {
-                onView(withText("There are no conflicts to resolve.")).check(matches(isDisplayed()))
+                onView(withText(NO_CONFLICTS)).check(matches(isDisplayed()))
                 true
             }
             onView(withText("OK")).perform(click())
@@ -301,19 +304,59 @@ class ConflictsUploadIT {
         assertPhoneFilesUnchanged()
     }
 
-    /** The Uploads screen, the overflow menu, "Resolve all conflicts…", one choice, Apply. */
+    /**
+     * The Uploads screen, the overflow menu, "Resolve all conflicts…", one choice, Apply. If the dialog says there is
+     * nothing to resolve while conflicts wait (a background run of Auto upload takes the rows up again for a moment),
+     * it is closed and the whole way is taken again, up to [RESOLVE_ATTEMPTS] times.
+     */
     private fun resolveAll(choiceText: String, first: Boolean = false) {
-        ActivityScenario.launch(UploadListActivity::class.java).use {
-            backup.sleepForAnimation()
-            openActionBarOverflowOrOptionsMenu(backup.context)
-            backup.waitFor("the menu item", UPLOAD_TIMEOUT_MILLIS) {
-                onView(withText("Resolve all conflicts…")).check(matches(isDisplayed()))
-                true
+        repeat(RESOLVE_ATTEMPTS) { attempt ->
+            val nothing = ActivityScenario.launch(UploadListActivity::class.java).use {
+                backup.sleepForAnimation()
+                openActionBarOverflowOrOptionsMenu(backup.context)
+                backup.waitFor("the menu item", UPLOAD_TIMEOUT_MILLIS) {
+                    onView(withText("Resolve all conflicts…")).check(matches(isDisplayed()))
+                    true
+                }
+                if (first) support.screenshot("uploads-menu")
+                onView(withText("Resolve all conflicts…")).perform(click())
+                val message = backup.waitFor("the dialog or the no-conflicts message", UPLOAD_TIMEOUT_MILLIS) {
+                    when {
+                        isShown(NO_CONFLICTS) -> NO_CONFLICTS
+                        isShown("Apply") -> "choices"
+                        else -> null
+                    }
+                }
+                if (message == NO_CONFLICTS) {
+                    onView(withText("OK")).perform(click())
+                    true
+                } else {
+                    chooseAndApply(choiceText, first)
+                    false
+                }
             }
-            if (first) support.screenshot("uploads-menu")
-            onView(withText("Resolve all conflicts…")).perform(click())
-            chooseAndApply(choiceText, first)
+            if (!nothing) return
+            val current = UserAccountManagerImpl.fromContext(backup.context).user.accountName
+            android.util.Log.w(
+                "ConflictsUploadIT",
+                "attempt ${attempt + 1}: nothing to resolve; test count ${support.waitingConflicts(acct)}, " +
+                    "current account is the test account: ${current == acct}"
+            )
+            backup.sleepForAnimation()
         }
+        fail(
+            "Resolve all said \"nothing to resolve\" $RESOLVE_ATTEMPTS times; waiting conflicts of the test account: " +
+                "${support.waitingConflicts(acct)}"
+        )
+    }
+
+    private fun isShown(text: String): Boolean = try {
+        onView(withText(text)).check(matches(isDisplayed()))
+        true
+    } catch (e: NoMatchingViewException) {
+        false
+    } catch (e: AssertionError) {
+        false
     }
 
     /** The Resolve all dialog is on the screen: checks its choices, picks one and taps Apply. */
@@ -371,5 +414,7 @@ class ConflictsUploadIT {
         const val UPLOAD_TIMEOUT_MILLIS = 300_000L
         const val OTHER_SIZE = 37L
         const val UPSTREAM_APP_WIDE_CONFLICT_ID = 112
+        const val RESOLVE_ATTEMPTS = 3
+        const val NO_CONFLICTS = "There are no conflicts to resolve."
     }
 }
