@@ -22,6 +22,9 @@ Exit code 1 when
   missed traffic and proves nothing. (On current emulators Wi-Fi runs through netsim, outside the
   -tcpdump capture; CI switches Wi-Fi off so all traffic takes the captured mobile-data path, and
   requires drive.nourax.org, which the sign-in test opens, to show up.)
+- a --forbid-connection host got a TLS connection (SNI) or an HTTP request. A DNS question for it is fine: in CI a
+  local DNS server answers "no such name" for it, so the app asks but can never connect (the build rule is that CI
+  never contacts drive.nourax.org).
 """
 from __future__ import annotations
 
@@ -250,6 +253,8 @@ def main() -> int:
     ap.add_argument("--report")
     ap.add_argument("--require-host", action="append", default=[],
                     help="a host the test run is known to contact; fail if the capture does not show it")
+    ap.add_argument("--forbid-connection", action="append", default=[], metavar="HOST",
+                    help="fail if the capture shows a TLS (SNI) or HTTP (Host) connection to HOST or a subdomain of it")
     args = ap.parse_args()
     if not args.capture.is_file() or args.capture.stat().st_size == 0:
         print(f"check-network: FAIL - capture {args.capture} is missing or empty")
@@ -270,6 +275,13 @@ def main() -> int:
     for host in args.require_host:
         lines.append(f"\nRequired host {host}: {'contacted' if host in hosts else 'NOT contacted'} "
                      f"(DNS {dns.get(host, 0)}, TLS {tls.get(host, 0)}, HTTP {http.get(host, 0)}).")
+    forbidden = sorted({h for h in set(tls) | set(http) for f in args.forbid_connection
+                        if h == f.lower() or h.endswith("." + f.lower())})
+    for host in args.forbid_connection:
+        lines.append(f"\nForbidden connection to {host}: "
+                     f"{'YES' if any(h == host.lower() or h.endswith('.' + host.lower()) for h in forbidden) else 'none'} "
+                     f"(DNS questions {dns.get(host.lower(), 0)}, TLS {tls.get(host.lower(), 0)}, "
+                     f"HTTP {http.get(host.lower(), 0)}).")
     lines.append(f"Names with 'nextcloud' that are reserved test names (allowed): {', '.join(allowed) or 'none'}.")
     fails = []
     if not dns:
@@ -279,6 +291,8 @@ def main() -> int:
         fails.append("required host(s) not in the capture, so it missed traffic: " + ", ".join(missing))
     if bad:
         fails.append("Nextcloud GmbH host(s) contacted: " + ", ".join(bad))
+    if forbidden:
+        fails.append("forbidden connection(s) in the capture: " + ", ".join(forbidden))
     lines.append(f"\n## Result\n\n{'FAIL: ' + '; '.join(fails) if fails else 'PASS - no Nextcloud GmbH host'}\n")
     report = "\n".join(lines) + "\n"
     if args.report:

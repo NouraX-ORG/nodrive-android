@@ -160,7 +160,10 @@ else
     echo "workspace apps test: FAIL"
 fi
 
-if python3 tools/ci/sweep.py --adb "$ADB" --apk "$APK" --test-apk "$TEST_APK" --out "$OUT/screens"; then
+SWEEP_ARGS=()
+# CI blocks drive.nourax.org on purpose (tools/ci/dns-check.py), so the sign-in browser cannot open.
+[ -n "${NODRIVE_SIGNIN_OFFLINE:-}" ] && SWEEP_ARGS+=(--sign-in-offline)
+if python3 tools/ci/sweep.py --adb "$ADB" --apk "$APK" --test-apk "$TEST_APK" --out "$OUT/screens" "${SWEEP_ARGS[@]}"; then
     echo "screen sweep: PASS"
 else
     status=1

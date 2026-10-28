@@ -18,7 +18,8 @@ and auto upload in every look, and the system account list.
 Every screen is saved as NN-<look>-<screen>.png with the uiautomator dump next to it (.xml).
 Checks, exit code 1 when one fails:
 - the APK installs, and in every look the launch reaches a NoDrive or browser window;
-- sign-in opens a browser at drive.nourax.org (address bar or the activity start in logcat);
+- sign-in opens a browser at drive.nourax.org (address bar or the activity start in logcat); with --sign-in-offline
+  (CI, where that name is blocked on purpose) this is only listed;
 - no text on any screen names Nextcloud (browser pages, which the server serves, are only listed);
 - no screen except browser pages has more than 0.5 % of its pixels in Nextcloud blue.
 Writes index.md (screens and checks), checks.json and contact sheets in sheets/ (needs Pillow).
@@ -174,8 +175,11 @@ def texts(xml: str | None) -> list[tuple[str, str]]:
 
 
 class Sweep:
-    def __init__(self, dev: Device, out: Path):
+    def __init__(self, dev: Device, out: Path, sign_in_offline: bool = False):
         self.dev, self.out = dev, out
+        # CI never contacts drive.nourax.org: a local DNS server answers "no such name" for it, so the sign-in flow
+        # cannot start a browser. tools/check-network.py proves the app asked for the name and never connected.
+        self.sign_in_offline = sign_in_offline
         self.screens: list[Screen] = []
         self.checks: list[dict] = []
         self.browser_pkg = ""
@@ -325,8 +329,12 @@ class Sweep:
         starts = [ln.strip() for ln in log.splitlines() if "START" in ln and "dat=" in ln and HOST in ln]
         host_ok = HOST in url or bool(starts)
         evidence = f"browser focus={focus}; address bar={url!r}; activity start: {starts[0][:220] if starts else 'none'}"
-        self.check(f"{look.name}: sign-in opens the browser at {HOST}", opened and host_ok, evidence,
-                   hard=look == LOOKS[0])
+        if self.sign_in_offline:
+            self.check(f"{look.name}: sign-in is tried against {HOST} (name blocked in CI, so no browser opens)",
+                       None, evidence + "; the real server is never contacted in CI (network check)")
+        else:
+            self.check(f"{look.name}: sign-in opens the browser at {HOST}", opened and host_ok, evidence,
+                       hard=look == LOOKS[0])
         if not opened:
             self.shot("sign-in-no-browser", "sign-in did not open a browser")
         for _ in range(4):  # a first Back may only close a browser tip
@@ -632,9 +640,11 @@ def main() -> int:
     ap.add_argument("--test-apk", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--adb", default="adb")
+    ap.add_argument("--sign-in-offline", action="store_true",
+                    help="drive.nourax.org does not resolve (CI): the sign-in browser check becomes informational")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    sweep = Sweep(Device(args.adb, args.out), args.out)
+    sweep = Sweep(Device(args.adb, args.out), args.out, args.sign_in_offline)
     try:
         sweep.prepare()
         if sweep.install(args.apk, args.test_apk):

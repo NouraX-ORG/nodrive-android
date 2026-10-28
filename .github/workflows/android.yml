@@ -10,7 +10,7 @@ name: Android
 
 on:
     push:
-        branches: [ main, platform/android, feature/workspace-apps, feature/backup-settings, feature/backup-settings-fixes ]
+        branches: [ main, platform/android, feature/workspace-apps, feature/backup-settings, feature/backup-settings-fixes, feature/smart-conflicts, feature/problem-reports ]
     workflow_dispatch:
 
 permissions:
@@ -307,6 +307,16 @@ jobs:
                     nohup python3 tools/ci/probe-server.py --port 8081 --log build/device/probe.jsonl > /dev/null 2>&1 &
                     echo "NODRIVE_WS_URL=http://10.0.2.2:8080" >> "$GITHUB_ENV"
 
+            # Rule of the build: CI never contacts drive.nourax.org. A local DNS server answers "no such name" for every
+            # *.nourax.org name and forwards all other names. The emulator uses it (-dns-server below), so the app's
+            # sign-in cannot reach the real server; tools/check-network.py fails the job on any connection to it.
+            -   name: Local DNS that never resolves nourax.org names
+                run: |
+                    sudo apt-get install -y --no-install-recommends dnsmasq-base
+                    sudo dnsmasq --conf-file=/dev/null --no-resolv --no-hosts --listen-address=127.0.0.2 --bind-interfaces                         --address=/nourax.org/ --server=127.0.0.53 --pid-file=/tmp/nodrive-dnsmasq.pid
+                    sleep 1
+                    python3 tools/ci/dns-check.py --server 127.0.0.2 --blocked drive.nourax.org --control github.com
+
             -   name: Enable KVM
                 run: |
                     echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -326,9 +336,9 @@ jobs:
                     disk-size: 6000M
                     emulator-boot-timeout: 900
                     disable-animations: true
-                    emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -tcpdump ${{ github.workspace }}/build/device/network.pcap
+                    emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -dns-server 127.0.0.2 -tcpdump ${{ github.workspace }}/build/device/network.pcap
                     pre-emulator-launch-script: mkdir -p build/device
-                    script: bash tools/ci/device.sh
+                    script: NODRIVE_SIGNIN_OFFLINE=1 bash tools/ci/device.sh
 
             -   name: Workspace apps checks (server log, probe server, no credential in the reports)
                 if: ${{ always() }}
@@ -355,6 +365,7 @@ jobs:
                     mkdir -p build/device
                     rc=0
                     python tools/check-network.py build/device/network.pcap --require-host drive.nourax.org \
+                        --forbid-connection drive.nourax.org \
                         --report build/device/network-report.md > /dev/null || rc=$?
                     cat build/device/network-report.md >> "$GITHUB_STEP_SUMMARY" || true
                     sed -n '/^## Result/,$p' build/device/network-report.md || true
