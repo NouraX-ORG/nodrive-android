@@ -59,8 +59,11 @@ class ConflictsSettingsIT {
         account = backup.addLocalAccount().name
         created += backup.insertJpeg(backup.newJpegName())
         // One folder the backup owns, and one Auto upload folder of the user (never touched by the setting).
-        BackupControllers.create(backup.context, backup.provider, ClockImpl(), account)
-            .enableMedia(BackupDefaults(wifiOnly = true))
+        val started = BackupControllers.create(backup.context, backup.provider, ClockImpl(), account)
+            .enableMedia(BackupDefaults(wifiOnly = true)).rowsToStart
+        // Upstream's Auto upload writes a whole row back when a run ends: no run may be in flight while the tests change rows.
+        androidx.work.WorkManager.getInstance(backup.context).cancelAllWork().result.get()
+        backup.waitForAutoUploadToStop(started, TIMEOUT_MILLIS)
         val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         userRowId = backup.provider.storeSyncedFolder(
             SyncedFolder(

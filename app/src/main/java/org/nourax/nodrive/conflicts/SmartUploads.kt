@@ -48,20 +48,21 @@ object SmartUploads {
         val context = operation.context ?: return SmartOutcome.NO_CHANGE
         return try {
             if (!context.resources.getBoolean(R.bool.nodrive_conflicts)) return SmartOutcome.NO_CHANGE
-            if (policy != NameCollisionPolicy.ASK_USER) return SmartOutcome.NO_CHANGE
             // Only automatic uploads: a file the user picks by hand keeps upstream's question.
             if (!isAutoUpload(operation.createdBy)) return SmartOutcome.NO_CHANGE
             val account = operation.user.accountName
             val settings = ConflictSettings.create(context)
             settings.ensureMigrated()
-            if (settings.choice(account) != ConflictChoice.SMART) return SmartOutcome.NO_CHANGE
             val data = com.owncloud.android.datamodel.ArbitraryDataProviderImpl(context)
             val owned = BackupState(account, data).read().owned
-            if (OwnedRows.find(SyncedFolderPolicyStore(context).rows(), owned, account, operation.originalStoragePath, remotePath)
-                == null
-            ) {
-                return SmartOutcome.NO_CHANGE
-            }
+            val rowStore = SyncedFolderPolicyStore(context)
+            val row = OwnedRows.find(rowStore.rows(), owned, account, operation.originalStoragePath, remotePath)
+                ?: return SmartOutcome.NO_CHANGE
+            val choice = settings.choice(account)
+            // Upstream's Auto upload writes its whole row back at the end of a run, with the value it read at the start.
+            // A choice the user made while it ran can be undone that way, so an explicit "keep" choice is applied here.
+            if (choice in KEEP_CHOICES) return keep(choice, policy, row, rowStore)
+            if (choice != ConflictChoice.SMART || policy != NameCollisionPolicy.ASK_USER) return SmartOutcome.NO_CHANGE
             // The server holds ciphertext in an end-to-end encrypted folder, so sizes cannot be compared: keep both.
             if (encrypted) return SmartOutcome(NameCollisionPolicy.RENAME, null)
             outcome(operation.originalStoragePath, remotePath, client)
@@ -70,6 +71,15 @@ object SmartUploads {
             Log_OC.w(TAG, "smart rule not applied: ${e.javaClass.simpleName}")
             SmartOutcome.NO_CHANGE
         }
+    }
+
+    private val KEEP_CHOICES = setOf(ConflictChoice.KEEP_NODRIVE, ConflictChoice.KEEP_PHONE, ConflictChoice.KEEP_BOTH)
+
+    /** The row says something else than the explicit choice (a stale write): heal the column, and use the choice now. */
+    internal fun keep(choice: ConflictChoice, policy: NameCollisionPolicy, row: PolicyRow, store: ConflictRowStore): SmartOutcome {
+        val wanted = choice.upstreamPolicy()
+        if (row.policy != wanted.serialize()) store.setPolicy(row.id, wanted.serialize())
+        return if (policy == wanted) SmartOutcome.NO_CHANGE else SmartOutcome(wanted, null)
     }
 
     private fun isAutoUpload(createdBy: Int) =
