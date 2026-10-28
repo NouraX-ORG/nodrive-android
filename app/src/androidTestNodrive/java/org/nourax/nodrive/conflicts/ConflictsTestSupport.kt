@@ -15,7 +15,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.nextcloud.client.account.UserAccountManagerImpl
 import com.nextcloud.client.database.NextcloudDatabase
 import com.nextcloud.client.database.entity.UploadEntity
-import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
 import com.owncloud.android.lib.common.OwnCloudClient
 import com.owncloud.android.lib.common.OwnCloudClientManagerFactory
 import com.owncloud.android.lib.resources.files.CreateFolderRemoteOperation
@@ -46,15 +45,6 @@ class ConflictsTestSupport {
         backup.addAccount(checkNotNull(backup.userId), checkNotNull(backup.serverUrl), checkNotNull(serverToken))
 
     fun settings(): ConflictSettings = ConflictSettings.create(context)
-
-    /**
-     * Saves the account's choice and nothing else: the Auto upload rows keep their value. (Upstream's Auto upload job
-     * takes up a waiting conflict again as soon as its folder's policy is no longer Ask, so changing the rows would
-     * resolve the conflicts by itself, before the case under test.)
-     */
-    fun saveChoiceOnly(account: String, choice: ConflictChoice) {
-        ArbitraryDataProviderImpl(context).storeOrUpdateKeyValue(account, ConflictSettings.KEY_CHOICE, choice.key)
-    }
 
     // ---- the throwaway server
 

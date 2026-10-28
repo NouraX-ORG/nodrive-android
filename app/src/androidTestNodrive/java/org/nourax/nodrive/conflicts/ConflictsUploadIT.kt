@@ -55,6 +55,7 @@ class ConflictsUploadIT {
     private val created = mutableListOf<Uri>()
     private val phoneHashes = mutableMapOf<File, String>()
     private var account: String? = null
+    private var startedRows: List<Long> = emptyList()
 
     private val acct: String get() = checkNotNull(account)
 
@@ -206,6 +207,9 @@ class ConflictsUploadIT {
     }
 
     // The review's blocking finding: an account choice must never replace the policy a Resolve all gave an upload.
+    // Upstream's Auto upload takes a waiting conflict up again as soon as its folder's policy is no longer Ask, and
+    // would then apply the new setting by itself; so these cases switch Auto upload off for the folder first (a
+    // disabled folder is skipped by its job), change the setting, and only then use Resolve all.
 
     @Test
     fun resolveAllSmartNeverOverwritesWhenTheSettingIsKeepThePhoneCopy() {
@@ -213,7 +217,8 @@ class ConflictsUploadIT {
         val folder = support.cameraRemoteFolder(acct)
         val clashes = waitForConflicts(folder, "nodrive-cf-b1a-${backup.look}", count = 1, sameSize = 0)
         val etags = clashes.associateWith { support.etagOnServer("$folder/${it.base}.jpg") }
-        support.saveChoiceOnly(acct, ConflictChoice.KEEP_PHONE)
+        pauseAutoUpload()
+        support.settings().setChoice(acct, ConflictChoice.KEEP_PHONE)
         resolveAll("Smart (recommended)")
         backup.waitFor("the second copy of the file", UPLOAD_TIMEOUT_MILLIS) {
             true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base} (2).jpg") == it.phone.length() } }
@@ -230,7 +235,8 @@ class ConflictsUploadIT {
         support.settings().setChoice(acct, ConflictChoice.ASK)
         val folder = support.cameraRemoteFolder(acct)
         val clashes = waitForConflicts(folder, "nodrive-cf-b1b-${backup.look}", count = 1, sameSize = 0)
-        support.saveChoiceOnly(acct, ConflictChoice.KEEP_NODRIVE)
+        pauseAutoUpload()
+        support.settings().setChoice(acct, ConflictChoice.KEEP_NODRIVE)
         resolveAll("Keep the phone copy")
         backup.waitFor("the phone copy on the server", UPLOAD_TIMEOUT_MILLIS) {
             true.takeIf { clashes.all { support.sizeOnServer("$folder/${it.base}.jpg") == it.phone.length() } }
@@ -287,11 +293,18 @@ class ConflictsUploadIT {
     private fun waitForConflicts(folder: String, prefix: String, count: Int, sameSize: Int): List<Clash> {
         val clashes = createClashes(folder, prefix, count, sameSize)
         val rows = startBackup()
+        startedRows = rows
         backup.waitFor("$count waiting conflicts", UPLOAD_TIMEOUT_MILLIS) {
             true.takeIf { support.waitingConflicts(acct) == count }
         }
         backup.waitForAutoUploadToStop(rows, UPLOAD_TIMEOUT_MILLIS)
         return clashes
+    }
+
+    /** Auto upload of the folders of this test stops taking rows up (its job ends at once for a disabled folder). */
+    private fun pauseAutoUpload() {
+        startedRows.forEach { check(backup.provider.updateSyncedFolderEnabled(it, false) > 0) { "row $it not paused" } }
+        backup.waitForAutoUploadToStop(startedRows, UPLOAD_TIMEOUT_MILLIS)
     }
 
     private fun assertResolved(what: String) {
