@@ -12,7 +12,9 @@ import com.nextcloud.client.core.Clock
 import com.nextcloud.client.jobs.BackgroundJobManagerImpl
 import com.owncloud.android.datamodel.ArbitraryDataProviderImpl
 import com.owncloud.android.datamodel.SyncedFolderProvider
+import com.owncloud.android.files.services.NameCollisionPolicy
 import com.owncloud.android.lib.common.utils.Log_OC
+import org.nourax.nodrive.conflicts.ConflictSettings
 
 object BackupControllers {
     private const val TAG = "BackupControllers"
@@ -21,10 +23,24 @@ object BackupControllers {
         BackupController(
             account,
             PhoneFolders(context),
-            SyncedFolderStore(provider, clock) { cancelAutoUpload(context, it) },
+            SyncedFolderStore(
+                provider,
+                clock,
+                { cancelAutoUpload(context, it) },
+                newRowPolicy(context)
+            ),
             BackupState(account, ArbitraryDataProviderImpl(context)),
             PhoneFolders.deviceName(context)
         )
+
+    /** New rows get the account's conflict choice (Smart by default) instead of upstream's Ask; off, upstream's value stays. */
+    private fun newRowPolicy(context: Context): (String) -> Int {
+        if (!context.resources.getBoolean(com.owncloud.android.R.bool.nodrive_conflicts)) {
+            return { NameCollisionPolicy.ASK_USER.serialize() }
+        }
+        val settings = ConflictSettings.create(context)
+        return { account -> settings.newRowPolicy(account) }
+    }
 
     /** The same unique work name as upstream's BackgroundJobManagerImpl.startAutoUpload; the unsent files stay pending. */
     @Suppress("TooGenericExceptionCaught")

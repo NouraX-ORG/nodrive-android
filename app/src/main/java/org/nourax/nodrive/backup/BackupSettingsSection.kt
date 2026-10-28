@@ -29,6 +29,7 @@ import com.owncloud.android.lib.common.utils.Log_OC
 import com.owncloud.android.ui.ThemeableSwitchPreference
 import com.owncloud.android.ui.activity.SyncedFoldersActivity
 import com.owncloud.android.utils.theme.ViewThemeUtils
+import org.nourax.nodrive.conflicts.ConflictSettingsItem
 
 /**
  * The "Backup" section at the top of Settings (design 3.4), built in code so upstream's preferences.xml stays as it is.
@@ -72,6 +73,8 @@ object BackupSettingsSection {
         val docs = switchPreference(activity, KEY_DOCS, R.string.nodrive_backup_docs_title, BackupAction.DOCS_ON)
         category.addPreference(media)
         category.addPreference(docs)
+        // "If a file is already in NoDrive": one choice for every folder the backup owns (round 3, A).
+        val conflicts = ConflictSettingsItem.addTo(activity, category, user.accountName)
         category.addPreference(
             linkPreference(
                 activity,
@@ -100,7 +103,10 @@ object BackupSettingsSection {
             )
         )
 
-        val refreshNow = { refresh(activity, user, media, docs) }
+        val refreshNow = {
+            refresh(activity, user, media, docs)
+            conflicts?.let { ConflictSettingsItem.refresh(activity, it, user.accountName) }
+        }
         refreshNow()
         followResume(activity, refreshNow)
     }

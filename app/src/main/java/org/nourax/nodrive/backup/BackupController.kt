@@ -88,7 +88,8 @@ class BackupController(
 
     private fun line(spec: FolderSpec, root: String) = BackupLine(relative(spec, root), spec.remotePath)
 
-    private companion object {
+    companion object {
+        /** Taken by every change of the backup rows, also by the conflict settings that rewrite their policy column. */
         val LOCK = Any()
     }
 }

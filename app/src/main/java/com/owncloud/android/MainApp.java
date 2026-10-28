@@ -331,6 +331,10 @@ public class MainApp extends Application implements HasAndroidInjector, NetworkC
             Log_OC.d("Debug", "Failed to disable uri exposure");
         }
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.conflicts.ConflictsStartup.onAppCreate(this);
+        // NoDrive: end
+
         Log_OC.d(TAG, "scheduleContentObserverJob, called");
         backgroundJobManager.scheduleContentObserverJob();
 

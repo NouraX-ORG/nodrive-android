@@ -99,6 +99,17 @@ class SyncedFolderPreferencesDialogFragment :
         setupDialogElements(binding!!)
         setupListeners(binding!!)
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.conflicts.OwnedFolderPolicy.bind(
+            requireActivity(),
+            syncedFolder?.id,
+            syncedFolder?.account,
+            syncedFolder?.nameCollisionPolicy,
+            binding!!.settingInstantNameCollisionPolicySummary,
+            binding!!.settingInstantNameCollisionPolicyContainer
+        )
+        // NoDrive: end
+
         val builder = MaterialAlertDialogBuilder(requireContext())
         builder.setView(binding!!.getRoot())
 

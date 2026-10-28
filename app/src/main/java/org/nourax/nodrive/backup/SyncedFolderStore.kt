@@ -20,7 +20,9 @@ class SyncedFolderStore(
     private val provider: SyncedFolderProvider,
     private val clock: Clock,
     /** Stops the Auto upload work that is running or queued for a row id (the real one asks WorkManager). */
-    private val cancelUploads: (Long) -> Unit = {}
+    private val cancelUploads: (Long) -> Unit = {},
+    /** The name collision column of a new row, per account (the account's "If a file is already in NoDrive" choice). */
+    private val newRowPolicy: (String) -> Int = { NameCollisionPolicy.ASK_USER.serialize() }
 ) : FolderStore {
     override fun rows(): List<FolderRow> = provider.syncedFolders.map {
         FolderRow(it.id, it.localPath, it.type, it.account, it.isEnabled)
@@ -36,7 +38,7 @@ class SyncedFolderStore(
             false,
             account,
             FileUploadWorker.LOCAL_BEHAVIOUR_FORGET,
-            NameCollisionPolicy.ASK_USER.serialize(),
+            newRowPolicy(account),
             true,
             clock.currentTime,
             spec.type,

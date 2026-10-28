@@ -65,7 +65,15 @@ class BackupState(private val account: String, private val data: ArbitraryDataPr
         const val KEY_OFFER = "nodrive_backup_offer"
         private const val OFFER_PENDING = "pending"
         private const val OFFER_DONE = "done"
-        private val ALL_KEYS = listOf(KEY_MEDIA, KEY_DOCS, KEY_ROOT, KEY_OWNED, KEY_SEEN, KEY_OFFER)
+        private val ALL_KEYS = listOf(
+            KEY_MEDIA,
+            KEY_DOCS,
+            KEY_ROOT,
+            KEY_OWNED,
+            KEY_SEEN,
+            KEY_OFFER,
+            org.nourax.nodrive.conflicts.ConflictSettings.KEY_CHOICE
+        )
         private val GSON = Gson()
 
         /** Called when the account is removed; the rows are deleted by upstream's own account removal. */

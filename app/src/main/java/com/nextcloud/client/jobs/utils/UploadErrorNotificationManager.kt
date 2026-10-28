@@ -35,6 +35,10 @@ object UploadErrorNotificationManager {
 
     fun dismissConflictResolveNotification(context: Context, id: Long) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.conflicts.ConflictNotifications.refreshAll(context)
+        // NoDrive: end
+
         manager.cancel(id.toInt())
     }
 
@@ -96,6 +100,14 @@ object UploadErrorNotificationManager {
                 return
             }
         }
+
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        if (result.code == ResultCode.SYNC_CONFLICT &&
+            org.nourax.nodrive.conflicts.ConflictNotifications.showSummary(context, operation.user.accountName, operation.ocUploadId)
+        ) {
+            return
+        }
+        // NoDrive: end
 
         // now we can show error notification
         val notification = getNotification(

@@ -219,6 +219,10 @@ class UploadListActivity :
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.activity_upload_list, menu)
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.conflicts.ResolveAll.addMenuItem(this, menu)
+        // NoDrive: end
+
         menu.findItem(R.id.action_toggle_global_pause)?.let { updateGlobalPauseIcon(it) }
         return true
     }

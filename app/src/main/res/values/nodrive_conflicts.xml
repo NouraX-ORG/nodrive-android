@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- Smart conflicts (one choice for what to do when a file is already in NoDrive, Resolve all, one grouped notification); only the nodrive flavour sets it true -->
+    <bool name="nodrive_conflicts">false</bool>
+
+    <!-- The setting (Settings > Backup) and its choices. These texts are fixed by the round 3 contract (A). -->
+    <string name="nodrive_conflicts_setting_title">If a file is already in NoDrive</string>
+    <string name="nodrive_conflicts_choice_smart">Smart (recommended)</string>
+    <string name="nodrive_conflicts_choice_smart_summary">Skip it if it\'s the same size, otherwise keep both</string>
+    <string name="nodrive_conflicts_choice_keep_nodrive">Keep the NoDrive copy</string>
+    <string name="nodrive_conflicts_choice_keep_phone">Keep the phone copy</string>
+    <string name="nodrive_conflicts_choice_keep_both">Keep both</string>
+    <string name="nodrive_conflicts_choice_ask">Ask me every time</string>
+
+    <!-- Uploads screen and notification. Menu text and notification texts are fixed by the contract. -->
+    <string name="nodrive_conflicts_resolve_all_menu">Resolve all conflicts…</string>
+    <string name="nodrive_conflicts_notification_action">Resolve all</string>
+    <plurals name="nodrive_conflicts_notification_title">
+        <item quantity="one">%d file is already in NoDrive</item>
+        <item quantity="other">%d files are already in NoDrive</item>
+    </plurals>
+
+    <!-- Proposed texts (not in the contract): the owner approves or changes them. -->
+    <string name="nodrive_conflicts_notification_text">Tap Resolve all to choose what to do with them.</string>
+    <string name="nodrive_conflicts_resolve_all_title">Resolve all conflicts</string>
+    <string name="nodrive_conflicts_resolve_all_apply">Apply</string>
+    <string name="nodrive_conflicts_resolve_all_none">There are no conflicts to resolve.</string>
+    <string name="nodrive_conflicts_resolve_all_ok">OK</string>
+    <string name="nodrive_conflicts_resolve_all_cancel">Cancel</string>
+    <string name="nodrive_conflicts_folder_explanation">NoDrive backup folders all use one choice. Change it in Settings › Backup › If a file is already in NoDrive.</string>
+</resources>

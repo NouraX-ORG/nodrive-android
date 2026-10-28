@@ -44,6 +44,8 @@ MAIN_RES = f"{MAIN}/res"
 WORKSPACE_RES = f"{MAIN_RES}/values/nodrive_workspace.xml"
 WORKSPACE_ACTIVITY = "org.nourax.nodrive.workspace.WorkspaceWebActivity"
 BACKUP_RES = f"{MAIN_RES}/values/nodrive_backup.xml"
+CONFLICTS_RES = f"{MAIN_RES}/values/nodrive_conflicts.xml"
+CONFLICTS_PKG = "org.nourax.nodrive.conflicts"
 BACKUP_PKG = "org.nourax.nodrive.backup"
 BACKUP_ACTIVITIES = [f"{BACKUP_PKG}.BackupSetupActivity", f"{BACKUP_PKG}.StopGoogleBackupActivity",
                      f"{BACKUP_PKG}.MoveFromGoogleActivity"]
@@ -330,6 +332,71 @@ BACKUP_DI_INJECTORS = "".join(
     for a in ("BackupSetupActivity", "StopGoogleBackupActivity", "MoveFromGoogleActivity"))
 BACKUP_DI_BLOCK = f"    {BEGIN}\n{BACKUP_DI_INJECTORS}    {END}\n\n"
 
+# Smart conflicts (org.nourax.nodrive.conflicts, round 3): small marked calls, each a no-op unless R.bool.nodrive_conflicts.
+# 1. the upload path: when the target name already exists, the Smart rule may turn the policy into SKIP or RENAME for this run.
+CONFLICTS_UPLOAD_FILE = f"{MAIN}/java/com/owncloud/android/operations/UploadFileOperation.java"
+CONFLICTS_UPLOAD_ANCHOR = "            switch (mNameCollisionPolicy) {\n"
+CONFLICTS_UPLOAD_BLOCK = f"""            {BEGIN}
+            final var nodriveSmart = {CONFLICTS_PKG}.SmartUploads.decide(this, mNameCollisionPolicy, mRemotePath, client, encrypted);
+            if (nodriveSmart.getFailure() != null) {{
+                return nodriveSmart.getFailure();
+            }}
+            if (nodriveSmart.getPolicy() != null) {{
+                mNameCollisionPolicy = nodriveSmart.getPolicy();
+            }}
+            {END}
+
+"""
+# 2. one grouped notification instead of one per conflicting file, and a recount after a per-file resolve.
+CONFLICTS_NOTIFY_FILE = f"{MAIN}/java/com/nextcloud/client/jobs/utils/UploadErrorNotificationManager.kt"
+CONFLICTS_NOTIFY_ANCHOR = "        // now we can show error notification\n"
+CONFLICTS_NOTIFY_BLOCK = f"""        {BEGIN}
+        if (result.code == ResultCode.SYNC_CONFLICT &&
+            {CONFLICTS_PKG}.ConflictNotifications.showSummary(context, operation.user.accountName, operation.ocUploadId)
+        ) {{
+            return
+        }}
+        {END}
+
+"""
+CONFLICTS_DISMISS_ANCHOR = "        manager.cancel(id.toInt())\n"
+CONFLICTS_DISMISS_BLOCK = f"""        {BEGIN}
+        {CONFLICTS_PKG}.ConflictNotifications.refreshAll(context)
+        {END}
+
+"""
+# 3. "Resolve all conflicts..." in the Uploads screen's overflow menu.
+CONFLICTS_MENU_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/UploadListActivity.kt"
+CONFLICTS_MENU_ANCHOR = "        menu.findItem(R.id.action_toggle_global_pause)?.let { updateGlobalPauseIcon(it) }\n"
+CONFLICTS_MENU_BLOCK = f"""        {BEGIN}
+        {CONFLICTS_PKG}.ResolveAll.addMenuItem(this, menu)
+        {END}
+
+"""
+# 4. a backup folder shows the account's choice in upstream's per-folder Auto upload dialog.
+CONFLICTS_FOLDER_FILE = f"{MAIN}/java/com/owncloud/android/ui/dialog/SyncedFolderPreferencesDialogFragment.kt"
+CONFLICTS_FOLDER_ANCHOR = "        val builder = MaterialAlertDialogBuilder(requireContext())\n        builder.setView(binding!!.getRoot())\n"
+CONFLICTS_FOLDER_BLOCK = f"""        {BEGIN}
+        {CONFLICTS_PKG}.OwnedFolderPolicy.bind(
+            requireActivity(),
+            syncedFolder?.id,
+            syncedFolder?.account,
+            syncedFolder?.nameCollisionPolicy,
+            binding!!.settingInstantNameCollisionPolicySummary,
+            binding!!.settingInstantNameCollisionPolicyContainer
+        )
+        {END}
+
+"""
+# 5. the one-time migration and the swap of old per-file notifications, in the background at app start.
+CONFLICTS_START_FILE = f"{MAIN}/java/com/owncloud/android/MainApp.java"
+CONFLICTS_START_ANCHOR = '        Log_OC.d(TAG, "scheduleContentObserverJob, called");\n'
+CONFLICTS_START_BLOCK = f"""        {BEGIN}
+        {CONFLICTS_PKG}.ConflictsStartup.onAppCreate(this);
+        {END}
+
+"""
+
 # file -> [(anchor, block)]: a file may carry several marked blocks, each anchor must be found exactly once.
 HOOKS = {
     AUTH_FILE: [(AUTH_ANCHOR, AUTH_BLOCK), (BACKUP_PENDING_ANCHOR, BACKUP_PENDING_BLOCK)],
@@ -340,6 +407,12 @@ HOOKS = {
     BACKUP_OFFER_FILE: [(BACKUP_OFFER_ANCHOR, BACKUP_OFFER_BLOCK)],
     BACKUP_FORGET_FILE: [(BACKUP_FORGET_ANCHOR, BACKUP_FORGET_BLOCK)],
     BACKUP_DI_FILE: [(BACKUP_DI_ANCHOR, BACKUP_DI_BLOCK)],
+    CONFLICTS_UPLOAD_FILE: [(CONFLICTS_UPLOAD_ANCHOR, CONFLICTS_UPLOAD_BLOCK)],
+    CONFLICTS_NOTIFY_FILE: [(CONFLICTS_NOTIFY_ANCHOR, CONFLICTS_NOTIFY_BLOCK),
+                            (CONFLICTS_DISMISS_ANCHOR, CONFLICTS_DISMISS_BLOCK)],
+    CONFLICTS_MENU_FILE: [(CONFLICTS_MENU_ANCHOR, CONFLICTS_MENU_BLOCK)],
+    CONFLICTS_FOLDER_FILE: [(CONFLICTS_FOLDER_ANCHOR, CONFLICTS_FOLDER_BLOCK)],
+    CONFLICTS_START_FILE: [(CONFLICTS_START_ANCHOR, CONFLICTS_START_BLOCK)],
 }
 
 
@@ -460,7 +533,8 @@ def values_override(src: str, items: list[tuple[str, str, str]], comment: str,
         body.append(f'    <{rtype} name="{name}"{attrs}>{value}</{rtype}>')
     for rtype, name, value in flavour_only or []:
         # Declared (with its default) in a NoDrive-owned file of main, so other flavours still compile.
-        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES), rtype, name, f"{WORKSPACE_RES} or {BACKUP_RES}")
+        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES) + read(CONFLICTS_RES), rtype, name,
+                            f"{WORKSPACE_RES}, {BACKUP_RES} or {CONFLICTS_RES}")
         body.append(f'    <{rtype} name="{name}">{value}</{rtype}>')
     body.append("</resources>")
     holders, licence = upstream_spdx(main_text)
@@ -828,6 +902,10 @@ def manifest() -> str:
                                   "guide. "))
     for name in BACKUP_ACTIVITIES:
         application.append(ET.Element("activity", {A + "name": name, A + "exported": "false"}))
+    application.append(ET.Comment(" Smart conflicts: the Resolve all conflicts dialog (a see-through window with one dialog). "))
+    application.append(ET.Element("activity", {
+        A + "name": f"{CONFLICTS_PKG}.ResolveAllActivity", A + "exported": "false",
+        A + "theme": "@style/Theme.NoBackground"}))
     root.append(ET.Comment(" Package visibility for the Stop Google backup screen: only the apps whose backup it "
                            "can open, never QUERY_ALL_PACKAGES. "))
     queries = ET.SubElement(root, "queries")
@@ -850,8 +928,9 @@ def generated_files() -> dict[str, str]:
     out[f"{ND_RES}/values/bools.xml"] = values_override(
         f"{MAIN_RES}/values/bools.xml", [("bool", "show_push_warning", "false")],
         "Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; "
-        "the Workspace apps menu, signed-in in-app pages and the Backup settings are on",
-        flavour_only=[("bool", "nodrive_workspace_apps", "true"), ("bool", "nodrive_backup", "true")])
+        "the Workspace apps menu, signed-in in-app pages, the Backup settings and Smart conflicts are on",
+        flavour_only=[("bool", "nodrive_workspace_apps", "true"), ("bool", "nodrive_backup", "true"),
+                      ("bool", "nodrive_conflicts", "true")])
     out[f"{ND_RES}/values/colors.xml"] = values_override(
         f"{MAIN_RES}/values/colors.xml", [("color", "bg_default", "#F8FAFC")], "THEME_BIBLE light background")
     out[f"{ND_RES}/values-night/colors.xml"] = values_override(

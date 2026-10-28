@@ -1286,6 +1286,16 @@ public class UploadFileOperation extends SyncOperation {
         }
 
         if (existence == RemoteFileExistence.EXISTS) {
+            // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+            final var nodriveSmart = org.nourax.nodrive.conflicts.SmartUploads.decide(this, mNameCollisionPolicy, mRemotePath, client, encrypted);
+            if (nodriveSmart.getFailure() != null) {
+                return nodriveSmart.getFailure();
+            }
+            if (nodriveSmart.getPolicy() != null) {
+                mNameCollisionPolicy = nodriveSmart.getPolicy();
+            }
+            // NoDrive: end
+
             switch (mNameCollisionPolicy) {
                 case SKIP:
                     Log_OC.d(TAG, "user choose to skip upload if same file exists");
