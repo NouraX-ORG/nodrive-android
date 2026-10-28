@@ -14,6 +14,7 @@ import androidx.test.espresso.Espresso.onData
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.action.ViewActions.scrollTo
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.PreferenceMatchers.withKey
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
@@ -157,7 +158,7 @@ class ConflictsSettingsIT {
             openFolderDialog(scenario, cameraPath, MediaFolderType.IMAGE)
             onView(withId(R.id.setting_instant_name_collision_policy_summary)).check(matches(withText("Smart (recommended)")))
             backup.sleepForAnimation()
-            onView(withId(R.id.setting_instant_name_collision_policy_container)).perform(click())
+            onView(withId(R.id.setting_instant_name_collision_policy_container)).perform(scrollTo(), click())
             backup.waitFor("the explanation", TIMEOUT_MILLIS) {
                 onView(withText(containsString("Settings › Backup › If a file is already in NoDrive"))).check(matches(isDisplayed()))
                 true
@@ -169,7 +170,7 @@ class ConflictsSettingsIT {
 
             openFolderDialog(scenario, downloads, MediaFolderType.CUSTOM)
             onView(withId(R.id.setting_instant_name_collision_policy_summary)).check(matches(withText("Ask me every time")))
-            onView(withId(R.id.setting_instant_name_collision_policy_container)).perform(click())
+            onView(withId(R.id.setting_instant_name_collision_policy_container)).perform(scrollTo(), click())
             backup.waitFor("upstream's picker", TIMEOUT_MILLIS) {
                 onView(withText("What to do if the file already exists?")).check(matches(isDisplayed()))
                 onView(withText("Overwrite remote version")).check(matches(isDisplayed()))
