@@ -192,7 +192,7 @@ fun AgendaItemRow(row: AgendaRow.Item, texts: AgendaTexts, onClick: () -> Unit) 
                     Text(item.personName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 // A team row that is only a problem sentence (overbooked, not shared) has no agent of its own.
-                if (!item.info && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) AgentLabel(item, texts)
+                if (!item.info && !item.agent.none && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) AgentLabel(item, texts)
                 Badges(item, row.inTeam, texts)
             }
             for (text in problemTexts) {

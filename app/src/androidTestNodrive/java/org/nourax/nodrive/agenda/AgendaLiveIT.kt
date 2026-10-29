@@ -81,6 +81,8 @@ class AgendaLiveIT {
     }
 
     private fun shot(name: String) {
+        // Not while the pull-to-refresh spinner is still on the screen.
+        compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("agenda_refreshing").fetchSemanticsNodes().isEmpty() }
         compose.waitForIdle()
         support.assertNoServerSoftwareName(compose)
         support.backup.sleepForAnimation()

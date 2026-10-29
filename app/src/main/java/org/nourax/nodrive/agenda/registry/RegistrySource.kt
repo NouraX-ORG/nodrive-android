@@ -45,8 +45,9 @@ class DriveRegistrySource(private val http: AgendaHttp, private val userId: Stri
 
 object RegistrySources {
     /**
-     * The address of the Nourax agents app once it exists (the same JSON, answered per user). Empty today: the
-     * registry is the user's own file. Setting this is the one change that switches the source.
+     * Reserved for the address of the Nourax agents app once it exists (the same JSON, answered per user). Empty
+     * and not read today: the registry is the user's own file. When the agents app exists, a second
+     * [RegistrySource] for that address is added and chosen in [create]; nothing else changes (design 4.1).
      */
     const val AGENTS_APP_REGISTRY_URL = ""
 

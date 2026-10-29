@@ -56,7 +56,8 @@ class AgendaActivity : DrawerActivity() {
                 // Once NoAgenda was opened for this account, the background refresh keeps its copy fresh (every 15 minutes).
                 AgendaRefreshWorker.schedule(app, user.accountName)
             }
-        )[AgendaViewModel::class.java]
+            // Keyed by the account: a ViewModel survives recreate(), and a new account must not get the old account's data.
+        )[user.accountName, AgendaViewModel::class.java]
         val base = WorkspaceAccess.baseUrl(user)
 
         binding.nodriveAgendaCompose.setContent {

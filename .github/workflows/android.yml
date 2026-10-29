@@ -211,6 +211,15 @@ jobs:
                     if-no-files-found: warn
                     retention-days: 14
 
+            -   name: Upload NoAgenda Room schema
+                if: ${{ always() }}
+                uses: actions/upload-artifact@v7
+                with:
+                    name: nodrive-android-agenda-room-schema
+                    path: app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase/
+                    if-no-files-found: warn
+                    retention-days: 14
+
     lint:
         name: Lint
         needs: branding

@@ -10,6 +10,8 @@
 #   AgendaDrawerIT    against the throwaway server: "NoAgenda" is the first item of the Apps group, above the server's apps.
 #   AgendaLiveIT      against the throwaway server (tools/ci/agenda-server.sh, seeded): Ali's day with his agents, the manager's team
 #                     problems, an invalid agent list, nothing of another organisation for Olaf; "Open in ..." opens the signed-in page.
+#   AgendaWorkerIT    the background refresh run by the real WorkManager: an account that is gone has its rows forgotten and its work
+#                     cancelled (no server); an account that is there has its saved copy refreshed (throwaway server).
 #   AgendaOfflineIT   a1 reads the day, this script turns mobile data off, a2 shows the saved copy with its time, data goes on, a3 cleans up.
 # Pulls agenda-*.png to build/device/screens/agenda/, fails when an expected one is missing, and checks that the dark screenshots
 # are dark and the light ones are light.
@@ -25,6 +27,7 @@ DB=org.nourax.nodrive.agenda.AgendaDatabaseIT
 DRAWER=org.nourax.nodrive.agenda.AgendaDrawerIT
 LIVE=org.nourax.nodrive.agenda.AgendaLiveIT
 OFFLINE=org.nourax.nodrive.agenda.AgendaOfflineIT
+WORKER=org.nourax.nodrive.agenda.AgendaWorkerIT
 SHOTS="$OUT/screens/agenda"
 status=0
 
@@ -78,10 +81,12 @@ for look in light dark; do
     run_it "$look" "$DB" database 3
 done
 night no
+run_it light "$WORKER#anAccountThatIsGoneHasItsRowsForgottenAndItsWorkCancelled" worker-gone 1
 
 # ---- 2. against the throwaway server
 if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; then
     run_it light "$DRAWER" drawer 1
+    run_it light "$WORKER#anAccountThatIsThereHasItsSavedCopyRefreshed" worker-present 1
     for look in light dark; do
         if [ "$look" = light ]; then night no; else night yes; fi
         run_it "$look" "$LIVE" live 4

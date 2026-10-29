@@ -170,7 +170,12 @@ private fun MainScreen(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.Age
         if (snapshot != null) {
             for (banner in banners(snapshot, texts, hasItems, context)) BannerView(banner, baseUrl, openUrl)
         }
-        PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = vm::refresh, modifier = Modifier.weight(1f).fillMaxWidth()) {
+        PullToRefreshBox(
+            isRefreshing = ui.refreshing,
+            onRefresh = vm::refresh,
+            // The tag lets a screenshot wait until the refresh spinner is gone.
+            modifier = Modifier.weight(1f).fillMaxWidth().testTag(if (ui.refreshing) "agenda_refreshing" else "agenda_idle")
+        ) {
             if (snapshot == null) {
                 EmptyState(stringResource(R.string.nodrive_agenda_loading))
             } else {

@@ -104,6 +104,24 @@ class AgendaRepositoryTest {
     }
 
     @Test
+    fun aFailedCapabilitiesReadIsNotTakenForNoBoardAppOnTheServer() {
+        val http = scenario()
+        http.route("GET", "ocs/v1.php/cloud/capabilities", 500, "")
+        val agenda = agenda(http)
+        val first = agenda.refresh(manual = true)
+        // Not known whether the board app is installed: it is not shown as "isn't available on your server".
+        assertFalse(first.build.boardUnavailable)
+        assertEquals(SourceState.FAILED, first.status(StatusKeys.BOARD).state)
+        assertEquals(SourceState.FRESH, first.status(StatusKeys.CALENDAR).state)
+        // The next read finds the capabilities and then the boards.
+        routeScenario(http, "ali")
+        val second = agenda.refresh(manual = true)
+        assertFalse(second.build.boardUnavailable)
+        assertEquals(SourceState.FRESH, second.status(StatusKeys.BOARD).state)
+        assertEquals(33, second.build.items.size)
+    }
+
+    @Test
     fun aPartialReadNeverReplacesTheCache() {
         val http = scenario()
         val store = InMemoryAgendaStore()

@@ -42,8 +42,12 @@ object GanttMapper {
     class Result {
         val items = ArrayList<AgendaItem>()
 
-        /** Cards that a Gantt task is linked to: the card is not shown a second time. */
-        val linkedCardIds = HashSet<Int>()
+        /**
+         * Cards that a Gantt task is linked to, and for whom (lower-case user ids; "" = a row without a person).
+         * Only a task that gives a row in this build is listed, and only for the person that row is for: the card
+         * of that person is not shown a second time. A card of anyone else stays (one row, never zero).
+         */
+        val linkedCardRows = HashMap<Int, MutableSet<String>>()
     }
 
     private class Person(
@@ -220,7 +224,9 @@ object GanttMapper {
 
                 val cardId = task.get("deck_card_id")
                 val deckCardId = if (cardId != null && cardId.isJsonPrimitive && cardId.asJsonPrimitive.isNumber) intOf(cardId) else 0
-                if (deckCardId > 0) out.linkedCardIds += deckCardId
+                fun cardIsThisRow(uid: String) {
+                    if (deckCardId > 0) out.linkedCardRows.getOrPut(deckCardId) { HashSet() } += uid.lowercase()
+                }
                 val phase = phaseNames[intOf(task.get("subproject_id"))].orEmpty()
 
                 fun common(key: String): AgendaItem = AgendaItem(
@@ -266,6 +272,7 @@ object GanttMapper {
                 val mine = persons.firstOrNull { ctx.isMe(it.uid) }
                 if (mine != null && !done) {
                     haveMyTask = true
+                    cardIsThisRow(mine.uid)
                     val agent = agentFor(mine)
                     val problems = ArrayList<ProblemFlag>()
                     for (f in flags) {
@@ -319,6 +326,7 @@ object GanttMapper {
                 for (p in persons) {
                     if (ctx.isMe(p.uid)) continue
                     anyOther = true
+                    cardIsThisRow(p.uid)
                     val problems = ArrayList<ProblemFlag>()
                     for (f in flags) {
                         val forThem = f.personUid.isEmpty() || f.personUid.equals(p.uid, ignoreCase = true)
@@ -341,12 +349,13 @@ object GanttMapper {
                 }
                 if (!anyOther && mine == null) {
                     // Nobody (or only roles, or only unlinked people): a task row without a person.
+                    cardIsThisRow("")
                     val problems = ArrayList<ProblemFlag>()
                     for (f in flags) {
                         if (f.flag.audience == Audience.MANAGER || f.flag.audience == Audience.BOTH) problems += f.flag
                     }
                     problems.addAll(0, lateBlockedFlags(late, lateDays, dueToday, false, ""))
-                    out.items += common("gantt:task:$taskId").copy(workKind = WorkKind.TEAM, agent = AgentRef.SELF, problems = problems)
+                    out.items += common("gantt:task:$taskId").copy(workKind = WorkKind.TEAM, agent = AgentRef.NONE, problems = problems)
                 }
             }
 

@@ -249,7 +249,7 @@ class AccountAgenda(
         val today = clock.today()
 
         // The account itself: id, name, groups, Deck version. Once an hour, or when it was never read.
-        val infoStale = !server.loaded || nowMs - server.fetchedAtMs > HOUR_MS
+        val infoStale = !server.loaded || !server.deckKnown || nowMs - server.fetchedAtMs > HOUR_MS
         if ((infoStale || manual) && allowed(StatusKeys.USER, manual)) {
             val result = ServerInfoClient.fetch(http, server, nowMs)
             noteResult(StatusKeys.USER, result.ok, result.status, result.networkError)
@@ -356,6 +356,12 @@ class AccountAgenda(
 
     private fun readDeck(manual: Boolean, nowMs: Long) {
         if (!allowed(StatusKeys.BOARD, manual)) return
+        if (!server.deckKnown) {
+            // The capabilities could not be read, so it is not known whether the board app is installed: keep what was saved and
+            // say it could not be read, rather than "isn't available on your server".
+            statuses[StatusKeys.BOARD] = failedStatus(StatusKeys.BOARD, deck.loaded, deck.fetchedAtMs, 0, true)
+            return
+        }
         val options = DeckFetchOptions(
             davUser = server.uid,
             version = server.deckVersion,

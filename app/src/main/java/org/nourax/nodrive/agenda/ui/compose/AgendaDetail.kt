@@ -81,7 +81,7 @@ fun DetailSheet(item: AgendaItem, snapshot: AgendaSnapshot, texts: AgendaTexts, 
                 Text(dateText + whenText, style = MaterialTheme.typography.bodyMedium)
             }
             if (item.timeApproximated) Text(stringResource(R.string.nodrive_agenda_time_approximated), style = MaterialTheme.typography.bodySmall)
-            if (!item.info && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) {
+            if (!item.info && !item.agent.none && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) {
                 Text(stringResource(R.string.nodrive_agenda_detail_agent), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 AgentLabelLarge(item, texts)
             }

@@ -75,7 +75,7 @@ object DeckMapper {
     }
 
     @Suppress("LongMethod", "CyclomaticComplexMethod")
-    fun map(ctx: BuildContext, snapshot: DeckSnapshot, linkedCardIds: Set<Int>, out: MutableList<AgendaItem>) {
+    fun map(ctx: BuildContext, snapshot: DeckSnapshot, linkedCardRows: Map<Int, Set<String>>, out: MutableList<AgendaItem>) {
         if (!snapshot.loaded || snapshot.unavailable) return
         val readOnlyByGuard = !DeckClient.versionIsTested(snapshot.version)
         val robot = AgentRegistry.robot
@@ -99,8 +99,7 @@ object DeckMapper {
                     val doneValue = card.get("done")
                     val done = (doneValue.isString() && doneValue!!.asString.isNotEmpty()) ||
                         (doneValue != null && doneValue.isJsonPrimitive && doneValue.asJsonPrimitive.isBoolean && doneValue.asBoolean)
-                    // A card that a Gantt task is linked to is the Gantt row, never two.
-                    if (done || cardId in linkedCardIds) continue
+                    if (done) continue
 
                     // People
                     val assignedUids = ArrayList<String>()
@@ -114,6 +113,19 @@ object DeckMapper {
                         }
                     }
                     val mine = assignedUids.any { ctx.isMe(it) }
+
+                    // A card that a Gantt task is linked to is that task's row, never two rows. This holds only for the
+                    // person the Gantt row is for: when the task gives this person no row (it is Sara's, or nobody's),
+                    // the card stays, so something assigned to me never vanishes (one row, never zero).
+                    val ganttRowFor = linkedCardRows[cardId].orEmpty()
+                    if (ganttRowFor.isNotEmpty()) {
+                        val covered = when {
+                            assignedUids.isEmpty() -> "" in ganttRowFor
+                            mine -> ganttRowFor.any { ctx.isMe(it) }
+                            else -> assignedUids.all { uid -> ganttRowFor.any { it.equals(uid, ignoreCase = true) } }
+                        }
+                        if (covered) continue
+                    }
 
                     // Agent labels
                     val labelAgents = ArrayList<Agent>()
@@ -247,7 +259,9 @@ object DeckMapper {
                         workKind = WorkKind.TEAM,
                         personName = assignedNames.joinToString(", "),
                         personUid = assignedUids.firstOrNull().orEmpty(),
-                        agent = shown?.let { ctx.refFor(it, assignedNames.firstOrNull().orEmpty()) } ?: AgentRef.SELF,
+                        // A card with nobody on it has no person, so no agent marker ("Self" would mean a person does it by hand).
+                        agent = if (assignedUids.isEmpty()) AgentRef.NONE
+                        else shown?.let { ctx.refFor(it, assignedNames.firstOrNull().orEmpty()) } ?: AgentRef.SELF,
                         problems = problems
                     )
                     out += item

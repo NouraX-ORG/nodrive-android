@@ -17,6 +17,7 @@ import org.junit.Test
 import org.nourax.nodrive.agenda.dav.CalendarInfo
 import org.nourax.nodrive.agenda.logic.AgendaBuilder
 import org.nourax.nodrive.agenda.logic.BuildContext
+import org.nourax.nodrive.agenda.logic.BuildInput
 import org.nourax.nodrive.agenda.logic.BuildOutput
 import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.ProjectRelation
@@ -457,6 +458,69 @@ class RulesTest {
         assertTrue(task.boardBadge)
         assertEquals(501, task.deckCardId)
         assertNull(items.byKey("deck:card:501"))
+    }
+
+    /** Task 111 of project 1 (linked to card 501, which is Ali's) with its planning people or status changed. */
+    private fun withTask111(input: BuildInput, change: (JsonObject) -> Unit): BuildInput {
+        val data = input.gantt.projectData.getValue(1)
+        val tasks = JsonArray()
+        for (t in data.tasks) {
+            val o = t.asJsonObject.deepCopy()
+            if (o.get("id").asInt == 111) change(o)
+            tasks.add(o)
+        }
+        return input.copy(gantt = input.gantt.copy(projectData = input.gantt.projectData + (1 to data.copy(tasks = tasks))))
+    }
+
+    private fun onlySara(task: JsonObject) {
+        val row = JsonObject()
+        row.addProperty("id", 1119)
+        row.addProperty("task_id", 111)
+        row.addProperty("resource_id", 2) // Sara
+        row.addProperty("work", 6)
+        row.addProperty("sort_order", 0)
+        task.add("resources", JsonArray().also { it.add(row) })
+        task.addProperty("resource_id", 2)
+    }
+
+    @Test
+    fun aCardOfMineStaysWhenTheLinkedGanttTaskIsSaras() {
+        // Project set to Do (Ali is an editor), task 111 is Sara's, card 501 is Ali's: the task gives Ali no row, so the card stays.
+        val items = AgendaBuilder.build(withTask111(loadScenario("ali"), ::onlySara)).items
+        assertNull(items.byKey("gantt:task:111"))
+        assertNull(items.byKey("gantt:task:111:sara"))
+        val card = items.byKey("deck:card:501")
+        assertNotNull(card)
+        assertEquals(WorkKind.SELF, card!!.workKind)
+    }
+
+    @Test
+    fun aCardOfMineStaysWhenTheLinkedGanttTaskIsDoneAndTheCardIsOpen() {
+        val items = AgendaBuilder.build(withTask111(loadScenario("ali")) { it.addProperty("status", "done") }).items
+        assertNull(items.byKey("gantt:task:111"))
+        assertNotNull(items.byKey("deck:card:501"))
+    }
+
+    @Test
+    fun aTeamCardIsOneRowWithItsGanttRowAndAnUnrelatedCardStays() {
+        // Mara runs the project and the board: Ali's task row replaces Ali's card ...
+        val same = AgendaBuilder.build(loadScenario("mara")).items
+        assertNotNull(same.byKey("gantt:task:111:ali"))
+        assertNull(same.byKey("deck:card:501"))
+        // ... but when the task has nobody on it, Ali's card stays beside the row without a person.
+        val nobody = AgendaBuilder.build(withTask111(loadScenario("mara")) { it.add("resources", JsonArray()) }).items
+        assertNotNull(nobody.byKey("gantt:task:111"))
+        assertNotNull(nobody.byKey("deck:card:501"))
+    }
+
+    @Test
+    fun aRowWithoutAPersonShowsNoAgent() {
+        val items = AgendaBuilder.build(withTask111(loadScenario("mara")) { it.add("resources", JsonArray()) }).items
+        val row = items.byKey("gantt:task:111")!!
+        assertTrue(row.agent.none)
+        assertFalse(row.agent.isSelf)
+        // a row with a person still names Self or the agent
+        assertFalse(items.byKey("gantt:task:101:ali")!!.agent.none)
     }
 
     @Test

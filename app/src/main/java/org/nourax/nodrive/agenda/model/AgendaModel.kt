@@ -67,10 +67,13 @@ data class AgentRef(
     /** The name is hidden ("Agent of Ali"): the agent belongs to another organisation. */
     val otherOrganisation: Boolean = false,
     /** Display name for "Agent of %1"; empty when it is not known (never a user id). */
-    val owner: String = ""
+    val owner: String = "",
+    /** The row has no person, so nobody does it by hand or by agent: no agent marker is shown (not "Self"). */
+    val none: Boolean = false
 ) {
     companion object {
         val SELF = AgentRef()
+        val NONE = AgentRef(isSelf = false, none = true)
     }
 }
 

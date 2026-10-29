@@ -33,7 +33,7 @@ packages. Everything except `ui/`, `android/` and `AgendaAccess*` is plain Kotli
 | Folder | What |
 |---|---|
 | `model/` | the one row type (`AgendaItem`), agents, problems, source states, the clock |
-| `registry/` | the agent registry (schema `nourax-agent-registry` v1) and `RegistrySource`, **the one swappable source**: now the user's own file `/NoAgenda/agent-registry.json`, later the agents app (`RegistrySources.AGENTS_APP_REGISTRY_URL`, empty today) |
+| `registry/` | the agent registry (schema `nourax-agent-registry` v1) and `RegistrySource`, **the one swappable source**: now the user's own file `/NoAgenda/agent-registry.json`, later the agents app (`RegistrySources.AGENTS_APP_REGISTRY_URL` is reserved and empty; it is not read today, so adding the agents app means one new `RegistrySource` class chosen in `RegistrySources.create`) |
 | `net/` | `AgendaHttp` (the seam for tests) and `AccountAgendaHttp`: the account's own client, its own `Authorization`, **only its own origin**, redirects off, and **only the verbs GET, PROPFIND and REPORT** (a write verb is refused in code in this step) |
 | `ical/`, `dav/` | a small iCalendar reader, CalDAV request bodies, a SAX multistatus parser (a DOCTYPE is refused), the calendar reader |
 | `ocs/`, `gantt/`, `deck/` | the OCS envelope, the account's info (`cloud/user`, capabilities), the NoGantt 2.4.1 client with its **contract check** (the version guard) and the Deck client (guard: `deck.version` 1.19) |
@@ -122,6 +122,14 @@ a daily repeating event is about 400 rows in the 14-month window (the server exp
 - A calendar is read again when its sync token changes (like the desktop client); `sync-collection` / `calendar-multiget` are not used yet.
 - Icons in our own chrome are vector drawables; text from the server is shown as it is.
 - The colours `#0082c9` and `#00679e` that NoGantt and the calendar give to sources are shown as Nourax cobalt (`#2563EB`).
+- A card that a NoGantt task links to is shown once, never twice and never zero times. A card is hidden only when the linked task gives
+  a row for the same person in this build (my row; or a team row for that person when I run the project; or the row without a person
+  for an unassigned card). A card assigned to me stays when the task is Sara's, nobody's, or done: the open card is still my work.
+- A recognised agent by name (rule 4.5 b) is accepted even when its person is not on the task, so it raises "belongs to Sara, not Ali" or
+  "agent with no person" instead of "unknown agent"; and a planning person's own `name` counts as well as `uid_display_name`. Both are
+  stricter than the design text. Both only set a flag and the name match is exact. To be confirmed by the owner.
+- A row without a person (a task with nobody, only roles or an orphaned agent; an unassigned card) shows no agent marker: "Self" would
+  mean a person does it by hand.
 - A row that only reports a problem about my agent ("Writer-Bot is on "X" without you") has no date, so it takes no workload and no
   place in the month grid; it shows under "Problems with your agents" on today.
 

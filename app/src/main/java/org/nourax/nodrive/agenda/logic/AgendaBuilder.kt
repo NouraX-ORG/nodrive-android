@@ -116,7 +116,7 @@ object AgendaBuilder {
         val gantt = GanttMapper.Result()
         GanttMapper.map(ctx, input.gantt, gantt)
         items += gantt.items
-        DeckMapper.map(ctx, input.deck, gantt.linkedCardIds, items)
+        DeckMapper.map(ctx, input.deck, gantt.linkedCardRows, items)
 
         // ---- Sources screen ------------------------------------------------------------------------------------
         val sources = ArrayList<SourceEntry>()

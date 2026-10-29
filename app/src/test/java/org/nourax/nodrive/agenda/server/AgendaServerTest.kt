@@ -241,8 +241,26 @@ class AgendaServerTest {
     fun saraHasAnInvalidAgentListAndEverythingShowsAsSelfOrUnknown() {
         val snapshot = read("sara")
         assertEquals(RegistryStatus.INVALID, snapshot.registryStatus)
+        // Sara is a viewer of the project but "Banner design" is hers (her planning person is on it), so she has the row.
         val banner = snapshot.title("Banner design")
-        if (banner != null) assertTrue(banner.agent.isSelf || banner.agent.unknown)
+        assertNotNull(banner)
+        assertTrue(banner!!.agent.isSelf || banner.agent.unknown)
+        row("Sara: Banner design, agent", true, if (banner.agent.isSelf) "self" else "unknown")
+    }
+
+    @Test
+    fun noGanttsCopyCalendarIsHiddenAutomaticallyAndGivesNoRows() {
+        // The seed switches the copy of Sara's tasks into a calendar on (NoGantt task-sync). NoAgenda never shows that
+        // calendar: the tasks come from NoGantt itself, so showing the copies would be every task twice.
+        val snapshot = read("sara")
+        val uri = snapshot.build.taskCopyCalendarUri
+        assertTrue("the seed should have switched the task copy on", uri.isNotEmpty())
+        val source = snapshot.build.sources.first { it.type == org.nourax.nodrive.agenda.model.SourceType.CALENDAR && it.key == uri }
+        assertTrue(source.autoHidden)
+        assertEquals(org.nourax.nodrive.agenda.model.AutoHiddenReason.TASK_COPY, source.autoHiddenReason)
+        assertEquals("hidden", source.mode)
+        assertTrue(snapshot.build.items.none { it.sourceKey == "cal:$uri" })
+        row("Sara: NoGantt copy calendar hidden automatically", true, "hidden, no rows")
     }
 
     @Test
