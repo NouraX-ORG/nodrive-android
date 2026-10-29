@@ -47,6 +47,9 @@ done
 # The screen must stay on and undimmed for the whole run (a dimmed screen makes the screenshots dark).
 "$ADB" shell svc power stayon true > /dev/null 2>&1 || true
 "$ADB" shell settings put system screen_off_timeout 2147483647 > /dev/null 2>&1 || true
+# A system app of the emulator image ("googlesdksetup isn't responding") can put an ANR dialog over the app on a busy runner; that dims
+# the screenshots and hides the screen from the tests. The emulator's own error dialogs are switched off.
+"$ADB" shell settings put global hide_error_dialogs 1 > /dev/null 2>&1 || true
 "$ADB" shell input keyevent KEYCODE_WAKEUP > /dev/null 2>&1 || true
 "$ADB" shell wm dismiss-keyguard > /dev/null 2>&1 || true
 
