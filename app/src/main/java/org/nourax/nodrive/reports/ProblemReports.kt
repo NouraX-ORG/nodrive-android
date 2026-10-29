@@ -140,12 +140,7 @@ object ProblemReports {
     }
 
     /** The message for a finished upload run, or null when the run has nothing to tell. */
-    fun messageFor(outcome: String?): Int? = when (outcome) {
-        ReportUploadWorker.OUTCOME_SENT -> R.string.nodrive_reports_sent
-        ReportUploadWorker.OUTCOME_SAVED -> R.string.nodrive_reports_saved
-        ReportUploadWorker.OUTCOME_WAITING -> R.string.nodrive_reports_waiting
-        else -> null
-    }
+    fun messageFor(outcome: String?): Int? = ReportMessages.forOutcome(outcome)
 
     // Shows "Problem report sent" (or the saved message) once per finished run, on the main screen.
     private fun observeResults(activity: AppCompatActivity) {

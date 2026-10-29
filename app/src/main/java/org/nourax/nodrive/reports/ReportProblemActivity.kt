@@ -41,8 +41,8 @@ class ReportProblemModel : ViewModel() {
         /** The report is being made on this phone. */
         object Making : Phase
 
-        /** The upload run [id] was queued. */
-        class Watching(val id: UUID) : Phase
+        /** The upload run [id] was queued; [zipName] is the zip this screen made (null after the process was gone). */
+        class Watching(val id: UUID, val zipName: String? = null) : Phase
 
         /** The end: [message] is shown. */
         class Done(@StringRes val message: Int) : Phase
@@ -138,7 +138,7 @@ class ReportProblemActivity : ToolbarActivity() {
                 busy(true)
                 result.visibility = View.GONE
             }
-            is ReportProblemModel.Phase.Watching -> watch(phase.id)
+            is ReportProblemModel.Phase.Watching -> watch(phase.id, phase.zipName)
             is ReportProblemModel.Phase.Done -> finished(phase.message)
         }
     }
@@ -168,13 +168,13 @@ class ReportProblemActivity : ToolbarActivity() {
         when {
             zip == null -> ReportProblemModel.Phase.Done(R.string.nodrive_reports_failed)
             !ProblemReports.isSignedIn(app) -> ReportProblemModel.Phase.Done(R.string.nodrive_reports_waiting)
-            else -> ReportProblemModel.Phase.Watching(ReportUploadWorker.enqueue(app))
+            else -> ReportProblemModel.Phase.Watching(ReportUploadWorker.enqueue(app), zip.name)
         }
-    } catch (e: RuntimeException) {
+    } catch (e: Throwable) {
         ReportProblemModel.Phase.Done(R.string.nodrive_reports_failed)
     }
 
-    private fun watch(id: UUID) {
+    private fun watch(id: UUID, zipName: String?) {
         if (observed == id) return
         observedLive?.removeObservers(this)
         observed = id
@@ -191,7 +191,8 @@ class ReportProblemActivity : ToolbarActivity() {
                     watching = null
                     ReportSettings.create(applicationContext).markShown(id.toString())
                     val message = if (info.state == WorkInfo.State.SUCCEEDED) {
-                        ProblemReports.messageFor(info.outputData.getString(ReportUploadWorker.OUTCOME))
+                        val outbox = Outbox(ReportFiles.of(applicationContext)).list().map { it.name }
+                        ReportMessages.forScreen(info.outputData.getString(ReportUploadWorker.OUTCOME), zipName, outbox)
                     } else {
                         R.string.nodrive_reports_waiting
                     }

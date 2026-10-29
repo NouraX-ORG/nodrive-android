@@ -47,10 +47,26 @@ object Scrubber {
         ignoreCase
     )
 
-    // key=value or key: value for words that name a secret.
+    // key=value or key: value for words that name a secret. The name part is shared by the three patterns below.
+    private const val SECRET_NAME =
+        "(?<![A-Za-z0-9_])((?:(?:access|refresh|id|api|client|app|auth|request|csrf)[_-]?)?" +
+            "(?:token|passwd|password|secret|apikey|api_key|app_password|pwd))"
+
+    // A quoted value is taken up to its closing quote, spaces included: "password":"correct horse battery staple".
+    private val namedSecretQuoted = Regex(
+        """$SECRET_NAME(["']?\s*[:=]\s*)(["'])(?!<removed>)((?:\\.|(?!\3)[^\\\r\n])+)""",
+        ignoreCase
+    )
+
+    // The same inside JSON that is escaped in a string: \"appPassword\":\"two words\".
+    private val namedSecretEscaped = Regex(
+        """$SECRET_NAME(\\["']\s*[:=]\s*\\)(["'])(?!<removed>)((?:[^\\\r\n]|\\(?!["']))+)""",
+        ignoreCase
+    )
+
+    // An unquoted value stops at the first space.
     private val namedSecret = Regex(
-        "(?<![A-Za-z0-9_])((?:(?:access|refresh|id|api|client|app|auth)[_-]?)?(?:token|passwd|password|secret|apikey|api_key|" +
-            "app_password|pwd))([\"']?\\s*[:=]\\s*[\"']?)(?!<)[^\\s\"',&;<>]+",
+        """$SECRET_NAME(["']?\s*[:=]\s*["']?)(?!<)[^\s"',&;<>]+""",
         ignoreCase
     )
 
@@ -70,7 +86,9 @@ object Scrubber {
     private val base64Run = Regex("(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{64,}={0,2}(?![A-Za-z0-9+/=])")
 
     // The at-sign is "@" or "%40": upstream logs avatar URIs with the user id URL-encoded (Uri.encode("alice@example.com")).
-    private val email = Regex("[A-Za-z0-9._%+-]+(?:@|%40)[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", ignoreCase)
+    // The local part is capped at 64 characters (RFC 5321): without a cap the search is quadratic on a long run of such
+    // characters that holds no at-sign (80 KB took 90 s), and one long log line could stall every report.
+    private val email = Regex("[A-Za-z0-9._%+-]{1,64}(?:@|%40)[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", ignoreCase)
 
     fun scrub(text: String): String {
         if (text.isEmpty()) return text
@@ -84,6 +102,8 @@ object Scrubber {
         out = instanceCookie.replace(out) { "${it.groupValues[1]}=$SECRET" }
         out = urlUserInfo.replace(out) { "${it.groupValues[1]}$SECRET@" }
         out = queryValue.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}=$SECRET" }
+        out = namedSecretQuoted.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${it.groupValues[3]}$SECRET" }
+        out = namedSecretEscaped.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${it.groupValues[3]}$SECRET" }
         out = namedSecret.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
         out = e2eField.replace(out) { "${it.groupValues[1]}$SECRET" }
         out = appPassword.replace(out, SECRET)

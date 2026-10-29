@@ -167,4 +167,49 @@ class ScrubberTest {
         assertEquals("session <removed> end", out)
         assertEquals(out, Scrubber.scrub(out))
     }
+
+    @Test
+    fun aVeryLongLineWithoutAnAtSignIsScrubbedFast() {
+        val lines = listOf(
+            "ab.c-d%e+".repeat(22_000),
+            "a".repeat(200_000),
+            "eyJhbGciOiJIUzI1NiJ9".repeat(10_000),
+            "%7B%22name%22%3A%22x%22%7D".repeat(8_000)
+        )
+        lines.forEach { line ->
+            val started = System.nanoTime()
+            Scrubber.scrub(line)
+            val millis = (System.nanoTime() - started) / 1_000_000
+            assertTrue("a ${line.length} character line took $millis ms", millis < 1_000)
+        }
+    }
+
+    @Test
+    fun anEmailAddressIsStillFoundAfterALongRun() {
+        assertEquals("<email>", Scrubber.scrub("anna.k@example.org"))
+        assertTrue(Scrubber.scrub("x".repeat(100) + "@example.org tail").endsWith("<email> tail"))
+    }
+
+    @Test
+    fun aQuotedSecretIsTakenUpToItsClosingQuote() {
+        val out = Scrubber.scrub("""{"password":"correct horse battery staple","user":"anna"}""")
+        assertEquals("""{"password":"<removed>","user":"anna"}""", out)
+        assertEquals(out, Scrubber.scrub(out))
+        assertEquals("password='<removed>' end", Scrubber.scrub("password='a b' end"))
+    }
+
+    @Test
+    fun aSecretInsideEscapedJsonIsRemoved() {
+        val out = Scrubber.scrub("""body {\"appPassword\":\"short\",\"x\":1}""")
+        assertFalse(out, out.contains("short"))
+        assertTrue(out, out.contains("""\"x\":1"""))
+        assertEquals(out, Scrubber.scrub(out))
+        gone("two words", """{\"password\":\"two words\"}""")
+    }
+
+    @Test
+    fun aRequestTokenIsRemoved() {
+        gone("abc/def+ghi", "requesttoken: abc/def+ghi")
+        gone("tok9", "requestToken=tok9")
+    }
 }

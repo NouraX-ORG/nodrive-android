@@ -12,3 +12,10 @@
 - Without a network the upload run stays queued. The "Report a problem" screen then says (after 5 seconds) that the report is
   saved on the phone and enables Send again. The main screen shows the final message when the run ends.
 - A report name is never reused: a taken name gets `_2` ... `_99`; if all are taken the report stays on the phone.
+- Scrubber limits, on purpose: an e-mail local part is matched up to 64 characters (RFC 5321), so a very long run of such
+  characters cannot slow a report down (an 80 KB run took 90 s before the cap; `ScrubberTest` times 200 KB lines). A file name like
+  `icon@2x.png` is replaced by `<email>` (a small over-scrub, accepted). A quoted secret is taken up to its closing quote; an
+  unquoted one up to the first space. Unlabelled base64 of 40 to 63 characters with `+` or `/` is kept; labelled ones (for example
+  `requesttoken`) are removed.
+- If a second Send (or an automatic crash run) is queued while the first run is waiting, the first run sends every zip in the
+  outbox; the run watched by the screen then finds it empty, and the screen says "Saved in your NoDrive > Problem reports."
