@@ -31,6 +31,20 @@ object AgendaAccess {
     @Volatile
     var factory: ((Context, User) -> AgendaRepository)? = null
 
+    /** A test sets a fixed clock for the repositories it makes (the live test runs in UTC, like the seeded server data). */
+    @VisibleForTesting
+    @Volatile
+    var clockOverride: AgendaClock? = null
+
+    /** The clock of the screens: the system's, or the one a test set. */
+    fun clock(): AgendaClock = clockOverride ?: SystemAgendaClock
+
+    /** Forgets the repositories made so far (a test starts clean). */
+    @VisibleForTesting
+    fun resetForTests() {
+        repositories.clear()
+    }
+
     fun enabled(context: Context): Boolean = context.resources.getBoolean(R.bool.nodrive_agenda)
 
     /** The account's own client, asked for at every request, so a changed credential is used at once. */
@@ -47,7 +61,7 @@ object AgendaAccess {
 
     fun store(context: Context): AgendaStore = RoomAgendaStore(AgendaDatabase.get(context))
 
-    fun repository(context: Context, user: User, clock: AgendaClock = SystemAgendaClock): AgendaRepository {
+    fun repository(context: Context, user: User, clock: AgendaClock = clock()): AgendaRepository {
         factory?.let { return it(context, user) }
         val app = context.applicationContext
         return repositories.getOrPut(user.accountName) {

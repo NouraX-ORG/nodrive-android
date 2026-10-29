@@ -30,7 +30,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 
-class BuildInput(
+data class BuildInput(
     val davUser: String,
     val server: ServerInfo,
     val calendar: CalendarSnapshot,

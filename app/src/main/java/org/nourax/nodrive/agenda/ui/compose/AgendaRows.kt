@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toColorInt
 import com.owncloud.android.R
 import org.nourax.nodrive.agenda.logic.AgendaRow
 import org.nourax.nodrive.agenda.logic.GroupKind
@@ -42,7 +43,7 @@ import org.nourax.nodrive.agenda.ui.AgendaTexts
 
 /** The colour of a source on screen ("#RRGGBB", already mapped to Nourax cobalt where needed). */
 fun sourceColor(hex: String): Color = try {
-    Color(android.graphics.Color.parseColor(hex.ifEmpty { "#2563EB" }))
+    Color(hex.ifEmpty { "#2563EB" }.toColorInt())
 } catch (_: IllegalArgumentException) {
     Color(0xFF2563EB)
 }

@@ -158,7 +158,8 @@ fun banners(snapshot: AgendaSnapshot, texts: AgendaTexts, hasItems: Boolean, con
 private fun MainScreen(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.AgendaUiState, texts: AgendaTexts, baseUrl: String, openUrl: OpenUrl) {
     val context = LocalContext.current
     val snapshot = ui.snapshot
-    val firstDay = remember { WeekFields.of(context.resources.configuration.locales[0]).firstDayOfWeek }
+    val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale
+    val firstDay = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
     val rows = remember(snapshot, ui.view, firstDay) {
         if (snapshot == null) emptyList() else AgendaFilter.rows(snapshot.build, ui.view, snapshot.today, snapshot.zone, firstDay)
     }
@@ -197,13 +198,13 @@ fun openLabelRes(home: Home): Int = when (home) {
 
 @Composable
 private fun BannerView(banner: Banner, baseUrl: String, openUrl: OpenUrl) {
-    val context = LocalContext.current
+    val openLabel = banner.openHome?.let { stringResource(openLabelRes(it)) }.orEmpty()
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth().testTag("agenda_banner")) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(banner.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.weight(1f))
             banner.openHome?.let { home ->
-                TextButton(onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), context.getString(openLabelRes(home))) }) {
-                    Text(stringResource(openLabelRes(home)))
+                TextButton(onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), openLabel) }) {
+                    Text(openLabel)
                 }
             }
         }

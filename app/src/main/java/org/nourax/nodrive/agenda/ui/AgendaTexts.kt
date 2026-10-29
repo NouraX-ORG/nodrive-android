@@ -177,6 +177,8 @@ class AgendaTexts(private val context: Context) {
         AutoHiddenReason.TASK_COPY -> s(R.string.nodrive_agenda_reason_copy)
     }
 
+    fun skippedAgents(count: Int): String = context.resources.getQuantityString(R.plurals.nodrive_agenda_registry_skipped, count, count)
+
     fun agentStatus(status: String): String = when (status) {
         "paused" -> s(R.string.nodrive_agenda_agent_status_paused)
         "retired" -> s(R.string.nodrive_agenda_agent_status_retired)

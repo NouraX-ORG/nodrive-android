@@ -1,0 +1,158 @@
+{
+  "schema": "nourax-agent-registry",
+  "version": 1,
+  "updated_utc": "2026-10-28T18:00:00Z",
+  "source": "PLACEHOLDER with made-up data. The Nourax agents app will provide the real registry later, in this same format.",
+  "agents": [
+    {
+      "id": "AG-0001",
+      "name": "Writer-Bot",
+      "person": "00000000-0000-4000-8000-00000000000a",
+      "status": "active",
+      "organisation": "demo-org",
+      "skills": [
+        "writing",
+        "editing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri",
+              "sat",
+              "sun"
+            ],
+            "from": "00:00",
+            "to": "24:00"
+          }
+        ],
+        "capacity_hours_per_week": 40,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Writer-Bot",
+        "calendar_tag": "agent:AG-0001"
+      }
+    },
+    {
+      "id": "AG-0002",
+      "name": "Design-Bot",
+      "person": "00000000-0000-4000-8000-00000000000a",
+      "status": "active",
+      "organisation": "demo-org",
+      "skills": [
+        "design",
+        "images"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 20,
+        "days_off": [
+          "2026-12-25"
+        ]
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Design-Bot",
+        "calendar_tag": "agent:AG-0002"
+      }
+    },
+    {
+      "id": "AG-0003",
+      "name": "Research-Bot",
+      "person": "00000000-0000-4000-8000-00000000000b",
+      "status": "active",
+      "organisation": "demo-org",
+      "skills": [
+        "research",
+        "summaries"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri",
+              "sat",
+              "sun"
+            ],
+            "from": "00:00",
+            "to": "24:00"
+          }
+        ],
+        "capacity_hours_per_week": 60,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Research-Bot",
+        "calendar_tag": "agent:AG-0003"
+      }
+    },
+    {
+      "id": "AG-0004",
+      "name": "Invoice-Bot",
+      "person": "00000000-0000-4000-8000-00000000000b",
+      "status": "paused",
+      "organisation": "demo-org",
+      "skills": [
+        "accounts"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "wed",
+              "fri"
+            ],
+            "from": "08:00",
+            "to": "12:00"
+          }
+        ],
+        "capacity_hours_per_week": 12,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Invoice-Bot",
+        "calendar_tag": "agent:AG-0004"
+      }
+    }
+  ],
+  "field_notes": {
+    "id": "Stable and never reused. Every app stores this id; people see the name.",
+    "name": "Shown in every app. Unique within an organisation, because board labels match by name.",
+    "person": "The Nourax user id (UUID) of the one person this agent belongs to. Assignments always pick the person first, then one of that person's agents.",
+    "status": "active | paused | retired. NoAgenda shows paused agents greyed and hides retired ones.",
+    "organisation": "Privacy between organisations: a person is only ever told about agents of their own organisation.",
+    "availability": "Working pattern, capacity and days off. The sync step copies them into the agent's NoGantt planning person, so NoGantt's overload warnings work for agents.",
+    "links.nogantt_resource_ids": "NoGantt planning-person ids that stand for this agent (shown in NoGantt as '🤖 <name> (<person's name>)'). Filled by the sync step; by hand while this is a placeholder.",
+    "links.noboard_label": "Board cards can only be given to real accounts, so an agent is marked on a card with this label.",
+    "links.calendar_tag": "Tag stored on calendar events and to-dos for this agent. NoAgenda shows the name, never the tag."
+  }
+}

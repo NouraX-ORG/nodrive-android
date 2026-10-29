@@ -56,7 +56,6 @@ import org.nourax.nodrive.agenda.ui.AgendaViewModel
 import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.format.TextStyle
-import java.util.Locale
 
 /** The Sources screen: every calendar, project and board with its setting, the working hours and the agents (design 6.1). */
 @Composable
@@ -111,13 +110,7 @@ fun SourcesScreen(vm: AgendaViewModel, snapshot: AgendaSnapshot?, texts: AgendaT
                     RegistryStatus.OK -> if (build.myAgents.isEmpty()) Note(stringResource(R.string.nodrive_agenda_no_agents))
                 }
                 if (snapshot.registrySkipped > 0) {
-                    Note(
-                        LocalContext.current.resources.getQuantityString(
-                            R.plurals.nodrive_agenda_registry_skipped,
-                            snapshot.registrySkipped,
-                            snapshot.registrySkipped
-                        )
-                    )
+                    Note(texts.skippedAgents(snapshot.registrySkipped))
                 }
             }
             items(build.myAgents, key = { "agent-${it.id}" }) { agent ->
@@ -193,7 +186,7 @@ private fun SourceRow(entry: SourceEntry, texts: AgendaTexts, choices: List<Pair
 @Composable
 private fun WorkingHoursEditor(hours: WorkingHours, onChange: (WorkingHours) -> Unit) {
     val context = LocalContext.current
-    val locale = Locale.getDefault()
+    val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(stringResource(R.string.nodrive_agenda_hours_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

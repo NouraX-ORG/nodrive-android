@@ -19,7 +19,6 @@ import com.owncloud.android.ui.activity.DrawerActivity
 import org.nourax.nodrive.agenda.AgendaAccess
 import org.nourax.nodrive.agenda.android.AgendaDrawer
 import org.nourax.nodrive.agenda.android.AgendaRefreshWorker
-import org.nourax.nodrive.agenda.model.SystemAgendaClock
 import org.nourax.nodrive.agenda.ui.compose.AgendaScreen
 import org.nourax.nodrive.agenda.ui.compose.OpenUrl
 import org.nourax.nodrive.workspace.WorkspaceAccess
@@ -53,7 +52,7 @@ class AgendaActivity : DrawerActivity() {
         val repository = AgendaAccess.repository(app, user)
         val model = ViewModelProvider(
             this,
-            AgendaViewModel.Factory(repository, SystemAgendaClock) {
+            AgendaViewModel.Factory(repository, AgendaAccess.clock()) {
                 // Once NoAgenda was opened for this account, the background refresh keeps its copy fresh (every 15 minutes).
                 AgendaRefreshWorker.schedule(app, user.accountName)
             }

@@ -136,7 +136,7 @@ fun MonthGrid(
     val first = date.withDayOfMonth(1)
     val back = (first.dayOfWeek.value - firstDayOfWeek.value + 7) % 7
     val start = first.minusDays(back.toLong())
-    val locale = java.util.Locale.getDefault()
+    val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).testTag("agenda_month_grid")) {
         Row(Modifier.fillMaxWidth()) {
             for (i in 0 until DAYS_IN_WEEK) {
