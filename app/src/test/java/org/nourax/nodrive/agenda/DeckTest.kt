@@ -175,7 +175,7 @@ class DeckTest {
     @Test
     fun theSnapshotSurvivesItsCacheForm() {
         val input = loadScenario("ali")
-        val gson = com.google.gson.Gson()
+        val gson = com.google.gson.GsonBuilder().serializeNulls().create()
         val copy = gson.fromJson(gson.toJson(input.deck), DeckSnapshot::class.java)
         assertTrue(copy.loaded)
         assertEquals("1.19.1", copy.version)

@@ -376,7 +376,7 @@ class RulesTest {
             boards.add(board)
         }
         val items = AgendaBuilder.build(input.copy(deck = input.deck.copy(boards = boards))).items
-        assertNull(items.byTitle("Unassigned backlog")) // the card is not his
+        assertTrue(items.none { it.title == "Unassigned backlog" && !it.problemOnly }) // the card is not his
         val row = items.byKey("deck:noperson:508:AG-0001")!!
         assertTrue(row.problemOnly)
         assertEquals(Home.BOARD, row.home)

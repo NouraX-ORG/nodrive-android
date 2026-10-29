@@ -68,7 +68,7 @@ fun SourcesScreen(vm: AgendaViewModel, snapshot: AgendaSnapshot?, texts: AgendaT
         HorizontalDivider()
         if (snapshot == null) return@Column
         val build = snapshot.build
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize().testTag("agenda_sources_list")) {
             item { SectionTitle(R.string.nodrive_agenda_section_calendars) }
             val calendars = build.sources.filter { it.type == SourceType.CALENDAR }
             items(calendars, key = { "cal-${it.key}" }) { entry ->

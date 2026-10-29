@@ -120,9 +120,11 @@ class AgendaFilterTest {
         val team = today.dropWhile { !(it is AgendaRow.Group && it.kind == GroupKind.MY_TEAM) }.drop(1).takeWhile { it is AgendaRow.Item }
         assertTrue(team.isNotEmpty())
         assertTrue(team.all { (it as AgendaRow.Item).inTeam && it.item.problems.isNotEmpty() })
-        // a day with no problem in the list: the section says so (Day view)
-        val quiet = rows(out, ViewState(date = TODAY.plusDays(100)))
+        // no problem at all: today's section says so (Day view)
+        val quiet = rows(out.copy(items = emptyList()), ViewState(date = TODAY))
         assertTrue(quiet.contains(AgendaRow.Quiet(QuietKind.NO_TEAM_PROBLEMS)))
+        // another day has no team section unless there is something in it
+        assertFalse(GroupKind.MY_TEAM in groups(rows(out, ViewState(date = TODAY.plusDays(100)))))
         // the switch lists every team task that is active that day
         val every = rows(out, ViewState(date = TODAY, showAllTeam = true))
         val all = every.dropWhile { !(it is AgendaRow.Group && it.kind == GroupKind.MY_TEAM) }.drop(1).takeWhile { it is AgendaRow.Item }

@@ -6,7 +6,7 @@
  */
 package org.nourax.nodrive.agenda
 
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import org.nourax.nodrive.agenda.dav.CalendarReadOptions
 import org.nourax.nodrive.agenda.dav.CalendarReader
@@ -49,7 +49,7 @@ object StatusKeys {
 }
 
 /** Everything the screen needs about one account: the rows, the Sources screen and how each source stands. */
-class AgendaSnapshot(
+data class AgendaSnapshot(
     val build: BuildOutput,
     val statuses: Map<String, SourceStatus>,
     val registryStatus: RegistryStatus,
@@ -84,7 +84,8 @@ class AccountAgenda(
     private val accountEmail: String = "",
     private val registryFactory: (AgendaHttp, String) -> RegistrySource = RegistrySources::create
 ) : AgendaEngine {
-    private val gson = Gson()
+    // Null values stay in the saved copy (a NoGantt task keeps its empty "deck_card_id"), so a reload equals a fresh read.
+    private val gson = GsonBuilder().serializeNulls().create()
 
     var settings: SourceSettings = SourceSettings()
         private set

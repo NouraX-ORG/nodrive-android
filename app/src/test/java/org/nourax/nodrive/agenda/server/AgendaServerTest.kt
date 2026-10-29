@@ -155,7 +155,8 @@ class AgendaServerTest {
         compare("board", team, fixtureKeys("deck/boards-mara.json"))
         val stacks = OcsJson.parseElement(get(mara, "${deck}boards/${team.get("id").asInt}/stacks").body) as JsonArray
         val card = stacks.flatMap { it.asJsonObject.getAsJsonArray("cards") }.first().asJsonObject
-        compare("card", card, fixtureKeys("deck/stacks-10.json"))
+        compare("card", card, Fx.arr("deck/stacks-10.json").get(0).asJsonObject.getAsJsonArray("cards").get(0).asJsonObject.entrySet()
+            .associate { it.key to org.nourax.nodrive.agenda.ocs.jsonTypeName(it.value) })
         // CalDAV: each property that the calendar list asks for is answered for at least one calendar
         val ali = ServerSupport.http("ali")
         val home = ali.send("PROPFIND", "remote.php/dav/calendars/ali/", mapOf("Depth" to "1"), DavXml.propfindBody(CalendarReader.calendarProps), "application/xml")
@@ -213,8 +214,9 @@ class AgendaServerTest {
         assertFalse(snapshot.build.sources.any { it.key.startsWith("app-generated--deck--") && it.mode != "hidden" })
         // the one-time question is open
         assertTrue(snapshot.build.needsPersonalQuestion)
-        // a person who only edits does not oversee
-        assertFalse(snapshot.build.anyOversee)
+        // the shared board is Do for a member (Deck also makes each person a welcome board of his own, which he runs)
+        assertEquals("do", snapshot.build.sources.first { it.type == org.nourax.nodrive.agenda.model.SourceType.BOARD && it.name == "Team board" }.mode)
+        assertEquals("do", snapshot.build.sources.first { it.type == org.nourax.nodrive.agenda.model.SourceType.PROJECT && it.name == "Website" }.mode)
     }
 
     @Test

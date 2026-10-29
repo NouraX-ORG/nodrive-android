@@ -40,7 +40,8 @@ class CalDavTest {
             assertTrue(name, body.contains(name))
         }
         // it is well-formed XML
-        assertTrue(DavXml.parseMultistatus(body.toByteArray()).errorConditions.isEmpty())
+        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        assertEquals("propfind", factory.newDocumentBuilder().parse(java.io.ByteArrayInputStream(body.toByteArray())).documentElement.localName)
     }
 
     @Test
@@ -239,7 +240,7 @@ class CalDavTest {
     @Test
     fun theSnapshotSurvivesItsCacheForm() {
         val snapshot = read(aliHttp()).snapshot
-        val gson = com.google.gson.Gson()
+        val gson = com.google.gson.GsonBuilder().serializeNulls().create()
         val copy = gson.fromJson(gson.toJson(snapshot), CalendarSnapshot::class.java)
         assertEquals(snapshot, copy)
         assertNotNull(copy.records.first().summary)

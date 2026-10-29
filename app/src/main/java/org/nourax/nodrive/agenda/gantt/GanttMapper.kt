@@ -422,7 +422,7 @@ object GanttMapper {
         for (candidateAgent in ctx.registry.agents) {
             for (ownerName in namesOfUid(candidateAgent.person)) {
                 val wanted = AgentRegistry.planningPersonName(candidateAgent.name, ownerName)
-                if (AgentRegistry.normalize(name.trim()) == AgentRegistry.normalize(wanted)) return candidateAgent
+                if (AgentRegistry.normalize(name) == AgentRegistry.normalize(wanted)) return candidateAgent
             }
         }
         return null

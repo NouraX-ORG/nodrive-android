@@ -71,17 +71,17 @@ class AgendaViewModelTest {
         val (vm, _) = model()
         waitFor(vm) { it.snapshot?.settings?.everOpened == true }
         vm.shift(1)
-        assertEquals(TODAY.plusDays(1), vm.state.value.view.date)
+        waitFor(vm) { it.view.date == TODAY.plusDays(1) }
         vm.setView(AgendaView.WEEK)
         vm.shift(-1)
-        assertEquals(TODAY.plusDays(1).minusWeeks(1), vm.state.value.view.date)
+        waitFor(vm) { it.view.view == AgendaView.WEEK && it.view.date == TODAY.plusDays(1).minusWeeks(1) }
         vm.setView(AgendaView.MONTH)
         vm.shift(1)
-        assertEquals(TODAY.plusDays(1).minusWeeks(1).plusMonths(1), vm.state.value.view.date)
+        waitFor(vm) { it.view.view == AgendaView.MONTH && it.view.date == TODAY.plusDays(1).minusWeeks(1).plusMonths(1) }
         vm.today()
-        assertEquals(TODAY, vm.state.value.view.date)
+        waitFor(vm) { it.view.date == TODAY }
         vm.setDate(LocalDate.of(2027, 1, 1))
-        assertEquals(LocalDate.of(2027, 1, 1), vm.state.value.view.date)
+        waitFor(vm) { it.view.date == LocalDate.of(2027, 1, 1) }
     }
 
     @Test
@@ -107,18 +107,18 @@ class AgendaViewModelTest {
         val (vm, _) = model()
         assertFalse(vm.back())
         vm.openSources()
-        assertEquals(AgendaPage.SOURCES, vm.state.value.page)
+        waitFor(vm) { it.page == AgendaPage.SOURCES }
         assertTrue(vm.back())
-        assertEquals(AgendaPage.MAIN, vm.state.value.page)
+        waitFor(vm) { it.page == AgendaPage.MAIN }
     }
 
     @Test
     fun theDetailSheetOpensAndCloses() {
         val (vm, _) = model()
         vm.select("cal:work/call.ics")
-        assertEquals("cal:work/call.ics", vm.state.value.selectedKey)
+        waitFor(vm) { it.selectedKey == "cal:work/call.ics" }
         vm.select(null)
-        assertEquals(null, vm.state.value.selectedKey)
+        waitFor(vm) { it.selectedKey == null }
     }
 
     @Test

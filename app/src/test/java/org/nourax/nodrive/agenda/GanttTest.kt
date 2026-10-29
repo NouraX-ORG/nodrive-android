@@ -305,7 +305,7 @@ class GanttTest {
     @Test
     fun theSnapshotSurvivesItsCacheForm() {
         val input = loadScenario("mara")
-        val gson = com.google.gson.Gson()
+        val gson = com.google.gson.GsonBuilder().serializeNulls().create()
         val copy = gson.fromJson(gson.toJson(input.gantt), GanttSnapshot::class.java)
         assertTrue(copy.loaded)
         assertEquals(input.gantt.projects, copy.projects)

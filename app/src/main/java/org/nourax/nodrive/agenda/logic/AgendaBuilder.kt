@@ -44,9 +44,9 @@ data class BuildInput(
     val accountEmail: String = ""
 )
 
-class OwnCalendar(val uri: String, val name: String)
+data class OwnCalendar(val uri: String, val name: String)
 
-class BuildOutput(
+data class BuildOutput(
     val items: List<AgendaItem>,
     val sources: List<SourceEntry>,
     /** The own calendars of the one-time question "Which of your calendars are personal?". */
