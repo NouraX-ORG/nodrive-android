@@ -28,7 +28,9 @@ class ReportFlow(
 
     /** At app start, in the background: with the switch on, a waiting problem is reported now. */
     fun atStart() {
-        if (autoSend()) sendPending()
+        synchronized(LOCK) {
+            if (autoSend()) sendPending()
+        }
     }
 
     /**
@@ -36,23 +38,32 @@ class ReportFlow(
      * problem to ask about, or null when there is nothing to ask (switch on, nothing waiting, already asked, or [mayAsk] is
      * false because another dialog is in the way: the question then waits for the next time and is not counted as asked).
      */
-    fun atMainScreen(flushOutbox: Boolean, mayAsk: Boolean = true): PendingReport? {
+    fun atMainScreen(flushOutbox: Boolean, mayAsk: Boolean = true): PendingReport? = synchronized(LOCK) {
         if (flushOutbox && signedIn() && Outbox(files).list().isNotEmpty()) startUpload()
-        val newest = pending.newest() ?: return null
-        if (autoSend()) {
-            sendPending()
-            return null
+        val newest = pending.newest()
+        when {
+            newest == null -> null
+            autoSend() -> {
+                sendPending()
+                null
+            }
+            !mayAsk || askedFor() == newest.name -> null
+            else -> {
+                rememberAsked(newest.name)
+                newest
+            }
         }
-        if (!mayAsk || askedFor() == newest.name) return null
-        rememberAsked(newest.name)
-        return newest
     }
 
     /** The user answered "Send" to the question. */
-    fun send() = sendPending()
+    fun send() {
+        synchronized(LOCK) { sendPending() }
+    }
 
     /** The user answered "Not now" (or closed the question): nothing is sent, the raw files go. */
-    fun notNow() = pending.consume()
+    fun notNow() {
+        synchronized(LOCK) { pending.consume() }
+    }
 
     private fun sendPending() {
         val newest = pending.newest() ?: return
@@ -60,5 +71,10 @@ class ReportFlow(
             pending.consume()
             if (signedIn()) startUpload()
         }
+    }
+
+    private companion object {
+        // The app start and the main screen can look at the same waiting problem at the same time: one report only.
+        val LOCK = Any()
     }
 }
