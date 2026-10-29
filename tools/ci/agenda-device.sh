@@ -41,6 +41,12 @@ for i in $(seq 0 29); do
     sleep 2
 done
 
+# The screen must stay on and undimmed for the whole run (a dimmed screen makes the screenshots dark).
+"$ADB" shell svc power stayon true > /dev/null 2>&1 || true
+"$ADB" shell settings put system screen_off_timeout 2147483647 > /dev/null 2>&1 || true
+"$ADB" shell input keyevent KEYCODE_WAKEUP > /dev/null 2>&1 || true
+"$ADB" shell wm dismiss-keyguard > /dev/null 2>&1 || true
+
 "$ADB" install -r "$APK" > "$OUT/agenda-install.log" 2>&1 && "$ADB" install -r -t "$TEST_APK" >> "$OUT/agenda-install.log" 2>&1 \
     || { cat "$OUT/agenda-install.log"; echo "agenda: install failed"; exit 1; }
 "$ADB" shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS > /dev/null 2>&1 || true
@@ -54,6 +60,7 @@ has_network() { "$ADB" shell dumpsys connectivity 2> /dev/null | tr -d '\r' | gr
 # $1 = look (light|dark), $2 = class or class#method, $3 = log name, $4 = expected number of tests
 run_it() {
     local log="$OUT/agenda-it-$3-$1.log"
+    "$ADB" shell input keyevent KEYCODE_WAKEUP > /dev/null 2>&1 || true
     "$ADB" shell am instrument -w -e class "$2" \
         -e NODRIVE_AG_URL "${NODRIVE_AG_DEVICE_URL:-}" \
         -e NODRIVE_AG_ALI_TOKEN "${NODRIVE_AG_ALI_TOKEN:-}" -e NODRIVE_AG_MARA_TOKEN "${NODRIVE_AG_MARA_TOKEN:-}" \

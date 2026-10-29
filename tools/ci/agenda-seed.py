@@ -319,6 +319,16 @@ except RuntimeError as e:
     seed["flags"]["task_sync"] = False
     warn("task sync: " + str(e))
 
+# Deck makes each user a welcome board with a sample card that names the server software. It is the server's own sample text,
+# not data of the design, so the throwaway server drops it (the screens show server text as it is).
+for who in ("ali", "mara", "sara", "olaf"):
+    try:
+        for b in deck(who, "GET", "boards") or []:
+            if str(b.get("title", "")).startswith("Welcome to"):
+                deck(who, "DELETE", "boards/%d" % b["id"])
+    except RuntimeError as e:
+        warn("welcome board of %s: %s" % (who, e))
+
 seed["warnings"] = WARNINGS
 os.makedirs(OUT, exist_ok=True)
 with open(os.path.join(OUT, "seed.json"), "w", encoding="utf-8") as f:

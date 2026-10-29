@@ -108,9 +108,14 @@ class AgendaLiveIT {
             for (text in listOf("Dentist", "Client call")) see(text)
             see("Write homepage copy")
             see("Prepare client demo")
-            see("Call supplier")
+            see("Pay invoice")
             waitForText("Writer-Bot")
             waitForText("Self")
+            // tomorrow: the card with the agent label
+            compose.onNodeWithTag("agenda_next").performClick()
+            see("Call supplier")
+            compose.onNodeWithTag("agenda_today").performClick()
+            see("Dentist")
             // integrity: two agents for one person; an agent that sits on a task without him
             see("Two agents for Ali: choose one")
             see("without you")

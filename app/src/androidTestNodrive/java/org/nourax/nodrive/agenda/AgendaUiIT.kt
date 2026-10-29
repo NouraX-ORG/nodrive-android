@@ -145,12 +145,12 @@ class AgendaUiIT {
             shot("week")
             compose.onNodeWithTag("agenda_tab_month").performClick()
             waitForTag("agenda_month_grid")
-            waitForText("Dentist")
             shot("month")
+            see("Dentist")
             // a step to the next month and back to today
             compose.onNodeWithTag("agenda_next").performClick()
             compose.onNodeWithTag("agenda_today").performClick()
-            waitForText("Dentist")
+            see("Dentist")
         }
     }
 
