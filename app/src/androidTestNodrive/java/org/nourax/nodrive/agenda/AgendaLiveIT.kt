@@ -72,6 +72,7 @@ class AgendaLiveIT {
         }
         if (compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isNotEmpty()) {
             compose.onNodeWithTag(if (save) "agenda_personal_save" else "agenda_personal_skip").performClick()
+            compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isEmpty() }
         }
     }
 
