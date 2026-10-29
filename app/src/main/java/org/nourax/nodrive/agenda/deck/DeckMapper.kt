@@ -74,6 +74,20 @@ object DeckMapper {
         return names
     }
 
+    /** A card with a start and a due time on one day (not both at midnight) has real times; only then it can clash. */
+    fun clashTimes(startText: String, dueText: String, zone: java.time.ZoneId): Pair<java.time.Instant, java.time.Instant>? {
+        fun parse(text: String): java.time.Instant? =
+            if (text.length <= 10) null else runCatching { java.time.OffsetDateTime.parse(text).toInstant() }.getOrNull()
+        val start = parse(startText) ?: return null
+        val due = parse(dueText) ?: return null
+        if (!start.isBefore(due)) return null
+        val s = start.atZone(zone)
+        val d = due.atZone(zone)
+        if (s.toLocalDate() != d.toLocalDate()) return null
+        if (s.toLocalTime() == java.time.LocalTime.MIDNIGHT && d.toLocalTime() == java.time.LocalTime.MIDNIGHT) return null
+        return start to due
+    }
+
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun map(ctx: BuildContext, snapshot: DeckSnapshot, linkedCardRows: Map<Int, Set<String>>, out: MutableList<AgendaItem>) {
         if (!snapshot.loaded || snapshot.unavailable) return
@@ -142,6 +156,7 @@ object DeckMapper {
                     val dueToday = due != null && due == ctx.today
 
                     val etag = card.str("ETag")
+                    val clash = clashTimes(card.str("startdate"), card.str("duedate"), ctx.zone)
                     var item = AgendaItem(
                         key = "deck:card:$cardId",
                         kind = ItemKind.CARD,
@@ -162,6 +177,8 @@ object DeckMapper {
                         cardId = cardId,
                         projectName = boardTitle,
                         version = etag.ifEmpty { card.int("lastModified").toString() },
+                        clashStart = clash?.first,
+                        clashEnd = clash?.second,
                         versionReadOnly = readOnlyByGuard,
                         readOnly = !canEdit,
                         readOnlyReason = if (canEdit) ReadOnlyReason.NONE else ReadOnlyReason.BOARD_VIEW_ONLY

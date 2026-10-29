@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.nourax.nodrive.agenda.AgendaRepository
 import org.nourax.nodrive.agenda.AgendaSnapshot
+import org.nourax.nodrive.agenda.edit.EditCommand
 import org.nourax.nodrive.agenda.logic.AgendaView
 import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.CategoryFilter
@@ -29,6 +30,9 @@ import java.time.LocalDate
 
 enum class AgendaPage { MAIN, SOURCES }
 
+/** What the "+" button makes (design 8, 9). */
+enum class NewKind { EVENT, TODO }
+
 /** Everything the screen draws, in one value. */
 data class AgendaUiState(
     val snapshot: AgendaSnapshot?,
@@ -38,21 +42,35 @@ data class AgendaUiState(
     /** The key of the row whose detail sheet is open. */
     val selectedKey: String?,
     /** The saved copy has been put on screen (before that "Loading your agenda..." shows). */
-    val loaded: Boolean
+    val loaded: Boolean,
+    /** The detail sheet shows the fields to change instead of the facts. */
+    val editing: Boolean = false,
+    /** The sheet of a new event or to-do is open. */
+    val creating: NewKind? = null
 )
 
 /** The choices of the screen (view, day, switch, chips) and the actions of its buttons. */
 class AgendaViewModel(
     private val repository: AgendaRepository,
     private val clock: AgendaClock,
-    private val onOpened: () -> Unit = {}
+    private val onOpened: () -> Unit = {},
+    /** A change could not be sent now: the background send is queued for when the phone is online. */
+    private val onQueued: () -> Unit = {}
 ) : ViewModel() {
     private val viewState = MutableStateFlow(ViewState(date = clock.today()))
     private val page = MutableStateFlow(AgendaPage.MAIN)
     private val selected = MutableStateFlow<String?>(null)
+    private val editing = MutableStateFlow(false)
+    private val creating = MutableStateFlow<NewKind?>(null)
 
-    val state: StateFlow<AgendaUiState> = combine(repository.state, repository.refreshing, viewState, page, selected) { snapshot, refreshing, view, page, selected ->
-        AgendaUiState(snapshot, refreshing, view, page, selected, snapshot != null)
+    private class Local(val page: AgendaPage, val selected: String?, val editing: Boolean, val creating: NewKind?)
+
+    private val local = combine(page, selected, editing, creating) { page, selected, editing, creating ->
+        Local(page, selected, editing, creating)
+    }
+
+    val state: StateFlow<AgendaUiState> = combine(repository.state, repository.refreshing, viewState, local) { snapshot, refreshing, view, local ->
+        AgendaUiState(snapshot, refreshing, view, local.page, local.selected, snapshot != null, local.editing, local.creating)
     }.stateIn(
         viewModelScope,
         SharingStarted.Eagerly,
@@ -139,6 +157,49 @@ class AgendaViewModel(
 
     fun select(key: String?) {
         selected.value = key
+        editing.value = false
+    }
+
+    fun startEdit() {
+        editing.value = true
+    }
+
+    fun stopEdit() {
+        editing.value = false
+    }
+
+    fun startCreate(kind: NewKind) {
+        creating.value = kind
+    }
+
+    fun stopCreate() {
+        creating.value = null
+    }
+
+    fun toggleConflicts() = viewState.update { it.copy(conflictsOnly = !it.conflictsOnly) }
+
+    /** Sends the changes (queued first, so none is lost) and closes the sheets. The screen shows them at once, marked as waiting. */
+    fun submit(commands: List<EditCommand>) {
+        if (commands.isEmpty()) return
+        editing.value = false
+        creating.value = null
+        selected.value = null
+        viewModelScope.launch {
+            for (command in commands) repository.submit(command)
+            if (repository.state.value?.edit?.pending?.isNotEmpty() == true) onQueued()
+        }
+    }
+
+    /** "Apply my change again" ([applyAgain]) or "Keep the other change". */
+    fun resolve(conflictId: Long, applyAgain: Boolean) {
+        viewModelScope.launch {
+            repository.resolveConflict(conflictId, applyAgain)
+            if (repository.state.value?.edit?.pending?.isNotEmpty() == true) onQueued()
+        }
+    }
+
+    fun undo(opId: String) {
+        viewModelScope.launch { repository.undo(opId) }
     }
 
     fun openSources() {
@@ -183,9 +244,10 @@ class AgendaViewModel(
     class Factory(
         private val repository: AgendaRepository,
         private val clock: AgendaClock,
-        private val onOpened: () -> Unit
+        private val onOpened: () -> Unit,
+        private val onQueued: () -> Unit = {}
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = AgendaViewModel(repository, clock, onOpened) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = AgendaViewModel(repository, clock, onOpened, onQueued) as T
     }
 }

@@ -285,6 +285,7 @@ object GanttMapper {
                         agent = agent,
                         workKind = if (agent.isSelf) WorkKind.SELF else WorkKind.MY_AGENT,
                         myWorkHours = mine.workHours,
+                        agentWorkHours = mine.agentWorkHours,
                         problems = problems
                     )
                 }
@@ -339,6 +340,7 @@ object GanttMapper {
                         personName = p.name,
                         personUid = p.uid,
                         agent = agentFor(p),
+                        agentWorkHours = p.agentWorkHours,
                         problems = problems
                     )
                     // A person on a run project that is not shared with them.

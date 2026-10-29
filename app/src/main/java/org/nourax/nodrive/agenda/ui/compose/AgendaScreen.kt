@@ -21,6 +21,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,20 +53,25 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.owncloud.android.R
 import org.nourax.nodrive.agenda.AgendaSnapshot
 import org.nourax.nodrive.agenda.StatusKeys
 import org.nourax.nodrive.agenda.logic.AgendaFilter
 import org.nourax.nodrive.agenda.logic.AgendaRow
+import org.nourax.nodrive.agenda.edit.ConflictReason
+import org.nourax.nodrive.agenda.edit.EditConflict
 import org.nourax.nodrive.agenda.logic.AgendaView
 import org.nourax.nodrive.agenda.logic.CategoryFilter
 import org.nourax.nodrive.agenda.model.AgendaItem
@@ -65,6 +80,8 @@ import org.nourax.nodrive.agenda.model.SourceState
 import org.nourax.nodrive.agenda.ui.AgendaPage
 import org.nourax.nodrive.agenda.ui.AgendaTexts
 import org.nourax.nodrive.agenda.ui.AgendaViewModel
+import org.nourax.nodrive.agenda.ui.NewKind
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -161,14 +178,19 @@ private fun MainScreen(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.Age
     val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale
     val firstDay = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
     val rows = remember(snapshot, ui.view, firstDay) {
-        if (snapshot == null) emptyList() else AgendaFilter.rows(snapshot.build, ui.view, snapshot.today, snapshot.zone, firstDay)
+        if (snapshot == null) emptyList() else AgendaFilter.rows(snapshot.build, ui.view, snapshot.today, snapshot.zone, firstDay, snapshot.analysis)
     }
     val hasItems = AgendaFilter.hasItems(rows)
     val listState = rememberLazyListState()
+    val snackbar = remember { SnackbarHostState() }
+    if (snapshot != null) NoticeEffect(snapshot, texts, snackbar, vm)
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         Header(vm, ui, texts, firstDay)
         if (snapshot != null) {
             for (banner in banners(snapshot, texts, hasItems, context)) BannerView(banner, baseUrl, openUrl)
+            PendingBanner(snapshot.edit.pending.size, texts)
+            for (conflict in snapshot.edit.conflicts) ConflictCard(conflict, texts, baseUrl, openUrl, vm)
         }
         PullToRefreshBox(
             isRefreshing = ui.refreshing,
@@ -183,14 +205,128 @@ private fun MainScreen(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.Age
             }
         }
     }
+    if (snapshot != null) AddButton(vm, Modifier.align(Alignment.BottomEnd).padding(16.dp))
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).testTag("agenda_snackbar"))
+    }
     val selected = ui.selectedKey?.let { key -> snapshot?.build?.items?.firstOrNull { it.key == key } }
     if (selected != null && snapshot != null) {
-        DetailSheet(selected, snapshot, texts, onDismiss = { vm.select(null) }) { item ->
+        DetailSheet(
+            selected, snapshot, texts,
+            editing = ui.editing,
+            onEdit = vm::startEdit,
+            onStopEdit = vm::stopEdit,
+            onSubmit = vm::submit,
+            onDismiss = { vm.select(null) }
+        ) { item ->
             vm.select(null)
             openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.itemUrl(item, baseUrl, snapshot.zone), openLabel(context, item))
         }
     }
+    val creating = ui.creating
+    if (creating != null && snapshot != null) {
+        NewItemSheet(creating, snapshot, texts, ui.view.date, onSave = vm::submit, onDismiss = vm::stopCreate)
+    }
 }
+
+/** The "+" button (design 8, 9): a new event or a new to-do. */
+@Composable
+private fun AddButton(vm: AgendaViewModel, modifier: Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        FloatingActionButton(onClick = { open = true }, modifier = Modifier.testTag("agenda_fab")) {
+            Icon(painterResource(R.drawable.nodrive_ic_add), contentDescription = stringResource(R.string.nodrive_agenda_edit_add))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.nodrive_agenda_edit_new_event)) },
+                onClick = {
+                    open = false
+                    vm.startCreate(NewKind.EVENT)
+                },
+                modifier = Modifier.testTag("agenda_new_event")
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.nodrive_agenda_edit_new_todo)) },
+                onClick = {
+                    open = false
+                    vm.startCreate(NewKind.TODO)
+                },
+                modifier = Modifier.testTag("agenda_new_todo")
+            )
+        }
+    }
+}
+
+/** "Waiting to send 3 changes" (design 9). */
+@Composable
+private fun PendingBanner(count: Int, texts: AgendaTexts) {
+    if (count <= 0) return
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth().testTag("agenda_pending_banner")) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(R.drawable.nodrive_ic_clock), contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
+            Spacer(Modifier.width(8.dp))
+            Text(texts.waiting(count), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+        }
+    }
+}
+
+/** A change that was not sent (design 9): what happened, and the person decides. Nothing is dropped without a tap. */
+@Composable
+private fun ConflictCard(conflict: EditConflict, texts: AgendaTexts, baseUrl: String, openUrl: OpenUrl, vm: AgendaViewModel) {
+    val context = LocalContext.current
+    val changedElsewhere = conflict.reason == ConflictReason.CHANGED_ELSEWHERE
+    Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().testTag("agenda_conflict_card")) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.nodrive_agenda_edit_not_sent), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+            if (conflict.command.title.isNotEmpty()) {
+                Text(conflict.command.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+            Text(texts.conflict(conflict), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (changedElsewhere) {
+                    TextButton(onClick = { vm.resolve(conflict.id, true) }, modifier = Modifier.testTag("agenda_conflict_apply")) {
+                        Text(stringResource(R.string.nodrive_agenda_edit_apply_again))
+                    }
+                    TextButton(onClick = { vm.resolve(conflict.id, false) }, modifier = Modifier.testTag("agenda_conflict_keep")) {
+                        Text(stringResource(R.string.nodrive_agenda_edit_keep_other))
+                    }
+                } else {
+                    val home = conflict.command.home
+                    TextButton(
+                        onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), context.getString(openLabelRes(home))) },
+                        modifier = Modifier.testTag("agenda_conflict_open")
+                    ) { Text(stringResource(openLabelRes(home))) }
+                    TextButton(onClick = { vm.resolve(conflict.id, false) }, modifier = Modifier.testTag("agenda_conflict_drop")) {
+                        Text(stringResource(R.string.nodrive_agenda_edit_drop))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The result of the last change, shown once under the screen. A date change can be taken back for 10 seconds (design 9). */
+@Composable
+private fun NoticeEffect(snapshot: AgendaSnapshot, texts: AgendaTexts, host: SnackbarHostState, vm: AgendaViewModel) {
+    val notice = snapshot.edit.notice
+    var shown by rememberSaveable { mutableStateOf(0L) }
+    val undoLabel = stringResource(R.string.nodrive_agenda_edit_undo)
+    LaunchedEffect(notice?.id) {
+        if (notice == null || notice.id <= shown) return@LaunchedEffect
+        shown = notice.id
+        val message = texts.notice(notice)
+        if (notice.undoOp.isNotEmpty()) {
+            val result = withTimeoutOrNull(UNDO_MILLIS) {
+                host.showSnackbar(message, actionLabel = undoLabel, duration = SnackbarDuration.Indefinite)
+            }
+            if (result == SnackbarResult.ActionPerformed) vm.undo(notice.undoOp)
+        } else {
+            host.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
+}
+
+private const val UNDO_MILLIS = 10_000L
 
 fun openLabel(context: android.content.Context, item: AgendaItem): String = context.getString(openLabelRes(item.home))
 
@@ -273,6 +409,8 @@ private fun AgendaList(
                 is AgendaRow.DayHeader -> DayHeaderRow(row, texts)
                 is AgendaRow.Group -> GroupHeaderRow(row, texts, ui.view.showAllTeam, vm::toggleNoDate, vm::toggleShowAllTeam)
                 is AgendaRow.Quiet -> QuietRow(row)
+                is AgendaRow.Workload -> WorkloadRow(row, texts)
+                is AgendaRow.AgentOver -> AgentOverRow(row, texts)
                 is AgendaRow.Item -> {
                     AgendaItemRow(row, texts) { vm.select(row.item.key) }
                     HorizontalDivider(Modifier.padding(start = 52.dp))
@@ -286,6 +424,8 @@ private fun rowKey(index: Int, row: AgendaRow): String = when (row) {
     is AgendaRow.DayHeader -> "day-${row.date}"
     is AgendaRow.Group -> "group-${index}-${row.kind}"
     is AgendaRow.Quiet -> "quiet-$index"
+    is AgendaRow.Workload -> "workload-$index-${row.date}"
+    is AgendaRow.AgentOver -> "over-$index-${row.date}"
     // The index keeps the key unique even if a server sends two objects with one name.
     is AgendaRow.Item -> "item-$index-${row.item.key}"
 }
@@ -341,6 +481,16 @@ private fun Header(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.AgendaU
             FilterChip(selected = state.chipMe, onClick = vm::toggleMe, label = { Text(stringResource(R.string.nodrive_agenda_chip_me)) }, modifier = Modifier.testTag("agenda_chip_me"))
             FilterChip(selected = state.chipAgents, onClick = vm::toggleAgents, label = { Text(stringResource(R.string.nodrive_agenda_chip_agents)) }, modifier = Modifier.testTag("agenda_chip_agents"))
             FilterChip(selected = state.chipTeam, onClick = vm::toggleTeam, label = { Text(stringResource(R.string.nodrive_agenda_chip_team)) }, modifier = Modifier.testTag("agenda_chip_team"))
+        }
+        if (state.view == AgendaView.DAY) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.conflictsOnly,
+                    onClick = vm::toggleConflicts,
+                    label = { Text(stringResource(R.string.nodrive_agenda_edit_conflicts_filter)) },
+                    modifier = Modifier.testTag("agenda_chip_conflicts")
+                )
+            }
         }
         ui.snapshot?.let { snapshot ->
             if (snapshot.savedAtMs > 0) {

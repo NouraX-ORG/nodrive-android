@@ -12,6 +12,9 @@ import com.owncloud.android.R
 import com.nextcloud.client.account.User
 import org.nourax.nodrive.agenda.model.AgendaClock
 import org.nourax.nodrive.agenda.model.SystemAgendaClock
+import org.nourax.nodrive.agenda.edit.EditDatabase
+import org.nourax.nodrive.agenda.edit.EditStore
+import org.nourax.nodrive.agenda.edit.RoomEditStore
 import org.nourax.nodrive.agenda.net.AccountAgendaHttp
 import org.nourax.nodrive.agenda.net.AgendaHttp
 import org.nourax.nodrive.agenda.net.HttpResult
@@ -61,11 +64,14 @@ object AgendaAccess {
 
     fun store(context: Context): AgendaStore = RoomAgendaStore(AgendaDatabase.get(context))
 
+    /** The offline queue of the changes (design 9). */
+    fun editStore(context: Context): EditStore = RoomEditStore(EditDatabase.get(context))
+
     fun repository(context: Context, user: User, clock: AgendaClock = clock()): AgendaRepository {
         factory?.let { return it(context, user) }
         val app = context.applicationContext
         return repositories.getOrPut(user.accountName) {
-            AgendaRepository(AccountAgenda(user.accountName, LiveHttp(app, user), store(app), clock))
+            AgendaRepository(AccountAgenda(user.accountName, LiveHttp(app, user), store(app), clock, editStore = editStore(app)))
         }
     }
 

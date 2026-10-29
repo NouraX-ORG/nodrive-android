@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.owncloud.android.R
 import org.nourax.nodrive.agenda.logic.AgendaRow
+import org.nourax.nodrive.agenda.logic.ConflictBadge
 import org.nourax.nodrive.agenda.logic.GroupKind
 import org.nourax.nodrive.agenda.logic.QuietKind
 import org.nourax.nodrive.agenda.model.AgendaItem
@@ -193,7 +195,7 @@ fun AgendaItemRow(row: AgendaRow.Item, texts: AgendaTexts, onClick: () -> Unit) 
                 }
                 // A team row that is only a problem sentence (overbooked, not shared) has no agent of its own.
                 if (!item.info && !item.agent.none && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) AgentLabel(item, texts)
-                Badges(item, row.inTeam, texts)
+                Badges(item, row.inTeam, row.badges, texts)
             }
             for (text in problemTexts) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -207,7 +209,7 @@ fun AgendaItemRow(row: AgendaRow.Item, texts: AgendaTexts, onClick: () -> Unit) 
 }
 
 @Composable
-private fun Badges(item: AgendaItem, inTeam: Boolean, texts: AgendaTexts) {
+private fun Badges(item: AgendaItem, inTeam: Boolean, conflicts: Set<ConflictBadge>, texts: AgendaTexts) {
     val error = MaterialTheme.colorScheme.error
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     if (item.late && !inTeam) {
@@ -225,6 +227,22 @@ private fun Badges(item: AgendaItem, inTeam: Boolean, texts: AgendaTexts) {
     if (item.boardBadge) {
         Icon(painterResource(R.drawable.nodrive_ic_card), stringResource(R.string.nodrive_agenda_board_cd), Modifier.size(14.dp), tint = quiet)
     }
+    // The conflict kinds that are worked out on the phone (design 7): a clash, a possible clash, a deadline on a day off.
+    for (badge in conflicts) {
+        val label = badgeText(badge)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("agenda_badge_${badge.name.lowercase()}")) {
+            Icon(painterResource(R.drawable.nodrive_ic_warning), label, Modifier.size(14.dp), tint = if (badge == ConflictBadge.SOFT_CLASH) quiet else error)
+            Spacer(Modifier.width(2.dp))
+            Text(label, style = MaterialTheme.typography.bodySmall, color = if (badge == ConflictBadge.SOFT_CLASH) quiet else error)
+        }
+    }
+    if (item.pending) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("agenda_badge_pending")) {
+            Icon(painterResource(R.drawable.nodrive_ic_clock), stringResource(R.string.nodrive_agenda_edit_pending_cd), Modifier.size(14.dp), tint = quiet)
+            Spacer(Modifier.width(2.dp))
+            Text(stringResource(R.string.nodrive_agenda_edit_waiting_row), style = MaterialTheme.typography.bodySmall, color = quiet)
+        }
+    }
     if (item.repeating) {
         Icon(painterResource(R.drawable.nodrive_ic_repeat), stringResource(R.string.nodrive_agenda_repeats_cd), Modifier.size(14.dp), tint = quiet)
     }
@@ -235,3 +253,47 @@ private fun Badges(item: AgendaItem, inTeam: Boolean, texts: AgendaTexts) {
 
 private fun lateText(item: AgendaItem, texts: AgendaTexts): String =
     texts.problem(org.nourax.nodrive.agenda.model.ProblemFlag(ProblemKind.LATE, org.nourax.nodrive.agenda.model.Audience.PERSON, listOf(item.lateDays.toString())), item)
+
+/** The workload bar of a day: "6 h planned / 4 h free", with a warning when the day is overbooked (design 7, 8). */
+@Composable
+fun WorkloadRow(row: AgendaRow.Workload, texts: AgendaTexts) {
+    val load = row.load
+    val over = load.over
+    val color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val text = texts.workload(load.plannedHours, load.freeHours)
+    val fraction = if (load.freeHours <= 0.0) 1f else (load.plannedHours / load.freeHours).toFloat().coerceIn(0f, 1f)
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (row.thin) 2.dp else 8.dp).testTag(if (row.thin) "agenda_workload_thin" else "agenda_workload"),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (!row.thin || over) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (over) {
+                    Icon(painterResource(R.drawable.nodrive_ic_warning), contentDescription = null, modifier = Modifier.size(16.dp), tint = color)
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(text, style = if (row.thin) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium, color = color, fontWeight = FontWeight.Medium)
+            }
+        }
+        androidx.compose.material3.LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.fillMaxWidth().height(if (row.thin) 3.dp else 6.dp),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    }
+}
+
+/** "Writer-Bot is overbooked on Thursday" (design 7). */
+@Composable
+fun AgentOverRow(row: AgendaRow.AgentOver, texts: AgendaTexts) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).testTag("agenda_agent_over"), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(R.drawable.nodrive_ic_warning), contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            stringResource(R.string.nodrive_agenda_edit_agent_overbooked, row.agentName, texts.dayName(row.date)),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+}

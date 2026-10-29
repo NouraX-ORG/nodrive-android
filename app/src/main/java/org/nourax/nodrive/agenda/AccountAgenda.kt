@@ -9,6 +9,17 @@ package org.nourax.nodrive.agenda
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import org.nourax.nodrive.agenda.dav.CalendarReadOptions
+import org.nourax.nodrive.agenda.edit.EditCommand
+import org.nourax.nodrive.agenda.edit.EditNotice
+import org.nourax.nodrive.agenda.edit.EditRunner
+import org.nourax.nodrive.agenda.edit.EditState
+import org.nourax.nodrive.agenda.edit.EditStore
+import org.nourax.nodrive.agenda.edit.GanttAgentChange
+import org.nourax.nodrive.agenda.edit.InMemoryEditStore
+import org.nourax.nodrive.agenda.edit.PendingOverlay
+import org.nourax.nodrive.agenda.logic.Analysis
+import org.nourax.nodrive.agenda.logic.AnalysisBuilder
+import org.nourax.nodrive.agenda.model.Home
 import org.nourax.nodrive.agenda.dav.CalendarReader
 import org.nourax.nodrive.agenda.dav.CalendarSnapshot
 import org.nourax.nodrive.agenda.deck.DeckClient
@@ -58,7 +69,11 @@ data class AgendaSnapshot(
     val today: LocalDate,
     val zone: ZoneId,
     /** When the newest shown data was read (epoch milliseconds); 0 = nothing yet. */
-    val savedAtMs: Long
+    val savedAtMs: Long,
+    /** Clashes, the workload and the agents' load, worked out on the phone (design 7). */
+    val analysis: Analysis = Analysis.EMPTY,
+    /** The changes that wait to be sent, the ones that were not sent, and the last result (design 9). */
+    val edit: EditState = EditState()
 ) {
     fun status(key: String): SourceStatus = statuses[key] ?: SourceStatus(key)
 }
@@ -70,6 +85,18 @@ interface AgendaEngine {
     fun refresh(manual: Boolean): AgendaSnapshot
 
     fun updateSettings(change: (SourceSettings) -> SourceSettings): AgendaSnapshot
+
+    /** Queues a change and sends it at once when there is a network (design 9). */
+    fun submit(command: EditCommand): AgendaSnapshot = snapshot()
+
+    /** Sends what waits in the queue. */
+    fun sendPending(manual: Boolean): AgendaSnapshot = snapshot()
+
+    /** The person's decision on a change that was not sent: send it again on the newest version, or keep the other change. */
+    fun resolveConflict(id: Long, applyAgain: Boolean): AgendaSnapshot = snapshot()
+
+    /** Takes back the last date change of NoGantt. */
+    fun undo(opId: String): AgendaSnapshot = snapshot()
 }
 
 /**
@@ -82,7 +109,8 @@ class AccountAgenda(
     private val store: AgendaStore,
     private val clock: AgendaClock,
     private val accountEmail: String = "",
-    private val registryFactory: (AgendaHttp, String) -> RegistrySource = RegistrySources::create
+    private val registryFactory: (AgendaHttp, String) -> RegistrySource = RegistrySources::create,
+    private val editStore: EditStore = InMemoryEditStore()
 ) : AgendaEngine {
     // Null values stay in the saved copy (a NoGantt task keeps its empty "deck_card_id"), so a reload equals a fresh read.
     private val gson = GsonBuilder().serializeNulls().create()
@@ -102,6 +130,19 @@ class AccountAgenda(
 
     // The saved copy is read on first use, which is always on a background thread (Room refuses the main thread).
     private var loadedFromStore = false
+
+    // The edits (design 9): the queue, and the last result for the screen.
+    private var lastNotice: EditNotice? = null
+    private val runner = EditRunner(
+        account = account,
+        http = http,
+        store = editStore,
+        clock = clock,
+        registry = { registry },
+        me = { server.uid.ifEmpty { account.substringBefore('@') } },
+        myName = { server.displayName },
+        guarded = { home -> if (home == Home.GANTT) !gantt.contractOk else !DeckClient.versionIsTested(deck.version) }
+    )
 
     private fun ensureLoaded() {
         if (loadedFromStore) return
@@ -191,7 +232,7 @@ class AccountAgenda(
         val zone = clock.zone()
         val today = clock.today()
         val davUser = server.uid.ifEmpty { account.substringBefore('@') }
-        val build = AgendaBuilder.build(
+        val built = AgendaBuilder.build(
             BuildInput(
                 davUser = davUser,
                 server = server,
@@ -207,7 +248,53 @@ class AccountAgenda(
             )
         )
         val savedAt = listOf(calendar.fetchedAtMs, gantt.fetchedAtMs, deck.fetchedAtMs).maxOrNull() ?: 0L
-        return AgendaSnapshot(build, LinkedHashMap(statuses), registry.status, registry.skipped, settings, today, zone, savedAt)
+        // The changes that wait to be sent are drawn on top of the saved data, so the effect shows at once (plan 2.3).
+        val edit = runner.state(lastNotice)
+        val items = PendingOverlay.apply(built.items, edit.pending, registry, today, zone)
+        val build = if (items === built.items) built else built.copy(items = items)
+        val analysis = AnalysisBuilder.build(
+            build, registry, gantt, davUser, server.displayName.ifEmpty { davUser }, GanttAgentChange.hoursPerPtOf(gantt.settings), today, zone
+        )
+        return AgendaSnapshot(build, LinkedHashMap(statuses), registry.status, registry.skipped, settings, today, zone, savedAt, analysis, edit)
+    }
+
+    // ---- the edits ---------------------------------------------------------------------------------------------------
+
+    override fun submit(command: EditCommand): AgendaSnapshot {
+        ensureLoaded()
+        runner.enqueue(command)
+        return sendPending(manual = true)
+    }
+
+    override fun sendPending(manual: Boolean): AgendaSnapshot {
+        ensureLoaded()
+        if (editStore.commands(account).isEmpty()) return snapshot()
+        val report = runner.run()
+        report.notice?.let { lastNotice = it }
+        readHomes(report.homes)
+        return snapshot()
+    }
+
+    override fun resolveConflict(id: Long, applyAgain: Boolean): AgendaSnapshot {
+        ensureLoaded()
+        lastNotice = null
+        return if (runner.resolve(id, applyAgain)) sendPending(manual = true) else snapshot()
+    }
+
+    override fun undo(opId: String): AgendaSnapshot {
+        ensureLoaded()
+        lastNotice = runner.undo(opId)
+        readHomes(setOf(Home.GANTT, Home.BOARD))
+        return snapshot()
+    }
+
+    /** What was sent is read again, so the screen shows what the server has. */
+    private fun readHomes(homes: Set<Home>) {
+        if (homes.isEmpty()) return
+        val nowMs = clock.now().toEpochMilli()
+        if (Home.CALENDAR in homes || Home.TASKS in homes) readCalendar(manual = true, nowMs, clock.today())
+        if (Home.GANTT in homes) readGantt(manual = true, nowMs)
+        if (Home.BOARD in homes) readDeck(manual = true, nowMs)
     }
 
     // ---- reading -----------------------------------------------------------------------------------------------------
@@ -245,6 +332,8 @@ class AccountAgenda(
     /** Reads every source once. [manual] (pull to refresh, the menu) ignores the back-off. */
     override fun refresh(manual: Boolean): AgendaSnapshot {
         ensureLoaded()
+        // The last result was shown once; a new read starts without it.
+        lastNotice = null
         val nowMs = clock.now().toEpochMilli()
         val today = clock.today()
 
@@ -271,6 +360,8 @@ class AccountAgenda(
             return snapshot()
         }
 
+        // Back online: what waited is sent first (oldest first), then everything is read, so the screen shows the server's picture.
+        if (editStore.commands(account).isNotEmpty()) runner.run().notice?.let { lastNotice = it }
         readRegistry(manual)
         readGantt(manual, nowMs)
         readCalendar(manual, nowMs, today)

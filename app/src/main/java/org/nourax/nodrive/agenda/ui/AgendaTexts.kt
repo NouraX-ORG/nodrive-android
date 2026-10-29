@@ -9,6 +9,10 @@ package org.nourax.nodrive.agenda.ui
 import android.content.Context
 import android.text.format.DateFormat
 import com.owncloud.android.R
+import org.nourax.nodrive.agenda.edit.ConflictReason
+import org.nourax.nodrive.agenda.edit.EditBlock
+import org.nourax.nodrive.agenda.edit.EditConflict
+import org.nourax.nodrive.agenda.edit.EditNotice
 import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.GroupKind
 import org.nourax.nodrive.agenda.logic.TimeKind
@@ -120,6 +124,9 @@ class AgendaTexts(private val context: Context) {
 
     fun longDate(value: LocalDate): String = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEE d MMMM"), locale).format(value)
 
+    /** The name of a weekday: "Thursday". */
+    fun dayName(value: LocalDate): String = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEE"), locale).format(value)
+
     fun fullDate(value: LocalDate): String = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEE d MMMM yyyy"), locale).format(value)
 
     fun monthTitle(value: LocalDate): String = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "MMMM yyyy"), locale).format(value)
@@ -183,5 +190,73 @@ class AgendaTexts(private val context: Context) {
         "paused" -> s(R.string.nodrive_agenda_agent_status_paused)
         "retired" -> s(R.string.nodrive_agenda_agent_status_retired)
         else -> s(R.string.nodrive_agenda_agent_status_active)
+    }
+
+    // ---- editing (design 9) ------------------------------------------------------------------------------------------
+
+    /** Hours as a short number: "6", "4.5". */
+    fun hours(value: Double): String {
+        val rounded = Math.round(value * 10.0) / 10.0
+        return if (rounded == Math.floor(rounded)) rounded.toLong().toString() else String.format(locale, "%.1f", rounded)
+    }
+
+    fun workload(planned: Double, free: Double): String = s(R.string.nodrive_agenda_edit_workload, hours(planned), hours(free))
+
+    /** Why a change was not sent, in plain words (the "Not sent" list). */
+    @Suppress("CyclomaticComplexMethod")
+    fun conflict(conflict: EditConflict): String = when (conflict.reason) {
+        ConflictReason.CHANGED_ELSEWHERE -> s(R.string.nodrive_agenda_edit_conflict)
+        ConflictReason.GONE -> s(R.string.nodrive_agenda_edit_gone)
+        ConflictReason.REFUSED -> when (conflict.detail) {
+            "version_guard" -> s(R.string.nodrive_agenda_edit_version_guard)
+            "progress_from_board" -> s(R.string.nodrive_agenda_edit_percent_from_board)
+            else -> s(R.string.nodrive_agenda_edit_refused)
+        }
+        ConflictReason.INVALID -> s(R.string.nodrive_agenda_edit_invalid)
+        ConflictReason.TOO_MANY_PEOPLE -> s(R.string.nodrive_agenda_edit_too_many)
+        ConflictReason.ROLES_ONLY -> s(R.string.nodrive_agenda_edit_roles_only)
+        ConflictReason.WORK_WOULD_CHANGE -> s(R.string.nodrive_agenda_edit_work_changes)
+        ConflictReason.AGENT_NOT_IN_PROJECT -> s(R.string.nodrive_agenda_edit_agent_ask_manager, conflict.detail)
+        ConflictReason.NOW_REPEATING -> s(R.string.nodrive_agenda_edit_now_repeating)
+        ConflictReason.LABEL_NEEDS_MANAGE -> s(R.string.nodrive_agenda_edit_label_manage, conflict.detail)
+        ConflictReason.CHECK_IN_HOME -> s(R.string.nodrive_agenda_edit_check_in_gantt)
+        ConflictReason.OTHER -> s(R.string.nodrive_agenda_edit_other)
+    }
+
+    /** The message under the screen after a change (the Snackbar). */
+    fun notice(notice: EditNotice): String {
+        val parts = ArrayList<String>()
+        when {
+            notice.undone -> parts += s(R.string.nodrive_agenda_edit_undone)
+            notice.undoFailed -> parts += s(R.string.nodrive_agenda_edit_undo_failed)
+            notice.conflict -> parts += s(R.string.nodrive_agenda_edit_not_sent_notice)
+            notice.queued -> parts += s(R.string.nodrive_agenda_edit_queued)
+            else -> parts += s(R.string.nodrive_agenda_edit_saved)
+        }
+        if (notice.alsoMoved.isNotEmpty()) parts += s(R.string.nodrive_agenda_edit_also_moved, notice.alsoMoved.joinToString(", "))
+        if (notice.cardNotMoved) parts += s(R.string.nodrive_agenda_edit_card_not_moved)
+        if (notice.checkInHome) parts += s(R.string.nodrive_agenda_edit_check_in_gantt)
+        return parts.joinToString(" ")
+    }
+
+    /** What the detail sheet says instead of the edit buttons. Empty = nothing to say. */
+    fun editBlock(block: EditBlock, organiser: String, reason: String): String = when (block) {
+        EditBlock.NONE -> ""
+        EditBlock.READ_ONLY -> reason
+        EditBlock.REPEATING_EVENT -> s(R.string.nodrive_agenda_edit_repeats_event)
+        EditBlock.REPEATING_TODO -> s(R.string.nodrive_agenda_edit_repeats_todo)
+        EditBlock.INVITATION -> s(R.string.nodrive_agenda_edit_invited_only, organiser.ifEmpty { s(R.string.nodrive_agenda_edit_organiser) })
+        EditBlock.VERSION_GUARD -> s(R.string.nodrive_agenda_edit_version_guard)
+        EditBlock.NOT_MINE -> ""
+        EditBlock.WAITING -> s(R.string.nodrive_agenda_edit_waiting_item)
+    }
+
+    fun waiting(count: Int): String = context.resources.getQuantityString(R.plurals.nodrive_agenda_edit_waiting, count, count)
+
+    fun statusName(status: String): String = when (status) {
+        "in_progress" -> s(R.string.nodrive_agenda_edit_status_in_progress)
+        "blocked" -> s(R.string.nodrive_agenda_edit_status_blocked)
+        "done" -> s(R.string.nodrive_agenda_edit_status_done)
+        else -> s(R.string.nodrive_agenda_edit_status_not_started)
     }
 }

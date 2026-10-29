@@ -46,6 +46,18 @@ data class BuildInput(
 
 data class OwnCalendar(val uri: String, val name: String)
 
+/** A calendar or task list the person may add to (design 9: only where they may write). */
+data class WritableCalendar(
+    val uri: String,
+    val href: String,
+    val name: String,
+    val color: String,
+    val events: Boolean,
+    val todos: Boolean,
+    val isDefault: Boolean,
+    val mode: CalendarMode
+)
+
 data class BuildOutput(
     val items: List<AgendaItem>,
     val sources: List<SourceEntry>,
@@ -62,7 +74,10 @@ data class BuildOutput(
     val boardReadOnlyByGuard: Boolean,
     val myAgents: List<Agent>,
     val taskCopyCalendarUri: String,
-    val workingHours: WorkingHours
+    val workingHours: WorkingHours,
+    /** The holidays of NoGantt that apply to this person (their planning person's calendar, or for everybody). */
+    val holidays: Set<LocalDate> = emptySet(),
+    val writableCalendars: List<WritableCalendar> = emptyList()
 )
 
 /** Turns the raw data of all homes into the rows and the Sources screen (design 6). */
@@ -87,6 +102,21 @@ object AgendaBuilder {
             to = end
         }
         return WorkingHours(days, from, to)
+    }
+
+    /** The holidays of this person: the ones for their planning person's work calendar, and the ones for everybody. */
+    fun holidays(input: BuildInput): Set<LocalDate> {
+        val me = input.server.uid.ifEmpty { input.davUser }
+        val calendarId = input.gantt.resources.objects()
+            .firstOrNull { it.str("type") == "person" && it.str("uid").equals(me, ignoreCase = true) }
+            ?.get("calendar_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+        val out = HashSet<LocalDate>()
+        for (holiday in input.gantt.holidays.objects()) {
+            val id = holiday.get("calendar_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+            if (id != null && id != calendarId) continue
+            runCatching { LocalDate.parse(holiday.str("holiday_date").take(10)) }.getOrNull()?.let { out += it }
+        }
+        return out
     }
 
     fun build(input: BuildInput): BuildOutput {
@@ -204,7 +234,23 @@ object AgendaBuilder {
             boardReadOnlyByGuard = input.deck.loaded && !input.deck.unavailable && !DeckClient.versionIsTested(input.deck.version),
             myAgents = ctx.registry.ofPerson(me),
             taskCopyCalendarUri = ctx.taskCopyCalendarUri,
-            workingHours = workingHours(input)
+            workingHours = workingHours(input),
+            holidays = holidays(input),
+            writableCalendars = input.calendar.calendars.filter {
+                !it.ignored && !it.readOnly && !it.subscribed && !it.birthdays && !it.deckBoard &&
+                    SourceSettings.autoHiddenReason(it, ctx.taskCopyCalendarUri) == AutoHiddenReason.NONE
+            }.map {
+                WritableCalendar(
+                    uri = it.uri,
+                    href = it.href,
+                    name = it.name,
+                    color = it.color.ifEmpty { SourceColours.COBALT },
+                    events = it.hasEvents,
+                    todos = it.hasTodos,
+                    isDefault = it.uri == input.calendar.defaultCalendarUri,
+                    mode = ctx.settings.calendarMode(it, ctx.taskCopyCalendarUri)
+                )
+            }
         )
     }
 }

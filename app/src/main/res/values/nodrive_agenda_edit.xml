@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- NoAgenda: editing, the offline queue, edit conflicts, the four conflict kinds and the workload bar (English; translations are a to-do) -->
+
+    <!-- Buttons and fields -->
+    <string name="nodrive_agenda_edit_edit">Edit</string>
+    <string name="nodrive_agenda_edit_add">Add</string>
+    <string name="nodrive_agenda_edit_new_event">New event</string>
+    <string name="nodrive_agenda_edit_new_todo">New to-do</string>
+    <string name="nodrive_agenda_edit_calendar">Calendar</string>
+    <string name="nodrive_agenda_edit_list">List</string>
+    <string name="nodrive_agenda_edit_title">Title</string>
+    <string name="nodrive_agenda_edit_all_day">All day</string>
+    <string name="nodrive_agenda_edit_start">Start</string>
+    <string name="nodrive_agenda_edit_end">End</string>
+    <string name="nodrive_agenda_edit_due">Due</string>
+    <string name="nodrive_agenda_edit_description">Description</string>
+    <string name="nodrive_agenda_edit_agent">Agent</string>
+    <string name="nodrive_agenda_edit_percent">Percent done</string>
+    <string name="nodrive_agenda_edit_status">Status</string>
+    <string name="nodrive_agenda_edit_delete">Delete</string>
+    <string name="nodrive_agenda_edit_clear">Clear</string>
+    <string name="nodrive_agenda_edit_no_date">No date</string>
+    <string name="nodrive_agenda_edit_set_date">Set date</string>
+    <string name="nodrive_agenda_edit_time">Time</string>
+    <string name="nodrive_agenda_edit_mark_done">Mark done</string>
+    <string name="nodrive_agenda_edit_mark_not_done">Mark not done</string>
+    <string name="nodrive_agenda_edit_status_not_started">Not started</string>
+    <string name="nodrive_agenda_edit_status_in_progress">In progress</string>
+    <string name="nodrive_agenda_edit_status_blocked">Blocked</string>
+    <string name="nodrive_agenda_edit_status_done">Done</string>
+    <string name="nodrive_agenda_edit_delete_event">Delete this event? It moves to the calendar\'s trash bin.</string>
+    <string name="nodrive_agenda_edit_delete_todo">Delete this to-do? It moves to the calendar\'s trash bin.</string>
+
+    <!-- Why a row can not be changed here -->
+    <string name="nodrive_agenda_edit_repeats_event">This repeats. Change it in NoCalendar.</string>
+    <string name="nodrive_agenda_edit_repeats_todo">This repeats. Change it in NoTasks.</string>
+    <string name="nodrive_agenda_edit_invited_self">You were invited, so this is always Self.</string>
+    <string name="nodrive_agenda_edit_invited_only">You were invited. Only %1$s can change this event.</string>
+    <string name="nodrive_agenda_edit_organiser">the organiser</string>
+    <string name="nodrive_agenda_edit_viewer">You can view this project only. Ask the project manager for editor rights.</string>
+    <string name="nodrive_agenda_edit_percent_from_board">Percent done comes from NoBoard</string>
+    <string name="nodrive_agenda_edit_waiting_item">Waiting to send. You can change it again when it is sent.</string>
+    <string name="nodrive_agenda_edit_not_mine">This is not your own work, so it can only be changed in its own app.</string>
+
+    <!-- Choosing the agent (person first, then agent) -->
+    <string name="nodrive_agenda_edit_agent_self_note">Done by you</string>
+    <string name="nodrive_agenda_edit_agent_paused">Paused</string>
+    <string name="nodrive_agenda_edit_agent_ask_manager">Ask your project manager to add %1$s to this project</string>
+    <string name="nodrive_agenda_edit_pick_agent">Who does it?</string>
+
+    <!-- What the server said -->
+    <string name="nodrive_agenda_edit_too_many">This task already has 4 people or agents. Ask your project manager.</string>
+    <string name="nodrive_agenda_edit_roles_only">This project only allows roles. Ask your project manager.</string>
+    <string name="nodrive_agenda_edit_work_changes">Changing the agent here would change the task\'s work estimate. Open in NoGantt.</string>
+    <string name="nodrive_agenda_edit_check_in_gantt">Check this task in NoGantt</string>
+    <string name="nodrive_agenda_edit_card_not_moved">The linked card wasn\'t moved. Open in NoGantt to confirm.</string>
+    <string name="nodrive_agenda_edit_gone">This item is gone from the server, so your change was not sent.</string>
+    <string name="nodrive_agenda_edit_refused">The server did not allow this change.</string>
+    <string name="nodrive_agenda_edit_invalid">The server did not accept this value.</string>
+    <string name="nodrive_agenda_edit_now_repeating">This item repeats now. Change it in the Calendar or Tasks page.</string>
+    <string name="nodrive_agenda_edit_label_manage">You need to manage this board to add the label %1$s.</string>
+    <string name="nodrive_agenda_edit_version_guard">NoGantt or NoBoard has a version that NoAgenda was not tested with, so nothing is written there.</string>
+    <string name="nodrive_agenda_edit_other">This change could not be sent.</string>
+
+    <!-- The offline queue and edit conflicts -->
+    <string name="nodrive_agenda_edit_conflict">This changed somewhere else while you were editing. NoAgenda kept the other change.</string>
+    <string name="nodrive_agenda_edit_apply_again">Apply my change again</string>
+    <string name="nodrive_agenda_edit_keep_other">Keep the other change</string>
+    <string name="nodrive_agenda_edit_drop">Drop my change</string>
+    <string name="nodrive_agenda_edit_not_sent">Not sent</string>
+    <string name="nodrive_agenda_edit_waiting_row">Waiting to send</string>
+    <plurals name="nodrive_agenda_edit_waiting">
+        <item quantity="one">Waiting to send %d change</item>
+        <item quantity="other">Waiting to send %d changes</item>
+    </plurals>
+    <string name="nodrive_agenda_edit_saved">Saved.</string>
+    <string name="nodrive_agenda_edit_queued">Saved on this phone. It will be sent when you are back online.</string>
+    <string name="nodrive_agenda_edit_also_moved">Also moved: %1$s</string>
+    <string name="nodrive_agenda_edit_undo">Undo</string>
+    <string name="nodrive_agenda_edit_undone">Change undone.</string>
+    <string name="nodrive_agenda_edit_undo_failed">Could not undo it. Open it in NoGantt.</string>
+    <string name="nodrive_agenda_edit_not_sent_notice">Not sent. See the list at the top.</string>
+
+    <!-- Checks of the form -->
+    <string name="nodrive_agenda_edit_need_title">Enter a title.</string>
+    <string name="nodrive_agenda_edit_end_before_start">The end can\'t be before the start.</string>
+    <string name="nodrive_agenda_edit_no_calendar">There is no calendar you can add events to.</string>
+    <string name="nodrive_agenda_edit_no_list">There is no list you can add to-dos to.</string>
+
+    <!-- Conflict kinds and the workload bar (design 7) -->
+    <string name="nodrive_agenda_edit_workload">%1$s h planned / %2$s h free</string>
+    <string name="nodrive_agenda_edit_no_estimate">No estimate</string>
+    <string name="nodrive_agenda_edit_clash">Clash</string>
+    <string name="nodrive_agenda_edit_possible_clash">Possible clash</string>
+    <string name="nodrive_agenda_edit_day_off">Deadline on a day off</string>
+    <string name="nodrive_agenda_edit_agent_overbooked">%1$s is overbooked on %2$s</string>
+    <string name="nodrive_agenda_edit_conflicts_filter">Conflicts</string>
+    <string name="nodrive_agenda_edit_clash_cd">Clash</string>
+    <string name="nodrive_agenda_edit_pending_cd">Waiting to send</string>
+    <string name="nodrive_agenda_edit_day_off_cd">Deadline on a day off</string>
+</resources>

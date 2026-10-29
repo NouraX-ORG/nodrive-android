@@ -143,7 +143,14 @@ data class AgendaItem(
     val recurrenceId: String = "",
     val organizerIsMe: Boolean = false,
     val myPartstat: String = "",
-    val myWorkHours: Double = -1.0
+    val myWorkHours: Double = -1.0,
+    /** The work (hours) that the planning person of my agent has on this Gantt task; -1 = none or not known. */
+    val agentWorkHours: Double = -1.0,
+    /** A card or task with real start and end times on one day (the clash rule). Events use [start] and [end]. */
+    val clashStart: Instant? = null,
+    val clashEnd: Instant? = null,
+    /** My change is made on the phone and waits to be sent (design 9: "Waiting to send"). */
+    val pending: Boolean = false
 ) {
     val hasDate: Boolean get() = timed || startDate != null || endDate != null || due != null
 

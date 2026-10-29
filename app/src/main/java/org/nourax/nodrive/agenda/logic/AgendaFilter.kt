@@ -28,7 +28,9 @@ data class ViewState(
     val chipAgents: Boolean = true,
     val chipTeam: Boolean = true,
     val showAllTeam: Boolean = false,
-    val noDateExpanded: Boolean = false
+    val noDateExpanded: Boolean = false,
+    /** The Conflicts filter of the Day view (design 8): only the rows with a clash, a blocked, a late or a day-off badge. */
+    val conflictsOnly: Boolean = false
 )
 
 enum class GroupKind { LATE, DUE, DUE_TODAY, IN_PROGRESS, AGENT_PROBLEMS, MY_TEAM, NO_DATE }
@@ -50,9 +52,21 @@ sealed interface AgendaRow {
 
     data class Group(val kind: GroupKind, val count: Int, val expanded: Boolean = false) : AgendaRow
 
-    data class Item(val item: AgendaItem, val day: LocalDate, val inTeam: Boolean, val time: TimeLabel) : AgendaRow
+    data class Item(
+        val item: AgendaItem,
+        val day: LocalDate,
+        val inTeam: Boolean,
+        val time: TimeLabel,
+        val badges: Set<ConflictBadge> = emptySet()
+    ) : AgendaRow
 
     data class Quiet(val kind: QuietKind) : AgendaRow
+
+    /** The workload bar of a day: planned against free (design 8). [thin] is the small one of the Week view. */
+    data class Workload(val date: LocalDate, val load: DayLoad, val thin: Boolean) : AgendaRow
+
+    /** "Writer-Bot is overbooked on Thursday" (design 7). [team]: it is the agent of someone I oversee. */
+    data class AgentOver(val date: LocalDate, val agentName: String, val team: Boolean) : AgendaRow
 }
 
 /** The lists of the Day, Week and Month views, from the rows and the choices (design 6.0, 6.2, 6.3, 8). */
@@ -141,9 +155,11 @@ object AgendaFilter {
         zone: ZoneId,
         day: LocalDate,
         dayView: Boolean,
-        header: Boolean
+        header: Boolean,
+        analysis: Analysis
     ): List<AgendaRow> {
         val isToday = day == today
+        val myAgentIds = out.myAgents.map { it.id }.toSet()
         val info = ArrayList<AgendaItem>()
         val timed = ArrayList<AgendaItem>()
         val due = ArrayList<AgendaItem>()
@@ -193,6 +209,13 @@ object AgendaFilter {
             }
         }
 
+        if (state.conflictsOnly) {
+            info.clear()
+            timed.retainAll { analysis.hasConflict(it) }
+            due.retainAll { analysis.hasConflict(it) }
+            working.retainAll { analysis.hasConflict(it) }
+            late.retainAll { analysis.hasConflict(it) }
+        }
         info.sortWith(byStart)
         timed.sortWith(byStart)
         due.sortWith(byKind)
@@ -203,7 +226,19 @@ object AgendaFilter {
 
         val rows = ArrayList<AgendaRow>()
         fun add(list: List<AgendaItem>, inTeam: Boolean) {
-            for (item in list) rows += AgendaRow.Item(item, day, inTeam, timeLabel(item, day, zone))
+            for (item in list) rows += AgendaRow.Item(item, day, inTeam, timeLabel(item, day, zone), analysis.badgesOf(item.key))
+        }
+        // The workload bar comes first (design 8): the whole bar in the Day view, a thin one under the day's name in the Week view.
+        analysis.days[day]?.let { load ->
+            if (state.chipMe && (dayView || header) && load.plannedHours > 0.0) {
+                rows += AgendaRow.Workload(day, load, thin = !dayView)
+            }
+        }
+        // My agents that have too much to do on this day.
+        if (state.chipAgents) {
+            for (over in analysis.agentOver[day].orEmpty()) {
+                if (over.agentId in myAgentIds) rows += AgendaRow.AgentOver(day, over.agentName, team = false)
+            }
         }
         add(info, false)
         add(timed, false)
@@ -224,9 +259,11 @@ object AgendaFilter {
             add(attention, false)
         }
         val teamSection = out.anyOversee && state.chipTeam
-        if (teamSection && (isToday || team.isNotEmpty())) {
-            if (team.isNotEmpty()) {
-                rows += AgendaRow.Group(GroupKind.MY_TEAM, team.size)
+        val teamOver = if (teamSection) analysis.agentOver[day].orEmpty().filter { it.agentId !in myAgentIds } else emptyList()
+        if (teamSection && (isToday || team.isNotEmpty() || teamOver.isNotEmpty())) {
+            if (team.isNotEmpty() || teamOver.isNotEmpty()) {
+                rows += AgendaRow.Group(GroupKind.MY_TEAM, team.size + teamOver.size)
+                for (over in teamOver) rows += AgendaRow.AgentOver(day, over.agentName, team = true)
                 add(team, true)
             } else if (dayView) {
                 rows += AgendaRow.Group(GroupKind.MY_TEAM, 0)
@@ -235,7 +272,7 @@ object AgendaFilter {
         }
 
         // The folded list of items without a date (Day view, today).
-        if (dayView && isToday) {
+        if (dayView && isToday && !state.conflictsOnly) {
             val noDate = out.items.filter {
                 visible(it, state) && it.workKind != WorkKind.TEAM && !it.problemOnly && !it.hasDate && !it.done
             }.sortedWith(byKind)
@@ -253,14 +290,21 @@ object AgendaFilter {
     }
 
     /** All rows of the chosen view. Empty when there is nothing to show at all (the screen shows an empty state). */
-    fun rows(out: BuildOutput, state: ViewState, today: LocalDate, zone: ZoneId, firstDayOfWeek: DayOfWeek): List<AgendaRow> {
+    fun rows(
+        out: BuildOutput,
+        state: ViewState,
+        today: LocalDate,
+        zone: ZoneId,
+        firstDayOfWeek: DayOfWeek,
+        analysis: Analysis = Analysis.EMPTY
+    ): List<AgendaRow> {
         val (first, last) = range(state, firstDayOfWeek)
         return when (state.view) {
-            AgendaView.DAY -> dayRows(out, state, today, zone, first, dayView = true, header = false)
+            AgendaView.DAY -> dayRows(out, state, today, zone, first, dayView = true, header = false, analysis = analysis)
             AgendaView.WEEK -> generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }
-                .flatMap { dayRows(out, state, today, zone, it, dayView = false, header = true) }.toList()
+                .flatMap { dayRows(out, state, today, zone, it, dayView = false, header = true, analysis = analysis) }.toList()
             AgendaView.MONTH -> generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.flatMap { day ->
-                val rows = dayRows(out, state, today, zone, day, dayView = false, header = false)
+                val rows = dayRows(out, state, today, zone, day, dayView = false, header = false, analysis = analysis)
                 if (rows.isEmpty()) emptyList() else listOf<AgendaRow>(AgendaRow.DayHeader(day, day == today)) + rows
             }.toList()
         }

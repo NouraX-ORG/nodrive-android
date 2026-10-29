@@ -19,6 +19,7 @@ import com.owncloud.android.ui.activity.DrawerActivity
 import org.nourax.nodrive.agenda.AgendaAccess
 import org.nourax.nodrive.agenda.android.AgendaDrawer
 import org.nourax.nodrive.agenda.android.AgendaRefreshWorker
+import org.nourax.nodrive.agenda.android.AgendaSendWorker
 import org.nourax.nodrive.agenda.ui.compose.AgendaScreen
 import org.nourax.nodrive.agenda.ui.compose.OpenUrl
 import org.nourax.nodrive.workspace.WorkspaceAccess
@@ -26,7 +27,7 @@ import org.nourax.nodrive.workspace.WorkspaceWebActivity
 
 /**
  * NoAgenda (design 8): Day, Week and Month lists of everything the person is responsible for. Compose screens inside a
- * DrawerActivity, so the side menu works as everywhere else. In this step nothing can be changed here.
+ * DrawerActivity, so the side menu works as everywhere else. Items are changed from the detail sheet; "+" makes a new event or to-do.
  */
 class AgendaActivity : DrawerActivity() {
     private lateinit var binding: NodriveAgendaActivityBinding
@@ -52,10 +53,18 @@ class AgendaActivity : DrawerActivity() {
         val repository = AgendaAccess.repository(app, user)
         val model = ViewModelProvider(
             this,
-            AgendaViewModel.Factory(repository, AgendaAccess.clock()) {
-                // Once NoAgenda was opened for this account, the background refresh keeps its copy fresh (every 15 minutes).
-                AgendaRefreshWorker.schedule(app, user.accountName)
-            }
+            AgendaViewModel.Factory(
+                repository,
+                AgendaAccess.clock(),
+                onOpened = {
+                    // Once NoAgenda was opened for this account, the background refresh keeps its copy fresh (every 15 minutes).
+                    AgendaRefreshWorker.schedule(app, user.accountName)
+                },
+                onQueued = {
+                    // A change could not be sent: it goes out as soon as the phone is online, also when NoAgenda is closed.
+                    AgendaSendWorker.enqueue(app, user.accountName)
+                }
+            )
             // Keyed by the account: a ViewModel survives recreate(), and a new account must not get the old account's data.
         )[user.accountName, AgendaViewModel::class.java]
         val base = WorkspaceAccess.baseUrl(user)

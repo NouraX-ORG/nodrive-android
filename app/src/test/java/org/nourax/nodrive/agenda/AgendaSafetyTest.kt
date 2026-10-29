@@ -11,11 +11,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nourax.nodrive.agenda.net.AccountAgendaHttp
+import org.nourax.nodrive.agenda.net.WritePolicy
 import java.io.File
 
 /**
  * Data safety and privacy of NoAgenda's core step, as a guard over the sources of the package:
- *  - nothing is deleted (no file, no Drive file, no upload row) and nothing is written to the server (no write verb);
+ *  - nothing is deleted (no file, no Drive file, no upload row); the server is written only by the edit step (events, to-dos, NoGantt
+ *    task updates, NoBoard card updates) and only an event or a to-do can be removed;
  *  - no host name is written in the code (the requests go through the signed-in account's client only);
  *  - no analytics or crash SDK.
  */
@@ -47,18 +49,77 @@ class AgendaSafetyTest {
         assertEquals(emptyList<String>(), hits(Regex("""\bFile\(.*\)\.delete""")))
     }
 
+    private val writers = setOf("CalDavWriter.kt", "GanttWriter.kt", "DeckWriter.kt")
+
     @Test
-    fun noWriteVerbIsSentToTheServer() {
-        assertEquals(emptyList<String>(), hits(Regex(""""(DELETE|PUT|POST|PATCH|MOVE|COPY|MKCOL|PROPPATCH)"""")))
+    fun onlyTheWritersOfTheEditStepSendWrites() {
+        // Writes are sent by the three writers and checked by WritePolicy; nowhere else (design 9, plan 2.4).
+        val allowed = writers + setOf("WritePolicy.kt", "AccountAgendaHttp.kt")
+        assertEquals(emptyList<String>(), hits(Regex(""""(PUT|POST)""""), except = { it.name in allowed }))
+        // A verb that NoAgenda never uses at all.
+        assertEquals(emptyList<String>(), hits(Regex(""""(PATCH|MOVE|COPY|MKCOL|PROPPATCH)"""")))
     }
 
     @Test
-    fun theTransportRefusesEveryWriteVerb() {
+    fun deleteIsSentOnlyForAnEventOrAToDoThroughCalDav() {
+        // The one DELETE of the app: a calendar object, with If-Match; the server keeps it in the calendar trash bin. Never a file of the
+        // Drive, a NoGantt task or a card.
+        assertEquals(emptyList<String>(), hits(Regex(""""DELETE""""), except = { it.name == "CalDavWriter.kt" || it.name == "WritePolicy.kt" }))
+        assertTrue(hits(Regex(""""DELETE"""")).isNotEmpty())
+        assertTrue(File(sourceRoot(), "edit/CalDavWriter.kt").readText().contains("If-Match"))
+    }
+
+    private fun sourceRoot(): File {
+        val relative = "src/main/java/org/nourax/nodrive/agenda"
+        return listOf(File(relative), File("app/$relative")).first { it.isDirectory }
+    }
+
+    @Test
+    fun noDriveFileIsWritten() {
+        // Only the agent list is read from the Drive (a GET); nothing there is written.
+        assertEquals(emptyList<String>(), hits(Regex("""dav/files"""), except = { it.name == "RegistrySource.kt" }))
+        assertFalse(WritePolicy.allows("PUT", "remote.php/dav/files/ali/NoAgenda/agent-registry.json"))
+        assertFalse(WritePolicy.allows("DELETE", "remote.php/dav/files/ali/x.txt"))
+    }
+
+    @Test
+    fun theWritePolicyAllowsOnlyTheEditsOfDesignSection9() {
+        val cal = "remote.php/dav/calendars/ali/work/abc.ics"
+        assertTrue(WritePolicy.allows("PUT", "/$cal"))
+        assertTrue(WritePolicy.allows("DELETE", "/$cal"))
+        assertFalse(WritePolicy.allows("DELETE", "/remote.php/dav/calendars/ali/work/"))
+        assertFalse(WritePolicy.allows("DELETE", "/remote.php/dav/calendars/ali/work"))
+        assertFalse(WritePolicy.allows("PUT", "/remote.php/dav/calendars/ali/work/../../files/ali/x.ics"))
+        val gantt = "ocs/v2.php/apps/nc_gantt/api/v1"
+        assertTrue(WritePolicy.allows("PUT", "$gantt/tasks/12?format=json"))
+        assertTrue(WritePolicy.allows("POST", "$gantt/changes/op_ab-12/revert?format=json"))
+        assertFalse(WritePolicy.allows("DELETE", "$gantt/tasks/12"))
+        assertFalse(WritePolicy.allows("POST", "$gantt/projects/1/tasks"))
+        assertFalse(WritePolicy.allows("PUT", "$gantt/projects/1"))
+        val deck = "index.php/apps/deck/api/v1.0"
+        assertTrue(WritePolicy.allows("PUT", "$deck/boards/3/stacks/4/cards/5"))
+        assertTrue(WritePolicy.allows("PUT", "$deck/boards/3/stacks/4/cards/5/assignLabel"))
+        assertTrue(WritePolicy.allows("PUT", "$deck/boards/3/stacks/4/cards/5/removeLabel"))
+        assertTrue(WritePolicy.allows("POST", "$deck/boards/3/labels"))
+        assertFalse(WritePolicy.allows("DELETE", "$deck/boards/3/stacks/4/cards/5"))
+        assertFalse(WritePolicy.allows("POST", "$deck/boards/3/stacks/4/cards"))
+        assertFalse(WritePolicy.allows("DELETE", "$deck/boards/3"))
+        for (verb in listOf("PATCH", "MOVE", "COPY", "MKCOL", "PROPPATCH")) assertFalse(verb, WritePolicy.allows(verb, "/$cal"))
+        assertTrue(WritePolicy.allows("GET", "anything"))
+    }
+
+    @Test
+    fun theTransportRefusesEveryOtherWrite() {
         val http = AccountAgendaHttp("https://drive.example.test", "Basic x", okhttp3.OkHttpClient())
-        for (verb in listOf("PUT", "POST", "DELETE", "MOVE", "COPY", "MKCOL", "PATCH", "PROPPATCH")) {
-            val result = http.send(verb, "remote.php/dav/files/ali/x.txt", emptyMap(), null, null)
-            assertEquals(verb, 0, result.status)
-            assertTrue(verb, result.networkError)
+        for ((verb, path) in listOf(
+            "PUT" to "remote.php/dav/files/ali/x.txt", "DELETE" to "remote.php/dav/files/ali/x.txt", "POST" to "ocs/v2.php/cloud/users",
+            "MOVE" to "remote.php/dav/files/ali/x.txt", "COPY" to "remote.php/dav/files/ali/x.txt", "MKCOL" to "remote.php/dav/files/ali/d",
+            "PATCH" to "remote.php/dav/files/ali/x.txt", "PROPPATCH" to "remote.php/dav/files/ali/x.txt",
+            "DELETE" to "ocs/v2.php/apps/nc_gantt/api/v1/tasks/1", "DELETE" to "index.php/apps/deck/api/v1.0/boards/1/stacks/2/cards/3"
+        )) {
+            val result = http.send(verb, path, emptyMap(), null, null)
+            assertEquals("$verb $path", 0, result.status)
+            assertTrue("$verb $path", result.networkError)
         }
     }
 

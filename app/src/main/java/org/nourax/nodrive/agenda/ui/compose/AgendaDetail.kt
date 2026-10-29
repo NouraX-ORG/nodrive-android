@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,11 +30,15 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,6 +52,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.owncloud.android.R
 import org.nourax.nodrive.agenda.AgendaSnapshot
+import org.nourax.nodrive.agenda.edit.Capabilities
+import org.nourax.nodrive.agenda.edit.EditBlock
+import org.nourax.nodrive.agenda.edit.EditCommand
+import org.nourax.nodrive.agenda.edit.EditCommands
+import org.nourax.nodrive.agenda.edit.EditRules
+import org.nourax.nodrive.agenda.logic.ConflictBadge
+import org.nourax.nodrive.agenda.logic.TimeLabel
+import org.nourax.nodrive.agenda.model.Home
+import org.nourax.nodrive.agenda.model.ReadOnlyReason
 import org.nourax.nodrive.agenda.logic.AgendaFilter
 import org.nourax.nodrive.agenda.logic.OwnCalendar
 import org.nourax.nodrive.agenda.model.AgendaItem
@@ -54,62 +68,161 @@ import org.nourax.nodrive.agenda.model.ItemKind
 import org.nourax.nodrive.agenda.model.WorkKind
 import org.nourax.nodrive.agenda.ui.AgendaTexts
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.TextStyle
 
-/** The detail sheet: read only in this step. It only offers "Open in ..." (design 8). */
+/**
+ * The detail sheet (design 8, 9): the facts of the row, and what the person may do with it: change it, tick it done, delete an event
+ * or a to-do (after a question), or open it in its own app. Why something can not be changed is said in plain words.
+ */
 @Composable
-fun DetailSheet(item: AgendaItem, snapshot: AgendaSnapshot, texts: AgendaTexts, onDismiss: () -> Unit, onOpen: (AgendaItem) -> Unit) {
+fun DetailSheet(
+    item: AgendaItem,
+    snapshot: AgendaSnapshot,
+    texts: AgendaTexts,
+    editing: Boolean,
+    onEdit: () -> Unit,
+    onStopEdit: () -> Unit,
+    onSubmit: (List<EditCommand>) -> Unit,
+    onDismiss: () -> Unit,
+    onOpen: (AgendaItem) -> Unit
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val zone = snapshot.zone
     val day = item.firstDay(zone) ?: snapshot.today
     val time = AgendaFilter.timeLabel(item, day, zone)
+    val caps = EditRules.of(item)
+    var askDelete by remember(item.key) { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 8.dp).testTag("agenda_detail"),
+            Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 8.dp).testTag("agenda_detail"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(texts.title(item), style = MaterialTheme.typography.titleLarge)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(kindIcon(item.kind)), contentDescription = null, Modifier.size(18.dp), tint = sourceColor(item.sourceColor))
-                Spacer(Modifier.width(8.dp))
-                Text(texts.kind(item.kind) + if (item.sourceName.isNotEmpty()) " · " + item.sourceName else "", style = MaterialTheme.typography.bodyMedium)
+            if (editing && caps.canEdit) {
+                ItemEditor(item, snapshot, texts, onSave = { onSubmit(it) }, onCancel = onStopEdit)
+                Spacer(Modifier.height(24.dp))
+            } else {
+                DetailFacts(item, snapshot, texts, caps, time, day)
+                Spacer(Modifier.height(8.dp))
+                if (caps.canEdit) {
+                    Button(onClick = onEdit, modifier = Modifier.fillMaxWidth().testTag("agenda_edit")) {
+                        Icon(painterResource(R.drawable.nodrive_ic_edit), contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.nodrive_agenda_edit_edit))
+                    }
+                }
+                if (caps.canTickDone) {
+                    OutlinedButton(
+                        onClick = { onSubmit(listOf(doneCommand(item, snapshot))) },
+                        modifier = Modifier.fillMaxWidth().testTag("agenda_mark_done")
+                    ) { Text(stringResource(R.string.nodrive_agenda_edit_mark_done)) }
+                }
+                OutlinedButton(onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth().testTag("agenda_open_in")) {
+                    Text(stringResource(openLabelRes(item.home)))
+                }
+                if (caps.canDelete) {
+                    TextButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth().testTag("agenda_delete")) {
+                        Text(stringResource(R.string.nodrive_agenda_edit_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
             }
-            val whenText = texts.time(time)
-            if (whenText.isNotEmpty()) {
-                val dateText = if (item.kind == ItemKind.EVENT || item.kind == ItemKind.TODO) texts.longDate(day) + " · " else ""
-                Text(dateText + whenText, style = MaterialTheme.typography.bodyMedium)
-            }
-            if (item.timeApproximated) Text(stringResource(R.string.nodrive_agenda_time_approximated), style = MaterialTheme.typography.bodySmall)
-            if (!item.info && !item.agent.none && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) {
-                Text(stringResource(R.string.nodrive_agenda_detail_agent), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                AgentLabelLarge(item, texts)
-            }
-            if (item.workKind == WorkKind.TEAM && item.personName.isNotEmpty()) {
-                Text(stringResource(R.string.nodrive_agenda_detail_person, item.personName), style = MaterialTheme.typography.bodyMedium)
-            }
-            if (item.percentDone in 0..100 && item.kind != ItemKind.EVENT) {
-                Text(stringResource(R.string.nodrive_agenda_detail_percent, item.percentDone), style = MaterialTheme.typography.bodyMedium)
-            }
-            if (item.repeating) Text(stringResource(R.string.nodrive_agenda_detail_repeats), style = MaterialTheme.typography.bodySmall)
-            if (item.tentative) Text(stringResource(R.string.nodrive_agenda_detail_tentative), style = MaterialTheme.typography.bodySmall)
-            if (item.invitation) Text(stringResource(R.string.nodrive_agenda_detail_invitation), style = MaterialTheme.typography.bodySmall)
-            for (problem in item.problems) {
-                Text(texts.problem(problem, item), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-            }
-            if (item.readOnly && item.readOnlyReason != org.nourax.nodrive.agenda.model.ReadOnlyReason.NONE) {
-                Text(texts.readOnlyReason(item.readOnlyReason), style = MaterialTheme.typography.bodySmall)
-            }
-            if (item.versionReadOnly) Text(stringResource(R.string.nodrive_agenda_detail_read_only_guard), style = MaterialTheme.typography.bodySmall)
-            if (item.description.isNotEmpty()) Text(item.description, style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth().testTag("agenda_open_in")) {
-                Text(stringResource(openLabelRes(item.home)))
-            }
-            Spacer(Modifier.height(24.dp))
         }
     }
+    if (askDelete) {
+        AlertDialog(
+            onDismissRequest = { askDelete = false },
+            text = {
+                Text(
+                    stringResource(if (item.kind == ItemKind.EVENT) R.string.nodrive_agenda_edit_delete_event else R.string.nodrive_agenda_edit_delete_todo),
+                    modifier = Modifier.testTag("agenda_delete_question")
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        askDelete = false
+                        onSubmit(listOf(EditCommands.removeObject(item)))
+                    },
+                    modifier = Modifier.testTag("agenda_delete_confirm")
+                ) { Text(stringResource(R.string.nodrive_agenda_edit_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { askDelete = false }) { Text(stringResource(R.string.nodrive_agenda_cancel)) } }
+        )
+    }
 }
+
+@Composable
+private fun DetailFacts(item: AgendaItem, snapshot: AgendaSnapshot, texts: AgendaTexts, caps: Capabilities, time: TimeLabel, day: LocalDate) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(kindIcon(item.kind)), contentDescription = null, Modifier.size(18.dp), tint = sourceColor(item.sourceColor))
+        Spacer(Modifier.width(8.dp))
+        Text(texts.kind(item.kind) + if (item.sourceName.isNotEmpty()) " · " + item.sourceName else "", style = MaterialTheme.typography.bodyMedium)
+    }
+    val whenText = texts.time(time)
+    if (whenText.isNotEmpty()) {
+        val dateText = if (item.kind == ItemKind.EVENT || item.kind == ItemKind.TODO) texts.longDate(day) + " · " else ""
+        Text(dateText + whenText, style = MaterialTheme.typography.bodyMedium)
+    }
+    if (item.timeApproximated) Text(stringResource(R.string.nodrive_agenda_time_approximated), style = MaterialTheme.typography.bodySmall)
+    if (!item.info && !item.agent.none && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) {
+        Text(stringResource(R.string.nodrive_agenda_detail_agent), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AgentLabelLarge(item, texts)
+    }
+    if (item.workKind == WorkKind.TEAM && item.personName.isNotEmpty()) {
+        Text(stringResource(R.string.nodrive_agenda_detail_person, item.personName), style = MaterialTheme.typography.bodyMedium)
+    }
+    if (item.percentDone in 0..100 && item.kind != ItemKind.EVENT) {
+        Text(stringResource(R.string.nodrive_agenda_detail_percent, item.percentDone), style = MaterialTheme.typography.bodyMedium)
+    }
+    if (item.kind == ItemKind.GANTT_TASK && item.workKind != WorkKind.TEAM && !item.problemOnly && item.myWorkHours < 0) {
+        Text(stringResource(R.string.nodrive_agenda_edit_no_estimate), style = MaterialTheme.typography.bodySmall)
+    }
+    if (item.repeating) Text(stringResource(R.string.nodrive_agenda_detail_repeats), style = MaterialTheme.typography.bodySmall)
+    if (item.tentative) Text(stringResource(R.string.nodrive_agenda_detail_tentative), style = MaterialTheme.typography.bodySmall)
+    if (item.invitation) Text(stringResource(R.string.nodrive_agenda_detail_invitation), style = MaterialTheme.typography.bodySmall)
+    if (item.pending) {
+        Text(stringResource(R.string.nodrive_agenda_edit_waiting_row), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("agenda_detail_pending"))
+    }
+    for (badge in snapshot.analysis.badgesOf(item.key)) {
+        Text(badgeText(badge), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+    }
+    for (problem in item.problems) {
+        Text(texts.problem(problem, item), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+    }
+    if (item.readOnly && item.readOnlyReason != ReadOnlyReason.NONE) {
+        val reason = if (item.readOnlyReason == ReadOnlyReason.VIEWER_PROJECT) {
+            stringResource(R.string.nodrive_agenda_edit_viewer)
+        } else {
+            texts.readOnlyReason(item.readOnlyReason)
+        }
+        Text(reason, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("agenda_detail_locked"))
+    }
+    if (item.versionReadOnly) Text(stringResource(R.string.nodrive_agenda_detail_read_only_guard), style = MaterialTheme.typography.bodySmall)
+    val blockText = texts.editBlock(caps.block, "", "")
+    if (blockText.isNotEmpty() && caps.block != EditBlock.READ_ONLY && caps.block != EditBlock.VERSION_GUARD) {
+        Text(blockText, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("agenda_detail_blocked"))
+    }
+    if (item.description.isNotEmpty()) Text(item.description, style = MaterialTheme.typography.bodyMedium)
+}
+
+// "Mark done" for a to-do, a Gantt task or a card.
+private fun doneCommand(item: AgendaItem, snapshot: AgendaSnapshot): EditCommand = when (item.home) {
+    Home.TASKS -> EditCommands.todoDone(item, true, Instant.ofEpochMilli(System.currentTimeMillis()))
+    Home.GANTT -> EditCommands.taskDone(item)
+    else -> EditCommands.cardDone(item)
+}
+
+@Composable
+fun badgeText(badge: ConflictBadge): String = stringResource(
+    when (badge) {
+        ConflictBadge.CLASH -> R.string.nodrive_agenda_edit_clash
+        ConflictBadge.SOFT_CLASH -> R.string.nodrive_agenda_edit_possible_clash
+        ConflictBadge.DEADLINE_ON_DAY_OFF -> R.string.nodrive_agenda_edit_day_off
+    }
+)
 
 @Composable
 private fun AgentLabelLarge(item: AgendaItem, texts: AgendaTexts) {

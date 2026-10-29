@@ -53,8 +53,8 @@ class AccountAgendaHttp(
         body: ByteArray?,
         contentType: String?
     ): HttpResult {
-        // This step only reads: nothing that could change or delete data on the server is ever sent.
-        if (method !in READ_METHODS) return HttpResult(0, networkError = true)
+        // Only the writes of the edit step go out (WritePolicy): events and to-dos, NoGantt task updates, NoBoard card updates.
+        if (!WritePolicy.allows(method, path)) return HttpResult(0, networkError = true)
         val url = urlFor(path) ?: return HttpResult(0, networkError = true)
         return try {
             val requestBody = when {
@@ -75,8 +75,7 @@ class AccountAgendaHttp(
 
     companion object {
         private const val CALL_TIMEOUT_SECONDS = 60L
-        private val READ_METHODS = setOf("GET", "PROPFIND", "REPORT")
-        private val BODY_METHODS = setOf("REPORT", "PROPFIND")
+        private val BODY_METHODS = setOf("REPORT", "PROPFIND", "PUT", "POST")
 
         fun of(client: NextcloudClient): AccountAgendaHttp =
             AccountAgendaHttp(client.baseUri.toString(), client.credentials, client.client)

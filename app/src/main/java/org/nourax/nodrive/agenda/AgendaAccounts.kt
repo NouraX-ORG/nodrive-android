@@ -8,6 +8,7 @@ package org.nourax.nodrive.agenda
 
 import android.content.Context
 import org.nourax.nodrive.agenda.android.AgendaRefreshWorker
+import org.nourax.nodrive.agenda.android.AgendaSendWorker
 
 object AgendaAccounts {
     private const val TAG = "AgendaAccounts"
@@ -22,7 +23,9 @@ object AgendaAccounts {
         try {
             val app = context.applicationContext
             AgendaRefreshWorker.cancel(app, accountName)
+            AgendaSendWorker.cancel(app, accountName)
             AgendaAccess.store(app).forget(accountName)
+            AgendaAccess.editStore(app).forget(accountName)
             AgendaAccess.forgetRepository(accountName)
         } catch (e: Exception) {
             AgendaLog.w(TAG, "not forgotten: ${e.javaClass.simpleName}")

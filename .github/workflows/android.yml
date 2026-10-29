@@ -211,23 +211,30 @@ jobs:
                     if-no-files-found: warn
                     retention-days: 14
 
-            -   name: NoAgenda Room schema is committed
+            -   name: NoAgenda Room schemas are committed
                 run: |
                     # Room writes app/schemas/<database>/<version>.json at build time. A new or changed schema must be committed
-                    # (it is what a later migration is checked against).
-                    if [ -n "$(git status --porcelain -- app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase)" ]; then
-                        git status --short -- app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase
-                        git diff -- app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase | head -n 60
-                        echo "The Room schema changed or is not committed."
+                    # (it is what a later migration is checked against). NoAgenda has two databases: the cache of what it reads and
+                    # the offline queue of the changes.
+                    dirs="app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase app/schemas/org.nourax.nodrive.agenda.edit.EditDatabase"
+                    for dir in $dirs; do
+                        if [ ! -s "$dir/1.json" ]; then echo "The Room schema $dir/1.json is missing."; exit 1; fi
+                    done
+                    if [ -n "$(git status --porcelain -- $dirs)" ]; then
+                        git status --short -- $dirs
+                        git diff -- $dirs | head -n 60
+                        echo "A Room schema changed or is not committed."
                         exit 1
                     fi
 
-            -   name: Upload NoAgenda Room schema
+            -   name: Upload NoAgenda Room schemas
                 if: ${{ always() }}
                 uses: actions/upload-artifact@v7
                 with:
                     name: nodrive-android-agenda-room-schema
-                    path: app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase/
+                    path: |
+                        app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase/
+                        app/schemas/org.nourax.nodrive.agenda.edit.EditDatabase/
                     if-no-files-found: warn
                     retention-days: 14
 
