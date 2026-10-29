@@ -16,6 +16,7 @@ object Scrubber {
     private const val EMAIL = "<email>"
     private const val KEY_MATERIAL = "<removed key>"
     private const val MAX_SLASHES_IN_SECRET = 3
+    private const val MAX_LOCAL_PART = 64 // RFC 5321
 
     private val ignoreCase = setOf(RegexOption.IGNORE_CASE)
 
@@ -86,9 +87,13 @@ object Scrubber {
     private val base64Run = Regex("(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{64,}={0,2}(?![A-Za-z0-9+/=])")
 
     // The at-sign is "@" or "%40": upstream logs avatar URIs with the user id URL-encoded (Uri.encode("alice@example.com")).
-    // The local part is capped at 64 characters (RFC 5321): without a cap the search is quadratic on a long run of such
-    // characters that holds no at-sign (80 KB took 90 s), and one long log line could stall every report.
-    private val email = Regex("[A-Za-z0-9._%+-]{1,64}(?:@|%40)[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", ignoreCase)
+    // Only this part is a regex; the local part in front of it is read backwards by hand (see scrubEmails). A regex that
+    // starts at the local part is quadratic on a long run of such characters without an at-sign (80 KB took 90 s), and one
+    // long log line could then stall every report.
+    private val emailDomain = Regex(
+        "(?:@|%40)[A-Za-z0-9-]{1,63}(?:\\.[A-Za-z0-9-]{1,63}){0,30}\\.[A-Za-z]{2,}",
+        ignoreCase
+    )
 
     fun scrub(text: String): String {
         if (text.isEmpty()) return text
@@ -110,9 +115,32 @@ object Scrubber {
         out = jwt.replace(out, SECRET)
         out = longRun.replace(out) { if (hasLetterAndDigit(it.value)) SECRET else it.value }
         out = base64Run.replace(out) { if (looksLikeSecret(it.value)) SECRET else it.value }
-        out = email.replace(out, EMAIL)
+        out = scrubEmails(out)
         return out
     }
+
+    /** Replaces every address (local part of 1 to 64 characters, at-sign, domain) with a placeholder. Linear in the text. */
+    private fun scrubEmails(text: String): String {
+        val builder = StringBuilder(text.length)
+        var copied = 0
+        var match = emailDomain.find(text)
+        while (match != null) {
+            val atSign = match.range.first
+            var start = atSign
+            val floor = maxOf(copied, atSign - MAX_LOCAL_PART)
+            while (start > floor && isLocalPartChar(text[start - 1])) start--
+            val isAddress = start < atSign
+            if (isAddress) {
+                builder.append(text, copied, start).append(EMAIL)
+                copied = match.range.last + 1
+            }
+            match = emailDomain.find(text, if (isAddress) copied else atSign + 1)
+        }
+        return if (copied == 0) text else builder.append(text, copied, text.length).toString()
+    }
+
+    private fun isLocalPartChar(c: Char): Boolean =
+        c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || c == '.' || c == '_' || c == '%' || c == '+' || c == '-'
 
     /** Real tokens and app passwords mix letters and digits; a long plain word is a file or folder name (kept). */
     private fun hasLetterAndDigit(run: String): Boolean = run.any { it.isDigit() } && run.any { it.isLetter() }
