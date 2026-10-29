@@ -29,6 +29,10 @@
   does not), the offline case, a native crash recorded as a crash, and the scrubber on a 4 MB log.
   The 91 scrubber and reports unit tests prove that passwords, tokens and cookies never leave the
   phone. The phone test of the real Drive is owner tests 29 to 34 (section 4).
+- **NoAgenda (read only) is proven in CI** twice: an `agenda-server` job runs the auth proof, the API contract and the reads of four people
+  against a throwaway Nextcloud 35.0.2 with nc_gantt 2.4.1, Deck 1.19.1, Calendar 6.6.4 and Tasks 0.18.1 (never drive.nourax.org), and an
+  `agenda-device` job runs the screens on canned data in light and dark, the real app against the same server, the side-menu entry and the
+  offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4).
 - **The DAVx5 entry is gone** from Settings > More (CI: the screen sweep finds no DAVx5 or DAVdroid
   text on 78 screens).
 
@@ -72,6 +76,7 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Sign-in opens the browser at drive.nourax.org | CI | pass | Screen sweep: "sign-in opens the browser at drive.nourax.org" in all 5 looks (address bar `drive.nourax.org`) |
 | No screen text names Nextcloud; no Nextcloud blue | CI | pass | Screen sweep: "72/72 screens dumped, 0 hits"; "highest share of #0082C9/#00679E/#006AA3 pixels 0.000%" |
 | Dark mode, a right-to-left language (Arabic) and another language (German), before and after a stand-in sign-in | CI | pass | Screens in `en-light`, `en-dark`, `de-light`, `ar-light`, `ar-dark` (section 3) |
+| NoAgenda: side-menu entry, Day/Week/Month lists, agents, My team, Sources, offline, auth proof | CI | pass | [Run 40899247417](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40899247417) (`60ec54a5ef`): jobs "NoAgenda API checks" (HTTP 200/207 for every call, 412 without the OCS header, contract ok) and "NoAgenda on the emulator" (`AgendaUiIT` 13 in light and dark, `AgendaLiveIT` 4 in light and dark, drawer, offline); 163 NoAgenda unit tests |
 | Account name in system settings, share target, widget, notification channels | CI | pass | Screens 005, 045, 069 (accounts), 007, 044, 053, 068 (share), 009, 071, 072 (widget), 006, 070 (notifications) |
 | No call to any Nextcloud GmbH host | CI | pass | `tools/check-network.py` on the emulator's `network.pcap` (233,255 packets): "PASS - no Nextcloud GmbH host" |
 | Independent sweep (round 3) | CI artifacts, read-only | pass | [branding-sweep.md](branding-sweep.md) |
@@ -269,6 +274,30 @@ the steps that show something new have a dark image.
 | "Problem report sent" after an automatic send (switch on) | [reports-auto-sent-light.png](screenshots/android/reports-auto-sent-light.png) | |
 | Offline: the report is saved on the phone | [reports-offline-light.png](screenshots/android/reports-offline-light.png) | |
 | "Saved in your NoDrive > Problem reports." | [reports-saved-light.png](screenshots/android/reports-saved-light.png) | |
+
+### NoAgenda screens
+
+Thirty-two screens from the NoAgenda emulator job (`AgendaUiIT`, `AgendaLiveIT`, `AgendaDrawerIT`, `AgendaOfflineIT`; `tools/ci/agenda-device.sh`),
+named `agenda-*.png`, in light and dark. The side menu with NoAgenda first: [agenda-menu-light.png](screenshots/android/agenda-menu-light.png);
+offline with the real server's data: [agenda-offline-live-light.png](screenshots/android/agenda-offline-live-light.png).
+
+| Screen | Light | Dark |
+|---|---|---|
+| Day: the three kinds of work, sections, filters | [agenda-day-light.png](screenshots/android/agenda-day-light.png) | [agenda-day-dark.png](screenshots/android/agenda-day-dark.png) |
+| Week | [agenda-week-light.png](screenshots/android/agenda-week-light.png) | [agenda-week-dark.png](screenshots/android/agenda-week-dark.png) |
+| Month: grid for jumping, list below | [agenda-month-light.png](screenshots/android/agenda-month-light.png) | [agenda-month-dark.png](screenshots/android/agenda-month-dark.png) |
+| My team: problems with the person and the agent | [agenda-my-team-light.png](screenshots/android/agenda-my-team-light.png) | [agenda-my-team-dark.png](screenshots/android/agenda-my-team-dark.png) |
+| Sources: every calendar, project and board with its setting | [agenda-sources-light.png](screenshots/android/agenda-sources-light.png) | [agenda-sources-dark.png](screenshots/android/agenda-sources-dark.png) |
+| Sources: no agent list in the person's NoDrive | [agenda-registry-missing-light.png](screenshots/android/agenda-registry-missing-light.png) | [agenda-registry-missing-dark.png](screenshots/android/agenda-registry-missing-dark.png) |
+| "Which of your calendars are personal?" | [agenda-personal-question-light.png](screenshots/android/agenda-personal-question-light.png) | [agenda-personal-question-dark.png](screenshots/android/agenda-personal-question-dark.png) |
+| Detail sheet (only "Open in ...") | [agenda-detail-light.png](screenshots/android/agenda-detail-light.png) | [agenda-detail-dark.png](screenshots/android/agenda-detail-dark.png) |
+| Not linked to a person in NoGantt | [agenda-empty-not-linked-light.png](screenshots/android/agenda-empty-not-linked-light.png) | [agenda-empty-not-linked-dark.png](screenshots/android/agenda-empty-not-linked-dark.png) |
+| Offline: the saved copy with its time | [agenda-offline-light.png](screenshots/android/agenda-offline-light.png) | [agenda-offline-dark.png](screenshots/android/agenda-offline-dark.png) |
+| One source down, the others fresh | [agenda-gantt-down-light.png](screenshots/android/agenda-gantt-down-light.png) | [agenda-gantt-down-dark.png](screenshots/android/agenda-gantt-down-dark.png) |
+| Against the throwaway server: Ali's day | [agenda-live-day-light.png](screenshots/android/agenda-live-day-light.png) | [agenda-live-day-dark.png](screenshots/android/agenda-live-day-dark.png) |
+| Against the throwaway server: the manager's My team | [agenda-live-my-team-light.png](screenshots/android/agenda-live-my-team-light.png) | [agenda-live-my-team-dark.png](screenshots/android/agenda-live-my-team-dark.png) |
+| Against the throwaway server: Sara's invalid agent list | [agenda-live-sources-invalid-registry-light.png](screenshots/android/agenda-live-sources-invalid-registry-light.png) | [agenda-live-sources-invalid-registry-dark.png](screenshots/android/agenda-live-sources-invalid-registry-dark.png) |
+| Against the throwaway server: Olaf (another organisation) | [agenda-live-olaf-light.png](screenshots/android/agenda-live-olaf-light.png) | [agenda-live-olaf-dark.png](screenshots/android/agenda-live-olaf-dark.png) |
 
 ## 4. Owner tests (at home, on the owner's Android phone)
 
