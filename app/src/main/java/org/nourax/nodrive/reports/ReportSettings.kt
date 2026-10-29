@@ -31,12 +31,12 @@ class ReportSettings(private val prefs: SharedPreferences) {
         get() = prefs.getString(KEY_ASKED_FOR, null)
         set(value) = prefs.edit(commit = true) { putString(KEY_ASKED_FOR, value) }
 
-    /** Ids of finished upload runs whose result message was already shown (the newest few). */
-    fun isShown(workId: String): Boolean = prefs.getStringSet(KEY_SHOWN, emptySet()).orEmpty().contains(workId)
+    /** Ids of finished upload runs whose result message was already shown (the newest few, oldest first). */
+    fun isShown(workId: String): Boolean = prefs.getString(KEY_SHOWN, "").orEmpty().split(SEPARATOR).contains(workId)
 
     fun markShown(workId: String) {
-        val kept = prefs.getStringSet(KEY_SHOWN, emptySet()).orEmpty().toList().takeLast(MAX_SHOWN - 1)
-        prefs.edit(commit = true) { putStringSet(KEY_SHOWN, (kept + workId).toSet()) }
+        val ids = pushShown(prefs.getString(KEY_SHOWN, "").orEmpty(), workId, MAX_SHOWN)
+        prefs.edit(commit = true) { putString(KEY_SHOWN, ids) }
     }
 
     companion object {
@@ -44,8 +44,13 @@ class ReportSettings(private val prefs: SharedPreferences) {
         private const val KEY_AUTO_SEND = "autoSend"
         private const val KEY_LAST_EXIT_CHECK = "lastExitCheckMillis"
         private const val KEY_ASKED_FOR = "askedFor"
-        private const val KEY_SHOWN = "shownWork"
+        private const val KEY_SHOWN = "shownWorkIds"
+        private const val SEPARATOR = ","
         private const val MAX_SHOWN = 20
+
+        /** [current] is "id1,id2,..." oldest first. Puts [id] last (once) and keeps the newest [max]. */
+        internal fun pushShown(current: String, id: String, max: Int): String =
+            (current.split(SEPARATOR).filter { it.isNotEmpty() && it != id } + id).takeLast(max).joinToString(SEPARATOR)
 
         fun create(context: Context) =
             ReportSettings(context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE))

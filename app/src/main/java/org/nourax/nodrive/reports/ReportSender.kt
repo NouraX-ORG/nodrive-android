@@ -71,6 +71,11 @@ class ReportSender(private val server: ReportServer) {
             }
             for (zip in zips) {
                 val name = ReportName.firstFree(zip.nameWithoutExtension) { server.kindOf("$FOLDER/$it") != RemoteKind.MISSING }
+                if (name == null) {
+                    // Every name is taken: nothing is overwritten, the report stays on the phone.
+                    kept++
+                    continue
+                }
                 when (server.upload(zip, "$FOLDER/$name")) {
                     UploadStatus.DONE -> {
                         onUploaded(zip)

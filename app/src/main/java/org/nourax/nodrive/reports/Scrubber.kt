@@ -49,7 +49,7 @@ object Scrubber {
 
     // key=value or key: value for words that name a secret.
     private val namedSecret = Regex(
-        "(?<![A-Za-z0-9_])((?:access_|refresh_|id_|api_|client_|app_)?(?:token|passwd|password|secret|apikey|api_key|" +
+        "(?<![A-Za-z0-9_])((?:(?:access|refresh|id|api|client|app|auth)[_-]?)?(?:token|passwd|password|secret|apikey|api_key|" +
             "app_password|pwd))([\"']?\\s*[:=]\\s*[\"']?)(?!<)[^\\s\"',&;<>]+",
         ignoreCase
     )
@@ -64,9 +64,13 @@ object Scrubber {
     // Nextcloud app passwords (xxxxx-xxxxx-xxxxx-xxxxx-xxxxx) and runs of 32 or more letters and digits.
     private val appPassword = Regex("(?<![A-Za-z0-9])[A-Za-z0-9]{5}(?:-[A-Za-z0-9]{5}){4}(?![A-Za-z0-9])")
     private val longRun = Regex("(?<![A-Za-z0-9])[A-Za-z0-9]{32,}(?![A-Za-z0-9])")
+
+    // A JWT without a "Bearer" label: three base64url parts, the first one starting with {" (eyJ).
+    private val jwt = Regex("(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+")
     private val base64Run = Regex("(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{64,}={0,2}(?![A-Za-z0-9+/=])")
 
-    private val email = Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}")
+    // The at-sign is "@" or "%40": upstream logs avatar URIs with the user id URL-encoded (Uri.encode("alice@example.com")).
+    private val email = Regex("[A-Za-z0-9._%+-]+(?:@|%40)[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", ignoreCase)
 
     fun scrub(text: String): String {
         if (text.isEmpty()) return text
@@ -83,11 +87,15 @@ object Scrubber {
         out = namedSecret.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
         out = e2eField.replace(out) { "${it.groupValues[1]}$SECRET" }
         out = appPassword.replace(out, SECRET)
-        out = longRun.replace(out, SECRET)
+        out = jwt.replace(out, SECRET)
+        out = longRun.replace(out) { if (hasLetterAndDigit(it.value)) SECRET else it.value }
         out = base64Run.replace(out) { if (looksLikeSecret(it.value)) SECRET else it.value }
         out = email.replace(out, EMAIL)
         return out
     }
+
+    /** Real tokens and app passwords mix letters and digits; a long plain word is a file or folder name (kept). */
+    private fun hasLetterAndDigit(run: String): Boolean = run.any { it.isDigit() } && run.any { it.isLetter() }
 
     /** A 64+ character base64 run is a path (kept) unless it has '+', '=' or a mix of digits and both letter cases. */
     private fun looksLikeSecret(run: String): Boolean {
@@ -95,7 +103,4 @@ object Scrubber {
         val mixed = run.any { it.isDigit() } && run.any { it.isUpperCase() } && run.any { it.isLowerCase() }
         return mixed && run.count { it == '/' } <= MAX_SLASHES_IN_SECRET
     }
-
-    /** Scrubs a text line by line, keeping the line breaks, for log files that are read as lines. */
-    fun scrubLines(lines: List<String>): List<String> = scrub(lines.joinToString("\n")).split("\n")
 }

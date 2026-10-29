@@ -14,11 +14,9 @@ import android.preference.PreferenceActivity
 import android.preference.PreferenceCategory
 import android.preference.PreferenceScreen
 import android.preference.SwitchPreference
-import com.nextcloud.client.account.User
 import com.owncloud.android.R
 import com.owncloud.android.lib.common.utils.Log_OC
 import com.owncloud.android.ui.ThemeableSwitchPreference
-import com.owncloud.android.utils.theme.ViewThemeUtils
 
 /**
  * The two rows of the problem reports at the end of Settings > More: the switch "Send problem reports to Nourax" and the
@@ -34,8 +32,8 @@ object ReportsSettingsSection {
 
     /** Never throws: Settings must open even if these rows cannot be built. */
     @JvmStatic
-    @Suppress("TooGenericExceptionCaught", "UNUSED_PARAMETER")
-    fun install(activity: PreferenceActivity, screen: PreferenceScreen, user: User?, viewThemeUtils: ViewThemeUtils) {
+    @Suppress("TooGenericExceptionCaught")
+    fun install(activity: PreferenceActivity, screen: PreferenceScreen) {
         try {
             build(activity, screen)
         } catch (e: RuntimeException) {

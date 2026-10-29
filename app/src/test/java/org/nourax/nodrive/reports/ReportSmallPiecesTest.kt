@@ -40,6 +40,44 @@ class ReportSmallPiecesTest {
         assertEquals("r.zip", ReportName.firstFree("r") { false })
     }
 
+    @Test
+    fun whenAllNinetyNineNamesAreTakenThereIsNoName() {
+        assertEquals("r_99.zip", ReportName.firstFree("r") { it != "r_99.zip" })
+        assertNull(ReportName.firstFree("r") { true })
+    }
+
+    // ---- UploadStamps
+
+    @Test
+    fun bothUploadTimesAreUnixSeconds() {
+        // 2026-10-28 13:05:09.987 UTC
+        val stamps = UploadStamps.at(1_793_192_709_987L)
+        assertEquals(1_793_192_709L, stamps.modifiedSeconds)
+        assertEquals(1_793_192_709L, stamps.createdSeconds)
+    }
+
+    // ---- FlushGate
+
+    @Test
+    fun theOutboxFlushIsUsedUpOnlyWhileSignedIn() {
+        val gate = FlushGate()
+        assertFalse("not signed in: not used up", gate.take(signedIn = false))
+        assertFalse(gate.take(signedIn = false))
+        assertTrue("first screen after the sign-in", gate.take(signedIn = true))
+        assertFalse("once per process", gate.take(signedIn = true))
+    }
+
+    // ---- shown ids
+
+    @Test
+    fun theShownIdsKeepTheNewestInOrder() {
+        var ids = ""
+        (1..25).forEach { ids = ReportSettings.pushShown(ids, "id$it", 20) }
+        val list = ids.split(',')
+        assertEquals((6..25).map { "id$it" }, list)
+        assertEquals("a repeated id moves to the end", (7..25).map { "id$it" } + "id6", ReportSettings.pushShown(ids, "id6", 20).split(','))
+    }
+
     // ---- Outbox
 
     @Test

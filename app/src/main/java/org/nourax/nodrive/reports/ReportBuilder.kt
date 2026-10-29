@@ -35,6 +35,7 @@ class ReportBuilder(private val files: ReportFiles) {
         val bytes = ReportZip.assemble(json, crash, lines)
         val base = ReportName.base(input.createdMillis, input.appVersion)
         val name = ReportName.firstFree(base) { File(files.outbox, it).exists() }
+            ?: throw IOException("no free report name in the outbox")
         val part = File(files.work, "$name.part")
         part.writeBytes(bytes)
         val target = File(files.outbox, name)

@@ -20,6 +20,18 @@ import com.owncloud.android.utils.MimeType
 import java.io.File
 
 /**
+ * The two times of an upload (X-OC-MTime and X-OC-CTime) are Unix SECONDS, like the ones upstream sends. Both are the moment
+ * the report is sent.
+ */
+data class UploadStamps(val modifiedSeconds: Long, val createdSeconds: Long) {
+    companion object {
+        private const val MILLIS_PER_SECOND = 1000L
+
+        fun at(nowMillis: Long): UploadStamps = (nowMillis / MILLIS_PER_SECOND).let { UploadStamps(it, it) }
+    }
+}
+
+/**
  * [ReportServer] on the client of the signed-in account: its own server and its own session, nothing else. No host name
  * appears here; the client already knows the account's server.
  */
@@ -40,9 +52,16 @@ class WebDavReportServer(private val client: OwnCloudClient) : ReportServer {
 
     @Suppress("DEPRECATION")
     override fun upload(local: File, remote: String): UploadStatus {
-        val now = System.currentTimeMillis()
-        val result = UploadFileRemoteOperation(local.absolutePath, remote, MIME_ZIP, "", now / MILLIS_PER_SECOND, now, true)
-            .execute(client)
+        val stamps = UploadStamps.at(System.currentTimeMillis())
+        val result = UploadFileRemoteOperation(
+            local.absolutePath,
+            remote,
+            MIME_ZIP,
+            "",
+            stamps.modifiedSeconds,
+            stamps.createdSeconds,
+            true
+        ).execute(client)
         return when {
             result.isSuccess -> UploadStatus.DONE
             result.httpCode in HTTP_CLIENT_ERROR_RANGE || result.httpCode == HTTP_INSUFFICIENT_STORAGE -> UploadStatus.KEEP
@@ -74,7 +93,6 @@ class WebDavReportServer(private val client: OwnCloudClient) : ReportServer {
         const val MIME_ZIP = "application/zip"
         const val HTTP_NOT_FOUND = 404
         const val HTTP_INSUFFICIENT_STORAGE = 507
-        const val MILLIS_PER_SECOND = 1000L
         val HTTP_CLIENT_ERROR_RANGE = 400..499
     }
 }

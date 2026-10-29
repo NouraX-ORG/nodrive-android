@@ -433,7 +433,7 @@ REPORTS_START_BLOCK = f"""        {BEGIN}
 REPORTS_SETTINGS_FILE = f"{MAIN}/java/com/owncloud/android/ui/activity/SettingsActivity.java"
 REPORTS_SETTINGS_ANCHOR = "        // About\n        setupAboutCategory(appVersion);\n"
 REPORTS_SETTINGS_BLOCK = f"""        {BEGIN}
-        {REPORTS_PKG}.ReportsSettingsSection.install(this, preferenceScreen, user, viewThemeUtils);
+        {REPORTS_PKG}.ReportsSettingsSection.install(this, preferenceScreen);
         {END}
 
 """

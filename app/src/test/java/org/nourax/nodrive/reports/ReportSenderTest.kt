@@ -102,6 +102,22 @@ class ReportSenderTest {
     }
 
     @Test
+    fun whenEveryNameIsTakenTheReportIsKeptAndNothingIsOverwritten() {
+        val server = FakeServer().apply {
+            folders += "/Problem reports"
+            files["/Problem reports/a.zip"] = "OLD"
+            (2..99).forEach { files["/Problem reports/a_$it.zip"] = "OLD$it" }
+        }
+        val before = server.files.toMap()
+        val run = send(server, zip("a.zip", "NEW"))
+        assertEquals(0, run.sent)
+        assertEquals(1, run.kept)
+        assertFalse(run.retry)
+        assertEquals("nothing was written", before, server.files)
+        assertTrue("the zip stays on the phone", deleted.isEmpty())
+    }
+
+    @Test
     fun aFileCalledProblemReportsKeepsEveryReport() {
         val server = FakeServer().apply { files["/Problem reports"] = "i am a file" }
         val run = send(server, zip("a.zip"), zip("b.zip"))

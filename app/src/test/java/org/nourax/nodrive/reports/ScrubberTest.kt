@@ -129,6 +129,42 @@ class ScrubberTest {
         ).joinToString("\n")
         val once = Scrubber.scrub(all)
         assertEquals(once, Scrubber.scrub(once))
-        assertEquals(listOf("a", "b"), Scrubber.scrubLines(listOf("a", "b")))
+    }
+
+    @Test
+    fun urlEncodedEmailAddressesBecomePlaceholders() {
+        // Upstream logs the avatar URI with the user id URL-encoded (ThumbnailsCacheManager: Log_OC.d("Avatar", "URI: " + uri)).
+        val line = "D/Avatar: URI: https://drive.example.test/index.php/avatar/alice%40example.com/128"
+        val out = Scrubber.scrub(line)
+        assertFalse("alice survived: $out", out.contains("alice"))
+        assertTrue(out.contains("<email>"))
+        assertEquals(out, Scrubber.scrub(out))
+        assertEquals("user:<email>", Scrubber.scrub("user:alice%40example.com"))
+        assertEquals("user:<email>", Scrubber.scrub("user:alice%40Example.COM"))
+    }
+
+    @Test
+    fun longNamesWithoutDigitsAreKeptButMixedRunsGo() {
+        val folder = "/Documents/QuarterlyFinanceReportsAndInvoicesCollection/return.pdf"
+        assertEquals(folder, Scrubber.scrub(folder))
+        gone("Quarter1FinanceReportsAndInvoicesCollect2", "token is Quarter1FinanceReportsAndInvoicesCollect2 now")
+    }
+
+    @Test
+    fun camelCaseSecretNamesAreRemoved() {
+        gone("ya29.a0AfH6SMBxQ", """{"accessToken":"ya29.a0AfH6SMBxQ","user":"anna"}""")
+        gone("short1", """{"appPassword":"short1"}""")
+        gone("rt-2", "refreshToken=rt-2")
+        gone("auth9", "authToken: auth9")
+        gone("auth8", "auth_token: auth8")
+        assertTrue(Scrubber.scrub("""{"accessToken":"ya29.a0AfH6SMBxQ","user":"anna"}""").contains("\"user\":\"anna\""))
+    }
+
+    @Test
+    fun aJwtWithoutALabelIsRemovedWhole() {
+        val jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.abc_adQssw5c-DEF"
+        val out = Scrubber.scrub("session $jwt end")
+        assertEquals("session <removed> end", out)
+        assertEquals(out, Scrubber.scrub(out))
     }
 }

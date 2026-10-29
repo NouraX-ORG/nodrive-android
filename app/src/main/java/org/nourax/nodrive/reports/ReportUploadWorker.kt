@@ -19,6 +19,7 @@ import com.nextcloud.client.account.UserAccountManagerImpl
 import com.owncloud.android.lib.common.OwnCloudAccount
 import com.owncloud.android.lib.common.OwnCloudClientManagerFactory
 import com.owncloud.android.lib.common.utils.Log_OC
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -40,6 +41,8 @@ class ReportUploadWorker(context: Context, params: WorkerParameters) : Coroutine
             val client = OwnCloudClientManagerFactory.getDefaultSingleton()
                 .getClientFor(OwnCloudAccount(user.toPlatformAccount(), context), context)
             ReportSender(WebDavReportServer(client)).sendAll(zips) { files.deleteOwn(it) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log_OC.w(TAG, "reports not sent: ${e.javaClass.simpleName}")
             SendRun(0, 0, retry = true, sharedWithSupport = false)

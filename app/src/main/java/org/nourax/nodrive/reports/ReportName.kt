@@ -27,12 +27,15 @@ object ReportName {
 
     fun fileName(base: String, number: Int): String = if (number <= 1) "$base.zip" else "${base}_$number.zip"
 
-    /** The first of base.zip, base_2.zip, ... that [taken] does not report as taken. */
-    fun firstFree(base: String, taken: (String) -> Boolean): String {
+    /**
+     * The first of base.zip, base_2.zip, ... base_99.zip that [taken] does not report as taken, or null when all of them are
+     * taken: a name is never reused, so the caller keeps the report.
+     */
+    fun firstFree(base: String, taken: (String) -> Boolean): String? {
         for (number in 1..MAX_SUFFIX) {
             val name = fileName(base, number)
             if (!taken(name)) return name
         }
-        return fileName(base, MAX_SUFFIX + 1)
+        return null
     }
 }

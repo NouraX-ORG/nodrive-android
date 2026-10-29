@@ -13,9 +13,12 @@
 #                      NoDrive > Problem reports." (no nourax-support user yet), the script creates that user, the second
 #                      report is sent, the third makes no new share request, and with the switch on a crash report arrives
 #                      without a question. Needs NODRIVE_WS_URL, NODRIVE_WS_USER and NODRIVE_RP_TOKEN (masked in the log).
-# Then the server's own data folder is checked (tools/ci/reports-server-check.py). A native crash (kill -SEGV) is tried once and
-# only reported: the emulator may record it as a plain signal, which the app ignores on purpose (unit-tested through
-# ExitClassifier). Pulls reports-*.png to build/device/screens/reports/ and fails when one of the expected ones is missing.
+#   ReportsOfflineIT  mobile data is turned off by this script: "Report a problem" must say that the report is saved on the
+#                      phone and enable Send again, the report stays in the outbox and the run stays queued. Data is then
+#                      turned on again (the next scripts need the network).
+# Then the server's own data folder is checked (tools/ci/reports-server-check.py). A native crash (kill -SEGV) is binding: the
+# next start must write an exit-*.txt with "Reason: CRASH_NATIVE" (seen on the CI emulator, API 35, run 40795318521).
+# Pulls reports-*.png to build/device/screens/reports/ and fails when one of the expected ones is missing.
 set -uo pipefail
 
 ADB="${ADB:-$ANDROID_HOME/platform-tools/adb}"
@@ -26,6 +29,7 @@ TEST_APK=app/build/outputs/apk/androidTest/nodrive/debug/app-nodrive-debug-andro
 SETTINGS=org.nourax.nodrive.reports.ReportsSettingsIT
 PROMPT=org.nourax.nodrive.reports.ReportsPromptIT
 UPLOAD=org.nourax.nodrive.reports.ReportsUploadIT
+OFFLINE=org.nourax.nodrive.reports.ReportsOfflineIT
 MAIN_ACTIVITY="$PKG/com.owncloud.android.ui.activity.FileDisplayActivity"
 SERVER=nodrive-ci-server
 DATA="/var/www/html/data/${NODRIVE_WS_USER:-citest}/files/Problem reports"
@@ -41,6 +45,9 @@ RUNNER=$("$ADB" shell pm list instrumentation | tr -d '\r' \
 [ -n "$RUNNER" ] || { echo "reports: no instrumentation for $PKG"; exit 1; }
 
 night() { "$ADB" shell cmd uimode night "$1" > /dev/null 2>&1 || true; }
+
+# The system has a default network ("Active default network: <id>" in dumpsys connectivity; "none" without one).
+has_network() { "$ADB" shell dumpsys connectivity 2> /dev/null | tr -d '\r' | grep -Eq '^Active default network: [0-9]+'; }
 
 run_it() { # $1 = look (light|dark), $2 = class or class#method list, $3 = log name, $4 = expected number of tests
     local log="$OUT/reports-it-$3-$1.log"
@@ -82,7 +89,7 @@ for look in light dark; do
     if [ "$look" = light ]; then night no; else night yes; fi
     run_it "$look" "$PROMPT#a1PrepareAnOfflineAccountWithTheSwitchOff" prompt-prepare 1
     if [ "$look" = light ]; then
-        # One try at a native crash, only reported (see the header).
+        # A native crash (binding, see the header): the system records it, the next start writes the exit file.
         "$ADB" shell am start -W -n "$MAIN_ACTIVITY" > /dev/null 2>&1
         sleep 10
         pid=$("$ADB" shell pidof "$PKG" | tr -d '\r' | awk '{print $1}')
@@ -90,13 +97,22 @@ for look in light dark; do
             "$ADB" shell run-as "$PKG" kill -SEGV "$pid" > /dev/null 2>&1
             sleep 8
             "$ADB" shell dumpsys activity exit-info "$PKG" 2> /dev/null | tr -d '\r' | head -n 40 > "$OUT/reports-native-probe.txt"
-            echo "reports: native crash probe (informational): $(grep -m 2 -i 'reason=' "$OUT/reports-native-probe.txt" | tr -s ' ' | tr '\n' ';')"
+            echo "reports: native crash probe: $(grep -m 2 -i 'reason=' "$OUT/reports-native-probe.txt" | tr -s ' ' | tr '\n' ';')"
         else
-            echo "reports: native crash probe: the app has no process (informational)"
+            echo "reports: FAIL native crash probe: the app has no process"; status=1
         fi
         "$ADB" shell am force-stop "$PKG" > /dev/null 2>&1
     fi
     crash_the_app
+    if [ "$look" = light ]; then
+        exit_file=$(pending_files | grep -m 1 '^exit-')
+        if [ -n "$exit_file" ] && "$ADB" shell run-as "$PKG" cat "files/nodrive-reports/pending/$exit_file" | tr -d '\r' \
+            | grep -q '^Reason: CRASH_NATIVE'; then
+            echo "reports: native crash recorded as CRASH_NATIVE ($exit_file)"
+        else
+            echo "reports: FAIL no exit file with Reason: CRASH_NATIVE after kill -SEGV (pending: $(pending_files | tr '\n' ' '))"; status=1
+        fi
+    fi
     run_it "$look" "$PROMPT#a2AfterTheCrashTheUserIsAskedOnceAndNotNowSendsNothing" prompt-question 1
     run_it "$look" "$PROMPT#a3CleanUp" prompt-clean 1
 done
@@ -131,6 +147,28 @@ else
     status=1
 fi
 
+# ---- 4. without a network (the throwaway server is not needed: the account is a local one)
+night no
+"$ADB" shell svc data disable > /dev/null 2>&1
+offline=""
+for _ in $(seq 1 30); do
+    if ! has_network; then offline=1; break; fi
+    sleep 2
+done
+if [ -n "$offline" ]; then
+    run_it light "$OFFLINE#c1WithoutANetworkTheScreenSaysTheReportIsSavedOnThePhone" offline-c1 1
+else
+    echo "reports: FAIL the emulator stayed online after svc data disable"; status=1
+fi
+"$ADB" shell svc data enable > /dev/null 2>&1
+online=""
+for _ in $(seq 1 60); do
+    if has_network; then online=1; break; fi
+    sleep 2
+done
+[ -n "$online" ] && echo "reports: network is back" || { echo "reports: FAIL the network did not come back"; status=1; }
+run_it light "$OFFLINE#c2CleanUp" offline-c2 1
+
 for f in $("$ADB" shell ls "/sdcard/Android/data/$PKG/files/" 2> /dev/null | tr -d '\r' | grep '^reports-.*\.png$'); do
     "$ADB" pull "/sdcard/Android/data/$PKG/files/$f" "$SHOTS/$f" > /dev/null
 done
@@ -140,7 +178,7 @@ for name in settings report included crash-prompt; do
         if [ -s "$SHOTS/$f" ]; then echo "reports screenshot: $f"; else echo "reports screenshot MISSING: $f"; status=1; fi
     done
 done
-for name in saved sent auto-sent; do
+for name in saved sent auto-sent offline; do
     f="reports-$name-light.png"
     if [ -s "$SHOTS/$f" ]; then echo "reports screenshot: $f"; else echo "reports screenshot MISSING: $f"; status=1; fi
 done

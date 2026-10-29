@@ -78,3 +78,13 @@ class ReportFlow(
         val LOCK = Any()
     }
 }
+
+/**
+ * "The outbox is sent at the first main screen of a process": the turn is used up only when an account is signed in, so a
+ * report made before a sign-in in the same process still goes out at the next main screen.
+ */
+class FlushGate {
+    private val used = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    fun take(signedIn: Boolean): Boolean = signedIn && used.compareAndSet(false, true)
+}

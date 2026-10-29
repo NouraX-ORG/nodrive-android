@@ -26,7 +26,6 @@ import org.nourax.nodrive.backup.BackupState
 import org.nourax.nodrive.backup.OfferState
 import java.util.Collections
 import java.util.WeakHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -36,7 +35,7 @@ import kotlin.concurrent.thread
  */
 object ProblemReports {
     private const val TAG = "ProblemReports"
-    private val flushedThisProcess = AtomicBoolean(false)
+    private val flushGate = FlushGate()
     private val observing: MutableSet<Activity> = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap<Activity, Boolean>()))
 
     fun enabled(context: Context): Boolean = context.applicationContext.resources.getBoolean(R.bool.nodrive_reports)
@@ -56,7 +55,9 @@ object ProblemReports {
                     files.ensure()
                     ExitCheck.run(app, ReportSettings.create(app), files)
                     flow(app).atStart()
-                } catch (e: RuntimeException) {
+                } catch (e: Throwable) {
+                    // Also an Error (for example OutOfMemoryError while scrubbing): it must not reach CrashRecorder, or the
+                    // same report would be made again at every start.
                     Log_OC.w(TAG, "start work failed: ${e.javaClass.simpleName}")
                 }
             }
@@ -79,13 +80,14 @@ object ProblemReports {
             if (!enabled(activity)) return
             observeResults(activity)
             val app = activity.applicationContext
-            val flush = flushedThisProcess.compareAndSet(false, true)
+            // The turn is used up only when an account is signed in (see FlushGate).
+            val flush = flushGate.take(isSignedIn(app))
             val mayAsk = canAsk(activity, user)
             thread(name = "nodrive-reports-main") {
                 try {
                     val question = flow(app).atMainScreen(flush, mayAsk)
                     if (question != null) activity.runOnUiThread { askToSend(activity) }
-                } catch (e: RuntimeException) {
+                } catch (e: Throwable) {
                     Log_OC.w(TAG, "main screen work failed: ${e.javaClass.simpleName}")
                 }
             }
