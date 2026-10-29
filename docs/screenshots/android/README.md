@@ -66,6 +66,23 @@ Taken by `ConflictsSettingsIT` and `ConflictsUploadIT` in run [40770024863](http
 | `conflicts-resolve-all-light.png`, `conflicts-resolve-all-dark.png` | The Resolve all conflicts dialog with its four choices |
 | `conflicts-notification-light.png`, `conflicts-notification-dark.png` | The one summary notification "3 files are already in NoDrive" with the "Resolve all" action |
 
+## Problem reports screens
+
+Taken by `ReportsSettingsIT`, `ReportsPromptIT`, `ReportsUploadIT`, `ReportsOfflineIT` and the device steps of `tools/ci/reports-device.sh` in run
+[40852100863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40852100863) (branch `feature/problem-reports`, `ab584fc70e`), on the emulator,
+against the throwaway server. Light, and dark where the step has one.
+
+| File | What it shows |
+|---|---|
+| `reports-settings-light.png`, `reports-settings-dark.png` | Settings > More: the switch (off) and "Report a problem" |
+| `reports-report-light.png`, `reports-report-dark.png` | The Report a problem screen |
+| `reports-included-light.png`, `reports-included-dark.png` | "What's included" |
+| `reports-crash-prompt-light.png`, `reports-crash-prompt-dark.png` | "NoDrive closed unexpectedly. Send a problem report?" |
+| `reports-sent-light.png` | "Problem report sent" after Send |
+| `reports-auto-sent-light.png` | "Problem report sent" after an automatic send |
+| `reports-offline-light.png` | Offline: the report is saved on the phone |
+| `reports-saved-light.png` | "Saved in your NoDrive > Problem reports." |
+
 ## Checks
 
 | Check | Result | Evidence |

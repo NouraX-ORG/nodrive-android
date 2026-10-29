@@ -23,3 +23,4 @@
   are unrolled loops (no stack overflow on a 200 KB value). A URL user-info part never spans a JSON quote.
 - If a second Send (or an automatic crash run) is queued while the first run is waiting, the first run sends every zip in the
   outbox; the run watched by the screen then finds it empty, and the screen says "Saved in your NoDrive > Problem reports."
+- Known limits of the quoted passes (review nits N1 and N4): on Android a quoted value stops matching only after about 77,000 escape pairs in a row (a 154 KB run of escapes); a raw `"` inside a URL password keeps the part before it (OkHttp writes `%22`, which is removed fully).

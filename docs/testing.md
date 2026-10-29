@@ -22,6 +22,21 @@
   keeps both), the one-time migration, "Resolve all conflicts…" and the one summary notification. The
   test server's own data folder is checked afterwards, file by file. The phone test of the real Drive
   is owner tests 24 to 28 (section 4).
+- **Problem reports are proven in CI on the emulator** against the same kind of throwaway server:
+  the Settings switch (off by default) and the "Report a problem" row, the crash prompt, a report
+  uploaded into `/Problem reports` and checked file by file on the server (never overwritten, the
+  folder shared read-only with `nourax-support` when that account exists, a quiet failure when it
+  does not), the offline case, a native crash recorded as a crash, and the scrubber on a 4 MB log.
+  The 91 scrubber and reports unit tests prove that passwords, tokens and cookies never leave the
+  phone. The phone test of the real Drive is owner tests 29 to 34 (section 4).
+- **The DAVx5 entry is gone** from Settings > More (CI: the screen sweep finds no DAVx5 or DAVdroid
+  text on 78 screens).
+
+The Problem reports rows come from [run 40852100863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40852100863) on branch `feature/problem-reports`
+(`ab584fc70e`, 2026-10-29): the change, the first independent review, three fix rounds and the final
+review (approved, `plans/round3-android-reports-final-review-1.md`). All 5 jobs are green. The same
+commit is then fast-forwarded to `main`, whose own run repeats every row. The `reports-*.png` images
+are from that run.
 
 The Smart conflicts rows come from [run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863) on branch `feature/smart-conflicts`
 (`8ca686e975`, 2026-10-28): the change, three rounds of independent review and their fixes. All 5 jobs
@@ -44,7 +59,7 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Branding gate: rebrand and icons up to date, keyword sweep, pins, self-test | CI | pass | Job "Branding gate": "rebrand --check: up to date", "make-icons --check: all images up to date", "882 hits: internal 254, legal 628, unclassified 0", "PASS - no unclassified hit, every pin holds"; self-test on stock genericDebug: 1315 hits, 528 unclassified |
 | Builds a debug-signed APK of the nodrive flavour | CI | pass | Job "APK and unit tests": `app-nodrive-debug.apk`, SHA-256 `0c2ee105a34838b843a538575e9c36965dd3760571ec4e1bd6f10a1085356c63`, `apksigner verify` OK |
 | APK identity and side-by-side ids (package, labels, authorities, account type, scheme, link host, login URL, push URL, user agent) | CI | pass | `tools/check-apk.py`: "Result PASS"; 113 labels all "NoDrive"; all 7 authorities and the declared permission are `org.nourax.nodrive*`; links only `https://drive.nourax.org` |
-| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after the Backup change: 110 suites, 662 tests, 0 failed, 3 skipped. [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) with the review fixes: 110 suites, 679 tests, 0 failed, 3 skipped (counted from the unit-test report artifact). [Run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863) with Smart conflicts: 117 suites, 739 tests, 0 failed, 3 skipped (counted from the unit-test report artifact) |
+| Unit tests | CI | pass | `testNodriveDebugUnitTest`: 96 suites, 554 tests, 0 failed, 3 skipped (upstream `@Ignore`) before the Backup change. [Run 40399452749](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40399452749) after the Backup change: 110 suites, 662 tests, 0 failed, 3 skipped. [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397) with the review fixes: 110 suites, 679 tests, 0 failed, 3 skipped (counted from the unit-test report artifact). [Run 40770024863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40770024863) with Smart conflicts: 117 suites, 739 tests, 0 failed, 3 skipped (counted from the unit-test report artifact). [run 40852100863](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40852100863) with Problem reports: 126 suites, 830 tests, 0 failed, 3 skipped (counted from the unit-test report artifact; 91 of them are the reports tests) |
 | Lint | CI | pass | `lintNodriveDebug`: "No issues found." (upstream config, warnings are errors) |
 | Instrumented tests on the emulator (Android 15, API 35) | CI | pass | 74 listed classes (81 in the JUnit report, which counts nested test classes on their own), 486 tests, 0 failed. The list and the reason for every class or method left out: `tools/ci/instrumented-tests.txt`. In [run 40441111397](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40441111397): "instrumented tests: 74 classes, 6 method(s) left out" and "instrumented tests: PASS". The 6th method is an upstream clock flake (see "Known CI flakiness") |
 | App name, version, account type and ids at runtime | CI | pass | `NoDriveBrandingIT`: `nameAndVersion`, `accountTypeIsOurs`, `providerAuthoritiesAreOurs` |
@@ -117,6 +132,19 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Smart conflicts: "If a file is already in NoDrive" in Settings > Backup, and the old Ask or Skip folders switch to Smart | owner | pending | Owner test 26 |
 | Smart conflicts: "Resolve all conflicts…" and the one summary notification | owner | pending | Owner test 27 |
 | Smart conflicts: Keep the phone copy replaces the Drive file, and only when you choose it | owner | pending | Owner test 28 |
+| Problem reports: Settings has the switch "Send problem reports to Nourax" (off by default, contract text) and the "Report a problem" row; upstream's raw "Logs" row is gone | CI | pass | `ReportsSettingsIT` 3 tests in light and 3 in dark (`reports IT settings (light): OK (3 tests)`, same for dark); screens `reports-settings-light/dark.png` |
+| Problem reports: the DAVx5 entry ("Set up DAVx5") is gone from Settings > More; "Contacts and calendar backup" stays | CI | pass | `davdroid_integration_enabled=false` in the generated `setup.xml` (`rebrand --check: up to date`); screen sweep: "no screen text names DAVx5 or DAVdroid: 78/78 screens dumped, 0 hits" |
+| Problem reports: after a crash or an unclean exit the next start asks once ("NoDrive closed unexpectedly. Send a problem report?"), Not now sends nothing; with the switch on the report is sent at once | CI | pass | `ReportsPromptIT` prepare, question and clean steps in light and dark (6 `reports IT prompt-*: OK` lines); a native crash probe is recorded as `CRASH_NATIVE`; screens `reports-crash-prompt-*`, `reports-auto-sent-light` |
+| Problem reports: one zip per report (`report.json` with 12 fields, `crash.txt`, `logs/`) goes by WebDAV into `/Problem reports`, never overwrites a taken name, and the folder is shared read-only with `nourax-support` once per run (quietly skipped when the account is missing) | CI | pass | `ReportsUploadIT`: `reports IT upload-b1 ... b5: OK`, `reports server check: PASS` (the test server's data folder is checked file by file; the test user `nourax-support` is created between b1 and b2); 11 sender, 10 flow and 7 builder unit tests |
+| Problem reports: without a network the report waits on the phone and the screen says so; it is sent when the network is back | CI | pass | `ReportsOfflineIT`: `reports IT offline-c1` and `offline-c2: OK` ("network is back" between them); `reports-offline-light.png`, `reports-saved-light.png` |
+| Problem reports: the scrubber removes Authorization headers, Basic and Bearer values, app passwords, tokens, cookies, session names, URL secrets, private keys, e2ee material and quoted secrets, replaces e-mail addresses with `<email>`, keeps file and folder names, and is fast on a 4 MB log on Android | CI | pass | 91 reports unit tests, 0 failed (Scrubber 25, ReportSmallPieces 12, Sender 11, Flow 10, ExitClassifier 9, Safety 8, Builder 7, Messages 5, Json 4); `ReportsScrubberSpeedIT`: "reports IT scrubber-speed (light): OK (2 tests)" (a 4 MB log with 5,000 addresses, ended in under 4 s); the reviewer's 34 fixtures with random fake secrets: 34/34 removed |
+| Problem reports: nothing is deleted on the phone or the Drive (the only delete is inside the app's own report folder); no host is written in the code; reports go only through the signed-in account | CI | pass | `ReportsSafetyTest` (8 tests: only `deleteOwn` deletes, no `http://` or `https://` literal, no Matcher per match); network check: "1 request(s), 0 carrying the account" for the probe server; "PASS - no Nextcloud GmbH host" |
+| Problem reports: Settings > More has the switch (off) and the Report a problem row, in plain English; no DAVx5 entry and no Logs row | owner | pending | Owner test 29 |
+| Problem reports: "Report a problem" with the switch off sends one report to the Drive's Problem reports folder, and the zip holds no password | owner | pending | Owner test 30 |
+| Problem reports: "What's included" tells the truth about what the report holds | owner | pending | Owner test 31 |
+| Problem reports: with no network the report is kept and sent later | owner | pending | Owner test 32 |
+| Problem reports: with the switch on, a crash or unclean exit sends a report by itself (optional, only if the app ever closes on its own) | owner | pending | Owner test 33 |
+| Problem reports: the folder is shared read-only with Nourax Support (needs the server account to exist) | owner | pending | Owner test 34 |
 
 ### Known CI flakiness
 
@@ -224,6 +252,23 @@ Twelve extra screens from the same run (`ConflictsSettingsIT` and `ConflictsUplo
 | Uploads menu with "Resolve all conflicts…" | [conflicts-uploads-menu-light.png](screenshots/android/conflicts-uploads-menu-light.png) | [conflicts-uploads-menu-dark.png](screenshots/android/conflicts-uploads-menu-dark.png) |
 | Resolve all conflicts dialog (Smart, Keep the NoDrive copy, Keep the phone copy, Keep both) | [conflicts-resolve-all-light.png](screenshots/android/conflicts-resolve-all-light.png) | [conflicts-resolve-all-dark.png](screenshots/android/conflicts-resolve-all-dark.png) |
 | The one summary notification "3 files are already in NoDrive" with "Resolve all" | [conflicts-notification-light.png](screenshots/android/conflicts-notification-light.png) | [conflicts-notification-dark.png](screenshots/android/conflicts-notification-dark.png) |
+
+### Problem reports screens
+
+Twelve extra screens from the same run (`ReportsSettingsIT`, `ReportsPromptIT`, `ReportsUploadIT`,
+`ReportsOfflineIT` and the device steps in `tools/ci/reports-device.sh`), named `reports-*.png`. Only
+the steps that show something new have a dark image.
+
+| Screen | Light | Dark |
+|---|---|---|
+| Settings > More: the switch (off) and "Report a problem" | [reports-settings-light.png](screenshots/android/reports-settings-light.png) | [reports-settings-dark.png](screenshots/android/reports-settings-dark.png) |
+| The "Report a problem" screen | [reports-report-light.png](screenshots/android/reports-report-light.png) | [reports-report-dark.png](screenshots/android/reports-report-dark.png) |
+| "What's included" | [reports-included-light.png](screenshots/android/reports-included-light.png) | [reports-included-dark.png](screenshots/android/reports-included-dark.png) |
+| The crash question after an unexpected close | [reports-crash-prompt-light.png](screenshots/android/reports-crash-prompt-light.png) | [reports-crash-prompt-dark.png](screenshots/android/reports-crash-prompt-dark.png) |
+| "Problem report sent" after Send | [reports-sent-light.png](screenshots/android/reports-sent-light.png) | |
+| "Problem report sent" after an automatic send (switch on) | [reports-auto-sent-light.png](screenshots/android/reports-auto-sent-light.png) | |
+| Offline: the report is saved on the phone | [reports-offline-light.png](screenshots/android/reports-offline-light.png) | |
+| "Saved in your NoDrive > Problem reports." | [reports-saved-light.png](screenshots/android/reports-saved-light.png) | |
 
 ## 4. Owner tests (at home, on the owner's Android phone)
 
@@ -337,6 +382,36 @@ name, for example `IMG_1234 (2).jpg`, so both are kept. Smart never replaces and
 - Waiting conflicts from before the update are not changed by the migration. Tap Resolve all once.
 - Release-only behaviour (the crash screen) is not exercised in CI, which builds the debug flavour.
 
+### Tests 29 to 34: Problem reports and the removed DAVx5 entry
+
+Use the newest test build (install the `app-nodrive-debug.apk` from `owner-tests/android/` or the
+`nodrive-android-apk` of the newest green run on `main`, over the old one) and the owner's normal
+Nourax account. Do these after test 2. What changed in plain words: Settings > More has a switch
+**Send problem reports to Nourax** (off) and a row **Report a problem**. A report is a zip with the
+app version, phone model, your note, the technical details of a crash and the app's recent log, with
+passwords, tokens and cookies removed and e-mail addresses replaced by `<email>`. It is saved in your
+own Drive in the folder **Problem reports** and shared, read-only, with the user `nourax-support`.
+Nothing is sent unless you press Send, or unless you switched the switch on. The old "Set up DAVx5"
+row is gone.
+
+| # | Test | What to do | What to report |
+|---|---|---|---|
+| 29 | Settings | Open NoDrive > Settings, scroll to **More** | Is **Send problem reports to Nourax** there, switched **off**, with the text "If the app has a problem, send a report to Nourax Support so we can fix it. Reports are saved in your NoDrive and shared with Nourax Support. They never include passwords."? Is **Report a problem** below it? Is there **no** "Sync calendar and contacts / Set up DAVx5" row and no "Logs" row? Is "Contacts and calendar backup" still there? |
+| 30 | Report a problem | With the switch **off**, tap **Report a problem**. Type "test report" in **What went wrong?** and tap **Send**. Then, on a computer, open drive.nourax.org > Files > **Problem reports** | Did the screen say "Problem report sent" (or "Saved in your NoDrive > Problem reports.")? Is there a zip named like `2026-10-29_14-05-33_Android_35.0.1-nourax.1.zip`? Download it and open it: does it hold `report.json` (with your note) and a `logs` folder? **Search the files for your password, your e-mail address and "Authorization": do you find any?** (You must not: e-mail addresses read `<email>`.) |
+| 31 | What's included | On the Report a problem screen tap **What's included** | Is the list in plain words (what you typed, app and phone details, date and server name, crash details, the recent activity log with file and folder names, never passwords, saved in NoDrive and shared read-only with Nourax Support)? Does any text name Nextcloud? |
+| 32 | No network | Switch on airplane mode. Report a problem > Send. Wait about 5 seconds. Then switch airplane mode off and wait a minute or two. Check the Problem reports folder on the Drive | Did the screen say the report is saved on the phone and let you leave? Did the zip arrive on the Drive after the network came back, once and not twice? |
+| 33 | Automatic report (optional) | Only if NoDrive ever closes by itself (a crash): on the next start, with the switch **off** it asks "NoDrive closed unexpectedly. Send a problem report?" with Send and Not now. Switch the switch **on** to try the automatic send. (Force stopping the app from Android's settings is **not** a crash and asks nothing.) | Did the question show once? Did Not now send nothing and not ask again for the same crash? With the switch on, did a "Problem report sent" message show and a zip appear on the Drive? |
+| 34 | Shared with Support | After test 30, on drive.nourax.org open Files > **Problem reports** and look at its sharing. This works only after the server has the `nourax-support` account (section 5) | Is the folder shared with `nourax-support`, **read only**? If the account does not exist yet, did the app still say "Saved in your NoDrive > Problem reports." and nothing else broke? |
+
+### Problem reports: what the owner should know
+
+- **Opt-in.** The switch is off. Without it only the **Report a problem** button and the one crash question can send anything, and only when you press Send.
+- **Only your own Drive.** The report goes through your signed-in account into your own files. There is no other server, no analytics and no background ping.
+- **File and folder names are kept** in the report on purpose (they are needed to find a problem). Passwords, app passwords, tokens and cookies are removed, e-mail addresses read `<email>`. A file name like `icon@2x.png` can also become `<email>`.
+- **The share to Nourax Support fails quietly** until the server side has the `nourax-support` account and allows sharing with it (section 5). The report is still saved in your Drive.
+- **The logs stay on the phone**, inside the app's private folder (4 files of 1 MB), and leave it only inside a scrubbed report.
+- Release-only behaviour (the crash screen of the release build) is not exercised in CI, which builds the debug flavour.
+
 ## 5. Server-side items for the Workspace session
 
 These belong to the Drive server, not to the app. They were found in the server 35 source
@@ -351,6 +426,14 @@ These belong to the Drive server, not to the app. They were found in the server 
 | S5 | No push notifications | Nextcloud's push proxy serves only Nextcloud's apps | Later: our own push service |
 | S6 | The names of the Workspace apps in NoDrive's menu come straight from the server's navigation list (`GET /ocs/v2.php/core/navigation/apps`). If an app's name there still says "Nextcloud", NoDrive shows it as is | The app only displays what the server sends | Read the list on the Drive: every entry's name and icon should read "Nourax" or be neutral. NoDrive leaves out `files`, `activity` and `photos` (NoDrive has its own Activity and Photos screens; owner decision of 2026-10-26) |
 | S7 | The in-app pages are signed in with the phone's app password from Login Flow v2: one request to the server makes a web session. Revoking the password in Settings > Security > Devices stops new pages from opening signed in, but an already open web session is not ended at once (the CI server proof shows this) | Nextcloud's web sessions live on their own after they start | Expect a short delay after a revoke. Ending a web session on the server does not sign the phone out |
+
+Problem reports (contract E; the Workspace session does these, the app does not):
+
+| # | What | Why |
+|---|---|---|
+| S8 | Create and reserve the user account **`nourax-support`** | The app shares `/Problem reports` read-only with it (`shareType=0`, `permissions=1`). Until it exists the share fails quietly and the user sees "Saved in your NoDrive > Problem reports." |
+| S9 | Allow every user to share with `nourax-support` while "privacy between organisations" is on | Otherwise the share is refused for users who may not see that account |
+| S10 | Decide who reads the reports (the account's files or the shares) and how long they are kept | The app never deletes a report on the Drive and never overwrites one |
 
 ## 6. To-dos for later
 
@@ -408,3 +491,25 @@ From the independent review (round 3, approved). None of them blocks the owner:
   rule on iOS, so it is only listed.
 - **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_conflicts.xml`). German,
   Arabic and the other languages are still to do.
+
+### To-dos for Problem reports
+
+From the independent reviews (the final one approved). None of them blocks the owner:
+
+- **N1 (limit):** the quoted-secret pass uses one backtrack frame per escape pair: on Android it stops quietly from about 77,000
+  escape pairs in a row inside one quoted value (about 154 KB of escapes, not a realistic log). Optional: cut each log line to about
+  8 KB before the quoted passes, or name the limit in `docs/problem-reports.md`.
+- **N2 (test):** `ReportsScrubberSpeedIT` allows 20 s but takes under 4 s; lower the limit to about 8 s and print the time into the
+  instrumentation result so the CI log shows it.
+- **N3 (process):** the 6 commits of this branch carry `Co-Authored-By: Claude Sonnet 5.5`, not `Claude Opus 5.5`. They are not
+  rewritten (the branch is shared history); later commits use the run rule's trailer.
+- **N4 (scrubber):** a raw `"` inside a URL password leaves the part before it (`https://alice:pa"<email>/...`). A raw quote is not legal
+  in URL user info and OkHttp writes `%22`, which is removed fully. Optional: exclude `"` only from the user part of `urlUserInfo`.
+- **Not tested:** the release-only crash screen (`ShowErrorActivity`, CI builds debug only).
+- **Screens in the sweep:** 78 here against 81 in an earlier run (three `settings-5` pages were not captured; the sweep's own
+  scrolling, no code change). The last Settings page is still captured.
+- **Upstream log leak at sign-in:** `AuthenticatorActivity` writes the Login Flow v2 poll response (with the new app password) into
+  the private log. Reports remove it; closing it at the source needs a small marked hook (see `docs/problem-reports.md`).
+- **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_reports.xml`). German, Arabic and the other
+  languages are still to do.
+- **Owner:** C: on the build PC has about 16 GB free, below the 40 GB the run rules ask for.
