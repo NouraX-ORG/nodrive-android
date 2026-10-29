@@ -211,6 +211,17 @@ jobs:
                     if-no-files-found: warn
                     retention-days: 14
 
+            -   name: NoAgenda Room schema is committed
+                run: |
+                    # Room writes app/schemas/<database>/<version>.json at build time. A new or changed schema must be committed
+                    # (it is what a later migration is checked against).
+                    if [ -n "$(git status --porcelain -- app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase)" ]; then
+                        git status --short -- app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase
+                        git diff -- app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase | head -n 60
+                        echo "The Room schema changed or is not committed."
+                        exit 1
+                    fi
+
             -   name: Upload NoAgenda Room schema
                 if: ${{ always() }}
                 uses: actions/upload-artifact@v7

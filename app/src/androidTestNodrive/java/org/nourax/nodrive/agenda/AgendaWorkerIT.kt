@@ -48,10 +48,10 @@ class AgendaWorkerIT {
         val manager = WorkManager.getInstance(context)
         manager.enqueue(request)
         val deadline = System.currentTimeMillis() + WORK_MILLIS
-        var info = manager.getWorkInfoById(request.id).get()
+        var info = checkNotNull(manager.getWorkInfoById(request.id).get())
         while (!info.state.isFinished && System.currentTimeMillis() < deadline) {
             Thread.sleep(POLL_MILLIS)
-            info = manager.getWorkInfoById(request.id).get()
+            info = checkNotNull(manager.getWorkInfoById(request.id).get())
         }
         return info
     }
