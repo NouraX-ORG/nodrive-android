@@ -92,7 +92,7 @@ not named); dedupe of a linked Gantt task and card; the problem rows of a manage
 
 ## Results (CI)
 
-[Run 40945879008](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40945879008) on branch `feature/noagenda-core`, code commit `35addb0c86` (later commits only change docs). All 7 jobs are green: the branding gate, lint, unit tests, the server login proof, NoAgenda API checks, NoAgenda on the emulator, and the existing emulator job.
+[Run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428) on branch `feature/noagenda-core`, head `f310a9be01` (code commit `35addb0c86`; later commits only change docs; the run before it, 40945879008, is green too). All 7 jobs are green: the branding gate, lint, unit tests, the server login proof, NoAgenda API checks, NoAgenda on the emulator, and the existing emulator job.
 (On the way: the emulator image's own `googlesdksetup` app showed an "isn't responding" dialog on a busy runner, which dimmed the screens and made one offline test time out. `tools/ci/agenda-device.sh` now closes such a dialog with a watchdog, like `tools/ci/device.sh`.)
 
 | Check | Result |
@@ -126,7 +126,7 @@ a daily repeating event is about 400 rows in the 14-month window (the server exp
   for an unassigned card). A card assigned to me stays when the task is Sara's, nobody's, or done: the open card is still my work.
 - A recognised agent by name (rule 4.5 b) is accepted even when its person is not on the task, so it raises "belongs to Sara, not Ali" or
   "agent with no person" instead of "unknown agent"; and a planning person's own `name` counts as well as `uid_display_name`. Both are
-  stricter than the design text. Both only set a flag and the name match is exact. To be confirmed by the owner.
+  wider than the design text. Both only set a flag and the name match is exact. To be confirmed by the owner.
 - A row without a person (a task with nobody, only roles or an orphaned agent; an unassigned card) shows no agent marker: "Self" would
   mean a person does it by hand.
 - A row that only reports a problem about my agent ("Writer-Bot is on "X" without you") has no date, so it takes no workload and no

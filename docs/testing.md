@@ -32,7 +32,7 @@
 - **NoAgenda (read only) is proven in CI** twice: an `agenda-server` job runs the auth proof, the API contract and the reads of four people
   against a throwaway Nextcloud 35.0.2 with nc_gantt 2.4.1, Deck 1.19.1, Calendar 6.6.4 and Tasks 0.18.1 (never drive.nourax.org), and an
   `agenda-device` job runs the screens on canned data in light and dark, the real app against the same server, the side-menu entry and the
-  offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4).
+  offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4). The first NoAgenda run with the final code is [run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428); the `agenda-*.png` images are from it.
 - **The DAVx5 entry is gone** from Settings > More (CI: the screen sweep finds no DAVx5 or DAVdroid
   text on 78 screens).
 
@@ -76,7 +76,8 @@ on `main` `7c0c2df5cc` (2026-10-25). Every later push runs all CI rows again: se
 | Sign-in opens the browser at drive.nourax.org | CI | pass | Screen sweep: "sign-in opens the browser at drive.nourax.org" in all 5 looks (address bar `drive.nourax.org`) |
 | No screen text names Nextcloud; no Nextcloud blue | CI | pass | Screen sweep: "72/72 screens dumped, 0 hits"; "highest share of #0082C9/#00679E/#006AA3 pixels 0.000%" |
 | Dark mode, a right-to-left language (Arabic) and another language (German), before and after a stand-in sign-in | CI | pass | Screens in `en-light`, `en-dark`, `de-light`, `ar-light`, `ar-dark` (section 3) |
-| NoAgenda: side-menu entry, Day/Week/Month lists, agents, My team, Sources, offline, auth proof | CI | pass | [Run 40899247417](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40899247417) (`60ec54a5ef`): jobs "NoAgenda API checks" (HTTP 200/207 for every call, 412 without the OCS header, contract ok) and "NoAgenda on the emulator" (`AgendaUiIT` 13 in light and dark, `AgendaLiveIT` 4 in light and dark, drawer, offline); 163 NoAgenda unit tests |
+| NoAgenda: side-menu entry, Day/Week/Month lists, agents, My team, Sources, offline, auth proof | CI | pass | [Run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428) (`f310a9be01`, all 7 jobs green): "NoAgenda API checks" (auth proof: every NoGantt, Deck and CalDAV call HTTP 200/207, 412 without the OCS header, contract ok; `report.md` 27 PASS, 0 FAIL) and "NoAgenda on the emulator" (`AgendaUiIT` 13 and `AgendaLiveIT` 4 in light and dark, `AgendaDatabaseIT` 3, `AgendaDrawerIT`, `AgendaOfflineIT`, `AgendaWorkerIT`); 169 NoAgenda unit tests (10 server tests skip themselves in the unit job, 0 failed) |
+| NoAgenda: Room schema committed, read only (no write request), no connection to drive.nourax.org | CI | pass | CI step "NoAgenda Room schema is committed" (artifact `1.json` equals `app/schemas/.../1.json`); `grep` of write verbs in `agenda/` = 0; `network-report.md`: "Forbidden connection to drive.nourax.org: none"; leak check: no throwaway password in any artifact |
 | Account name in system settings, share target, widget, notification channels | CI | pass | Screens 005, 045, 069 (accounts), 007, 044, 053, 068 (share), 009, 071, 072 (widget), 006, 070 (notifications) |
 | No call to any Nextcloud GmbH host | CI | pass | `tools/check-network.py` on the emulator's `network.pcap` (233,255 packets): "PASS - no Nextcloud GmbH host" |
 | Independent sweep (round 3) | CI artifacts, read-only | pass | [branding-sweep.md](branding-sweep.md) |
@@ -441,14 +442,14 @@ row is gone.
 - **The logs stay on the phone**, inside the app's private folder (4 files of 1 MB), and leave it only inside a scrubbed report.
 - Release-only behaviour (the crash screen of the release build) is not exercised in CI, which builds the debug flavour.
 
-### Tests 35 to 41: NoAgenda (read only)
+### Tests 35 to 44: NoAgenda (read only)
 
 Use the newest test build (the `app-nodrive-debug.apk` of the newest green run, installed over the old one) and the owner's normal
 Nourax account. What changed in plain words: the side menu has a new first item in the Apps section, **NoAgenda**. It shows, on one day,
 week or month, everything you are responsible for: your calendar events, your to-dos, your NoGantt project tasks and your NoBoard cards,
 and who does each one (one of your agents, or you yourself: **Self**). If you run a project or board it also shows the problems in them
 under **My team**. In this step you can only look: nothing can be changed, and **Open in ...** opens the page of the Drive. Do these
-after test 2.
+after test 2. If you have no NoGantt project or NoBoard board, tests 40 and 41 only show your calendars; say so.
 
 | # | Test | What to do | What to report |
 |---|---|---|---|
@@ -493,6 +494,18 @@ Problem reports (contract E; the Workspace session does these, the app does not)
 | S8 | Create and reserve the user account **`nourax-support`** | The app shares `/Problem reports` read-only with it (`shareType=0`, `permissions=1`). Until it exists the share fails quietly and the user sees "Saved in your NoDrive > Problem reports." |
 | S9 | Allow every user to share with `nourax-support` while "privacy between organisations" is on | Otherwise the share is refused for users who may not see that account |
 | S10 | Decide who reads the reports (the account's files or the shares) and how long they are kept | The app never deletes a report on the Drive and never overwrites one |
+
+NoAgenda (design section 11; the Workspace session does these, the app changes no server):
+
+| # | What | Why |
+|---|---|---|
+| S11 | The **Nourax agents app**: it hosts the real agent registry in the format of `plans/agent-registry.placeholder.json`, answers per user with only that organisation's agents, and has one fixed URL for the apps | Until then NoAgenda reads `NoAgenda/agent-registry.json` in the person's own NoDrive; without it everything shows as Self. The switch is one new `RegistrySource` in `RegistrySources.create` |
+| S12 | The **registry sync step**: create and update the agents' planning people in NoGantt (`🤖 <name> (<person>)`, with working pattern and capacity), record `links.nogantt_resource_ids`, repair agents left without their person, create the missing board labels | NoAgenda recognises an agent by these names and links |
+| S13 | The **Workspace AI tools**: person first, then agent, on every assignment tool (also project creation, plan import and template copy); refuse an agent without its person or one that belongs to another person; `agents_list`; later `agenda_get` and `agenda_conflicts` | Keeps "agent with no person" and "belongs to ..." from happening |
+| S14 | Optional: make NoGantt's calendar copy two-way; show a NoGantt version (a capability) to normal users | NoGantt 2.4.1 shows no version, so the app only checks the shape of the answers (contract guard) |
+| S15 | Before updating NoGantt or Deck on the Drive, run NoAgenda's API checks (the `agenda-server` CI job) against the new version | They are the only guard against a changed API |
+| S16 | NoGantt viewers cannot change their own tasks; NoGantt's and Deck's default colour is the server's blue; Deck's welcome board names the server software; keep the calendar trash bin on | Found while testing |
+| S17 | A daily repeating event is about 400 rows in the 14-month window (the server expands it) | Only a size note |
 
 ## 6. To-dos for later
 
@@ -572,3 +585,22 @@ From the independent reviews (the final one approved). None of them blocks the o
 - **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_reports.xml`). German, Arabic and the other
   languages are still to do.
 - **Owner:** C: on the build PC has about 16 GB free, below the 40 GB the run rules ask for.
+
+### To-dos for NoAgenda core
+
+From the independent reviews (review 2 approved, `plans/round3-android-agenda-core-review-2.md`). None of them blocks the owner:
+
+- **N11 (rare):** a linked card with more people than its Gantt task shows one of them twice (the safe side of "one row, never two").
+  Optional: drop the covered people from the card row's names (`DeckMapper.kt`).
+- **N12 (narrow):** removing the account while a refresh is running can write that account's rows back (a private copy that stays
+  until the app data is cleared). Optional: let `AgendaAccounts.forget` take the repository's mutex, or mark the repository as forgotten.
+- **Owner question (rule 4.5 b, review 1 N1):** should an agent found by name whose person is not on the task raise "belongs to ..."
+  or "agent with no person" (as built), or "unknown agent" (as the design text says)? And may a planning person's own `name` count,
+  besides `uid_display_name`? Say so after the phone test; it is a small change.
+- **Next steps:** editing and the offline queue (feature/noagenda-edit), the Timeline (feature/noagenda-timeline), the phone's own
+  Calendar and Contacts sync (feature/device-calendar-sync).
+- **Sync tokens:** a calendar is read again when its sync token changes; `sync-collection` / `calendar-multiget` are not used yet.
+- **Open in NoCalendar** opens the Calendar app on the event's day; the address of a single event was not verified against the live app.
+- **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_agenda.xml`). German, Arabic and the other
+  languages are still to do.
+- **Owner:** C: on the build PC is below the 40 GB the run rules ask for (see the Problem reports to-dos).
