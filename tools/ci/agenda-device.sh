@@ -50,6 +50,26 @@ done
 # A system app of the emulator image ("googlesdksetup isn't responding") can put an ANR dialog over the app on a busy runner; that dims
 # the screenshots and hides the screen from the tests. The emulator's own error dialogs are switched off.
 "$ADB" shell settings put global hide_error_dialogs 1 > /dev/null 2>&1 || true
+# The setting does not cover every case (the dialog still came up in run 40941449956), so a watchdog closes the dialog of a system app by
+# stopping that app ("am force-stop", like tools/ci/device.sh). An ANR of NoDrive itself is left alone.
+anr_package() {
+    "$ADB" shell dumpsys window 2> /dev/null | tr -d '\r' \
+        | sed -n 's/.*mCurrentFocus=Window{[^ ]* [^ ]* Application Not Responding: \([^}]*\)}.*/\1/p' | head -n 1
+}
+anr_watchdog() {
+    while true; do
+        local pkg
+        pkg=$(anr_package)
+        if [ -n "$pkg" ] && [ "${pkg%%:*}" != "org.nourax.nodrive" ]; then
+            echo "agenda: closing the ANR dialog of $pkg"
+            "$ADB" shell am force-stop "${pkg%%:*}" > /dev/null 2>&1
+        fi
+        sleep 4
+    done
+}
+anr_watchdog &
+WATCHDOG=$!
+trap 'kill $WATCHDOG 2> /dev/null' EXIT
 "$ADB" shell input keyevent KEYCODE_WAKEUP > /dev/null 2>&1 || true
 "$ADB" shell wm dismiss-keyguard > /dev/null 2>&1 || true
 
