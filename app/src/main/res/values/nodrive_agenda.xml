@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- NoAgenda (core, read only): the first entry of the side menu's Apps section; only the nodrive flavour sets it true -->
+    <bool name="nodrive_agenda">false</bool>
+
+    <string name="nodrive_agenda_name" translatable="false">NoAgenda</string>
+
+    <!-- Header and views -->
+    <string name="nodrive_agenda_today">Today</string>
+    <string name="nodrive_agenda_view_day">Day</string>
+    <string name="nodrive_agenda_view_week">Week</string>
+    <string name="nodrive_agenda_view_month">Month</string>
+    <string name="nodrive_agenda_category_all">All</string>
+    <string name="nodrive_agenda_category_work">Work</string>
+    <string name="nodrive_agenda_category_personal">Personal</string>
+    <string name="nodrive_agenda_chip_me">Me</string>
+    <string name="nodrive_agenda_chip_agents">My agents</string>
+    <string name="nodrive_agenda_chip_team">My team</string>
+    <string name="nodrive_agenda_self">Self</string>
+    <string name="nodrive_agenda_sources">Sources</string>
+    <string name="nodrive_agenda_refresh">Refresh</string>
+    <string name="nodrive_agenda_updated">Updated %1$s</string>
+    <string name="nodrive_agenda_previous">Previous</string>
+    <string name="nodrive_agenda_next">Next</string>
+    <string name="nodrive_agenda_choose_date">Choose a date</string>
+    <string name="nodrive_agenda_ok">OK</string>
+    <string name="nodrive_agenda_cancel">Cancel</string>
+    <string name="nodrive_agenda_back">Back</string>
+
+    <!-- Day sections -->
+    <string name="nodrive_agenda_group_late">Late</string>
+    <string name="nodrive_agenda_group_due">Due</string>
+    <string name="nodrive_agenda_group_due_today">Due today</string>
+    <string name="nodrive_agenda_group_in_progress">In progress</string>
+    <string name="nodrive_agenda_group_agent_problems">Problems with your agents</string>
+    <string name="nodrive_agenda_group_my_team">My team</string>
+    <string name="nodrive_agenda_group_no_date">No date</string>
+    <string name="nodrive_agenda_show_all_team">Show all team tasks</string>
+    <string name="nodrive_agenda_no_team_problems">No problems in what you run.</string>
+    <string name="nodrive_agenda_nothing_day">Nothing planned for this day.</string>
+    <string name="nodrive_agenda_nothing_week">Nothing planned this week.</string>
+    <string name="nodrive_agenda_nothing_month">Nothing planned this month.</string>
+    <string name="nodrive_agenda_loading">Loading your agenda…</string>
+    <string name="nodrive_agenda_no_title">(no title)</string>
+
+    <!-- The one-time question -->
+    <string name="nodrive_agenda_personal_title">Which of your calendars are personal?</string>
+    <string name="nodrive_agenda_personal_body">Personal events are only ever shown to you. The others count as Work.</string>
+    <string name="nodrive_agenda_save">Save</string>
+    <string name="nodrive_agenda_skip">Skip</string>
+
+    <!-- Status and empty states -->
+    <string name="nodrive_agenda_not_linked">You\'re not linked to a person in NoGantt yet. Ask your project manager to link you.</string>
+    <string name="nodrive_agenda_cannot_reach">%1$s can\'t be reached; showing what was saved at %2$s.</string>
+    <string name="nodrive_agenda_cannot_reach_nothing">%1$s can\'t be reached.</string>
+    <string name="nodrive_agenda_offline_saved">You\'re offline. Showing what was saved at %1$s.</string>
+    <string name="nodrive_agenda_offline_nothing">You\'re offline. NoAgenda will load when you\'re connected.</string>
+    <string name="nodrive_agenda_sign_in_again">Sign in to NoDrive again to see new changes.</string>
+    <string name="nodrive_agenda_guard_board">NoBoard was updated on the server. NoAgenda shows its cards read only until it has been checked with the new version.</string>
+    <string name="nodrive_agenda_guard_gantt">NoGantt was updated on the server. NoAgenda shows its tasks read only until it has been checked with the new version.</string>
+    <string name="nodrive_agenda_refused">%1$s didn\'t accept NoDrive\'s sign-in on your server.</string>
+    <string name="nodrive_agenda_gantt_unavailable">NoGantt isn\'t available on your server.</string>
+    <string name="nodrive_agenda_board_unavailable">NoBoard isn\'t available on your server.</string>
+    <string name="nodrive_agenda_home_calendar">NoCalendar</string>
+    <string name="nodrive_agenda_home_gantt">NoGantt</string>
+    <string name="nodrive_agenda_home_board">NoBoard</string>
+
+    <!-- Open in ... -->
+    <string name="nodrive_agenda_open_calendar">Open in NoCalendar</string>
+    <string name="nodrive_agenda_open_tasks">Open in NoTasks</string>
+    <string name="nodrive_agenda_open_gantt">Open in NoGantt</string>
+    <string name="nodrive_agenda_open_board">Open in NoBoard</string>
+
+    <!-- Agents -->
+    <string name="nodrive_agenda_agent_unknown">%1$s (unknown agent)</string>
+    <string name="nodrive_agenda_agent_retired">%1$s (retired)</string>
+    <string name="nodrive_agenda_agent_of">Agent of %1$s</string>
+    <string name="nodrive_agenda_agent_of_someone">Agent of someone else</string>
+    <string name="nodrive_agenda_agent_other_org">Another organisation\'s agent</string>
+    <string name="nodrive_agenda_agent_cd">Agent: %1$s</string>
+
+    <!-- Problems (design 4.4, 6.3) -->
+    <plurals name="nodrive_agenda_days_late">
+        <item quantity="one">%d day late</item>
+        <item quantity="other">%d days late</item>
+    </plurals>
+    <string name="nodrive_agenda_blocked_by">Blocked by %1$s</string>
+    <string name="nodrive_agenda_overbooked">%1$s is overbooked</string>
+    <string name="nodrive_agenda_not_assigned">Not assigned to a person</string>
+    <string name="nodrive_agenda_not_linked_account">Not linked to an account</string>
+    <string name="nodrive_agenda_role_only">Assigned to a role only</string>
+    <string name="nodrive_agenda_agent_no_person">Agent with no person</string>
+    <string name="nodrive_agenda_agent_without_you">%1$s is on \"%2$s\" without you</string>
+    <string name="nodrive_agenda_agent_wrong_person">%1$s belongs to %2$s, not %3$s</string>
+    <string name="nodrive_agenda_agent_wrong_person_unknown">%1$s belongs to someone else, not %2$s</string>
+    <string name="nodrive_agenda_two_agents">Two agents for %1$s: choose one</string>
+    <plurals name="nodrive_agenda_not_shared">
+        <item quantity="one">%1$s has %2$d task in a project not shared with %1$s</item>
+        <item quantity="other">%1$s has %2$d tasks in a project not shared with %1$s</item>
+    </plurals>
+
+    <!-- Times of a row -->
+    <string name="nodrive_agenda_time_all_day">All day</string>
+    <string name="nodrive_agenda_time_all_day_until">All day, until %1$s</string>
+    <string name="nodrive_agenda_time_range">%1$s - %2$s</string>
+    <string name="nodrive_agenda_time_from">%1$s →</string>
+    <string name="nodrive_agenda_time_until">→ %1$s</string>
+    <string name="nodrive_agenda_time_due">Due %1$s</string>
+    <string name="nodrive_agenda_time_approximated">Time approximated</string>
+
+    <!-- Row details -->
+    <string name="nodrive_agenda_kind_event">Event</string>
+    <string name="nodrive_agenda_kind_todo">To-do</string>
+    <string name="nodrive_agenda_kind_gantt_task">Project task</string>
+    <string name="nodrive_agenda_kind_milestone">Milestone</string>
+    <string name="nodrive_agenda_kind_card">Board card</string>
+    <string name="nodrive_agenda_detail_agent">Who does it</string>
+    <string name="nodrive_agenda_detail_person">For %1$s</string>
+    <string name="nodrive_agenda_detail_percent">%1$d%% done</string>
+    <string name="nodrive_agenda_detail_repeats">This repeats.</string>
+    <string name="nodrive_agenda_detail_tentative">Tentative</string>
+    <string name="nodrive_agenda_detail_invitation">You were invited, so this is always Self.</string>
+    <string name="nodrive_agenda_detail_read_only_guard">Shown read only until this version of the app on the server has been checked.</string>
+    <string name="nodrive_agenda_ro_subscription">This is a subscription and can\'t be changed.</string>
+    <string name="nodrive_agenda_ro_calendar">This calendar is read only for you.</string>
+    <string name="nodrive_agenda_ro_viewer">You can see this project but not change it.</string>
+    <string name="nodrive_agenda_ro_board">You can see this board but not change it.</string>
+    <string name="nodrive_agenda_ro_milestone">Milestones are changed in NoGantt.</string>
+    <string name="nodrive_agenda_ro_problem">This row only reports a problem. Change it in NoGantt or NoBoard.</string>
+    <string name="nodrive_agenda_read_only_cd">Read only</string>
+    <string name="nodrive_agenda_late_cd">Late</string>
+    <string name="nodrive_agenda_blocked_cd">Blocked</string>
+    <string name="nodrive_agenda_repeats_cd">Repeats</string>
+    <string name="nodrive_agenda_board_cd">Linked to a board card</string>
+    <string name="nodrive_agenda_problem_cd">Problem</string>
+
+    <!-- Sources screen -->
+    <string name="nodrive_agenda_sources_title">Sources</string>
+    <string name="nodrive_agenda_section_calendars">Calendars and task lists</string>
+    <string name="nodrive_agenda_section_projects">Projects (NoGantt)</string>
+    <string name="nodrive_agenda_section_boards">Boards (NoBoard)</string>
+    <string name="nodrive_agenda_section_hours">Working hours</string>
+    <string name="nodrive_agenda_section_agents">Agents</string>
+    <string name="nodrive_agenda_mode_personal">Personal</string>
+    <string name="nodrive_agenda_mode_work">Work</string>
+    <string name="nodrive_agenda_mode_team">Team</string>
+    <string name="nodrive_agenda_mode_info">Info</string>
+    <string name="nodrive_agenda_mode_hidden">Hidden</string>
+    <string name="nodrive_agenda_mode_do_oversee">Do + Oversee</string>
+    <string name="nodrive_agenda_mode_do">Do</string>
+    <string name="nodrive_agenda_hidden_auto">Hidden automatically</string>
+    <string name="nodrive_agenda_note_shared_by">Shared by %1$s</string>
+    <string name="nodrive_agenda_note_shared_with_you">Shared with you</string>
+    <string name="nodrive_agenda_note_subscription">Subscription</string>
+    <string name="nodrive_agenda_note_birthdays">Birthdays</string>
+    <string name="nodrive_agenda_note_read_only">Read only</string>
+    <string name="nodrive_agenda_note_you_run_project">You run this project</string>
+    <string name="nodrive_agenda_note_you_run_board">You run this board</string>
+    <string name="nodrive_agenda_note_server_admin">Seen only as a server admin</string>
+    <string name="nodrive_agenda_reason_board">Board calendar: NoAgenda reads the board directly</string>
+    <string name="nodrive_agenda_reason_copy">Copy of your NoGantt tasks: NoAgenda reads NoGantt directly. You can switch the copy off in NoGantt.</string>
+    <string name="nodrive_agenda_hours_from">From %1$s</string>
+    <string name="nodrive_agenda_hours_to">To %1$s</string>
+    <string name="nodrive_agenda_hours_hint">Used for your free time when NoGantt has no schedule for you.</string>
+    <string name="nodrive_agenda_registry_missing">No agent list found in your NoDrive (NoAgenda/agent-registry.json). Everything shows as Self.</string>
+    <string name="nodrive_agenda_registry_invalid">The agent list in your NoDrive can\'t be read. Everything shows as Self until it\'s fixed.</string>
+    <plurals name="nodrive_agenda_registry_skipped">
+        <item quantity="one">%d agent in the list was skipped because it is incomplete.</item>
+        <item quantity="other">%d agents in the list were skipped because they are incomplete.</item>
+    </plurals>
+    <string name="nodrive_agenda_no_agents">You have no agents in the list.</string>
+    <string name="nodrive_agenda_agent_status_active">Active</string>
+    <string name="nodrive_agenda_agent_status_paused">Paused</string>
+    <string name="nodrive_agenda_agent_status_retired">Retired</string>
+    <string name="nodrive_agenda_agent_line">%1$s (%2$s)</string>
+</resources>

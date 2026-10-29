@@ -20,6 +20,7 @@ import com.owncloud.android.ui.activity.DrawerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.nourax.nodrive.agenda.android.AgendaDrawer
 import java.util.WeakHashMap
 
 /** The Workspace apps group of the side menu: it sits between "Activity" (order 1) and the external links (3). */
@@ -38,12 +39,19 @@ object WorkspaceAppsDrawer {
 
     fun enabled(activity: DrawerActivity): Boolean = activity.resources.getBoolean(R.bool.nodrive_workspace_apps)
 
-    /** Rebuilds the group from the cached list (read off the main thread). */
+    /**
+     * Rebuilds the group from the cached list (read off the main thread). The group also holds NoAgenda, the first item,
+     * so it is built when either the Workspace apps or NoAgenda are on.
+     */
     @JvmStatic
     fun update(activity: DrawerActivity, navView: NavigationView, user: User) {
-        if (!enabled(activity) || user.isAnonymous) return
+        if (!(enabled(activity) || AgendaDrawer.enabled(activity)) || user.isAnonymous) return
         activity.lifecycleScope.launch {
-            val apps = withContext(Dispatchers.IO) { WorkspaceAccess.repository(activity, user).cached().take(MAX_APPS) }
+            val apps = if (enabled(activity)) {
+                withContext(Dispatchers.IO) { WorkspaceAccess.repository(activity, user).cached().take(MAX_APPS) }
+            } else {
+                emptyList()
+            }
             if (!activity.isFinishing) show(activity, navView, apps)
         }
     }
@@ -70,6 +78,7 @@ object WorkspaceAppsDrawer {
     @JvmStatic
     fun onItemClicked(activity: DrawerActivity, item: MenuItem, user: User): Boolean {
         if (item.groupId != GROUP_ID) return false
+        if (AgendaDrawer.onItemClicked(activity, item, user)) return true
         val navView = activity.findViewById<NavigationView>(R.id.nav_view) ?: return false
         val app = shown[navView]?.getOrNull(item.itemId - ITEM_BASE) ?: return false
         activity.closeDrawer()
@@ -87,6 +96,8 @@ object WorkspaceAppsDrawer {
         shown[navView] = apps
         val menu = navView.menu
         menu.removeGroup(GROUP_ID)
+        // NoAgenda is always the first item of the group, above the server's apps, also when the server sends none.
+        AgendaDrawer.addEntry(activity, menu, GROUP_ID, MENU_ORDER)
         val color = ContextCompat.getColor(activity, R.color.drawer_menu_icon)
         val sizePx = (ICON_SIZE_DP * activity.resources.displayMetrics.density).toInt()
         apps.forEachIndexed { index, app ->

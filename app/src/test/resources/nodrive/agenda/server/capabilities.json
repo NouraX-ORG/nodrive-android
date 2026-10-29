@@ -1,0 +1,18 @@
+{
+  "version": {
+    "major": 35,
+    "minor": 0,
+    "micro": 2,
+    "string": "35.0.2"
+  },
+  "capabilities": {
+    "deck": {
+      "version": "1.19.1",
+      "canCreateBoards": true,
+      "apiVersions": [
+        "1.0",
+        "1.1"
+      ]
+    }
+  }
+}

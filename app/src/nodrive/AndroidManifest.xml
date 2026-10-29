@@ -65,6 +65,8 @@
         <activity android:name="org.nourax.nodrive.conflicts.ResolveAllActivity" android:exported="false" android:theme="@style/Theme.NoBackground" />
         <!-- Problem reports: the Report a problem screen. -->
         <activity android:name="org.nourax.nodrive.reports.ReportProblemActivity" android:exported="false" />
+        <!-- NoAgenda: Day, Week and Month lists of the person's own work (read only in the first step). -->
+        <activity android:name="org.nourax.nodrive.agenda.ui.AgendaActivity" android:exported="false" />
     </application>
     <!-- Package visibility for the Stop Google backup screen: only the apps whose backup it can open, never QUERY_ALL_PACKAGES. -->
     <queries>

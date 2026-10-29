@@ -1,0 +1,12 @@
+{
+  "capabilities": {
+    "deck": {
+      "version": "1.20.0",
+      "canCreateBoards": true,
+      "apiVersions": [
+        "1.0",
+        "1.1"
+      ]
+    }
+  }
+}

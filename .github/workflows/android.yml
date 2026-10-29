@@ -10,7 +10,7 @@ name: Android
 
 on:
     push:
-        branches: [ main, platform/android, feature/workspace-apps, feature/backup-settings, feature/backup-settings-fixes, feature/smart-conflicts, feature/problem-reports ]
+        branches: [ main, platform/android, feature/workspace-apps, feature/backup-settings, feature/backup-settings-fixes, feature/smart-conflicts, feature/problem-reports, feature/noagenda-core, feature/noagenda-edit, feature/noagenda-timeline, feature/device-calendar-sync ]
     workflow_dispatch:
 
 permissions:

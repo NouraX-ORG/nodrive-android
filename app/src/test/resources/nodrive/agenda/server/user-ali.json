@@ -1,0 +1,8 @@
+{
+  "id": "ali",
+  "displayname": "Ali",
+  "email": "ali@example.test",
+  "groups": [
+    "org-a"
+  ]
+}

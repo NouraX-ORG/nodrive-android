@@ -1,0 +1,208 @@
+{
+  "schema": "nourax-agent-registry",
+  "version": 1,
+  "updated_utc": "2026-10-28T08:00:00Z",
+  "source": "TEST FIXTURE with made-up data",
+  "agents": [
+    {
+      "id": "AG-0001",
+      "name": "Writer-Bot",
+      "person": "ali",
+      "status": "active",
+      "organisation": "demo-org",
+      "skills": [
+        "writing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 40,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [
+          11
+        ],
+        "noboard_label": "🤖 Writer-Bot",
+        "calendar_tag": "agent:AG-0001"
+      }
+    },
+    {
+      "id": "AG-0002",
+      "name": "Design-Bot",
+      "person": "sara",
+      "status": "active",
+      "organisation": "demo-org",
+      "skills": [
+        "writing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 20,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Design-Bot",
+        "calendar_tag": "agent:AG-0002"
+      }
+    },
+    {
+      "id": "AG-0003",
+      "name": "Research-Bot",
+      "person": "ali",
+      "status": "paused",
+      "organisation": "demo-org",
+      "skills": [
+        "writing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 30,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Research-Bot",
+        "calendar_tag": "agent:AG-0003"
+      }
+    },
+    {
+      "id": "AG-0004",
+      "name": "Invoice-Bot",
+      "person": "ali",
+      "status": "retired",
+      "organisation": "demo-org",
+      "skills": [
+        "writing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 12,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Invoice-Bot",
+        "calendar_tag": "agent:AG-0004"
+      }
+    },
+    {
+      "id": "AG-0005",
+      "name": "Olaf-Bot",
+      "person": "olaf",
+      "status": "active",
+      "organisation": "other-org",
+      "skills": [
+        "writing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 40,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Olaf-Bot",
+        "calendar_tag": "agent:AG-0005"
+      }
+    },
+    {
+      "id": "AG-0006",
+      "name": "Plan-Bot",
+      "person": "mara",
+      "status": "active",
+      "organisation": "demo-org",
+      "skills": [
+        "writing"
+      ],
+      "availability": {
+        "timezone": "Europe/London",
+        "weekly": [
+          {
+            "days": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "from": "09:00",
+            "to": "17:00"
+          }
+        ],
+        "capacity_hours_per_week": 40,
+        "days_off": []
+      },
+      "links": {
+        "nogantt_resource_ids": [],
+        "noboard_label": "🤖 Plan-Bot",
+        "calendar_tag": "agent:AG-0006"
+      }
+    }
+  ]
+}

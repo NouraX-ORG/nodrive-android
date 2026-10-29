@@ -590,4 +590,10 @@ android {
         }
     }
 }
+
+dependencies {
+    // NoAgenda's Compose UI tests (the test APK only; nothing new ships in the app).
+    add("androidTestNodriveImplementation", platform(libs.compose.bom))
+    add("androidTestNodriveImplementation", "androidx.compose.ui:ui-test-junit4")
+}
 // NoDrive: end

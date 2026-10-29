@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+<d:response><d:href>/remote.php/dav/calendars/ali/mara-team_shared_by_mara/t1.ics</d:href><d:propstat><d:prop><d:getetag>&quot;t1&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:invite-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Planning meeting
+DTSTART:20261028T150000Z
+DTEND:20261028T160000Z
+ORGANIZER:mailto:mara@example.test
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:ali@example.test
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/mara-team_shared_by_mara/t2.ics</d:href><d:propstat><d:prop><d:getetag>&quot;t2&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:tent-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Team lunch
+DTSTART:20261028T160000Z
+DTEND:20261028T170000Z
+ORGANIZER:mailto:mara@example.test
+ATTENDEE;PARTSTAT=TENTATIVE:mailto:ali@example.test
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/mara-team_shared_by_mara/t3.ics</d:href><d:propstat><d:prop><d:getetag>&quot;t3&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:decl-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Budget talk
+DTSTART:20261028T170000Z
+DTEND:20261028T180000Z
+ORGANIZER:mailto:mara@example.test
+ATTENDEE;PARTSTAT=DECLINED:mailto:ali@example.test
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/mara-team_shared_by_mara/t4.ics</d:href><d:propstat><d:prop><d:getetag>&quot;t4&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:org-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Ali's workshop
+DTSTART:20261029T090000Z
+DTEND:20261029T100000Z
+ORGANIZER:mailto:ali@example.test
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:ali@example.test
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/mara-team_shared_by_mara/t5.ics</d:href><d:propstat><d:prop><d:getetag>&quot;t5&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:other-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Mara and Olaf
+DTSTART:20261028T180000Z
+DTEND:20261028T190000Z
+ORGANIZER:mailto:mara@example.test
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:olaf@example.test
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>

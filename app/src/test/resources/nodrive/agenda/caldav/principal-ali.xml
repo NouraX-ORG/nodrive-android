@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+<d:response><d:href>/remote.php/dav/principals/users/ali/</d:href><d:propstat><d:prop>
+<d:displayname>Ali</d:displayname>
+<c:calendar-home-set><d:href>/remote.php/dav/calendars/ali/</d:href></c:calendar-home-set>
+<c:calendar-user-address-set><d:href>mailto:ali@example.test</d:href><d:href>/remote.php/dav/principals/users/ali/</d:href></c:calendar-user-address-set>
+<c:schedule-default-calendar-URL><d:href>/remote.php/dav/calendars/ali/personal/</d:href></c:schedule-default-calendar-URL>
+</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>

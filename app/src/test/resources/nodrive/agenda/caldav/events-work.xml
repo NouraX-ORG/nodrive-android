@@ -1,0 +1,124 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+<d:response><d:href>/remote.php/dav/calendars/ali/work/call.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e2&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:call-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Client call
+DTSTART:20261028T100000Z
+DTEND:20261028T110000Z
+ORGANIZER:mailto:ali@example.test
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:ali@example.test
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/standup.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e3&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:standup-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Stand-up
+DTSTART:20261028T093000Z
+DTEND:20261028T094500Z
+RECURRENCE-ID:20261028T093000Z
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/dayoff.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e4&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:dayoff-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Day off
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/free.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e5&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:free-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Maybe lunch
+DTSTART:20261028T120000Z
+DTEND:20261028T130000Z
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/agent.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e6&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:agent-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Writer-Bot review
+DTSTART:20261028T140000Z
+DTEND:20261028T150000Z
+X-NOURAX-AGENT-ID:AG-0001
+CATEGORIES:agent:AG-0001,review
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/invite.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e7&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:invite-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Planning meeting
+DTSTART:20261028T150000Z
+DTEND:20261028T160000Z
+ORGANIZER:mailto:mara@example.test
+ATTENDEE;PARTSTAT=ACCEPTED:mailto:ali@example.test
+X-NOURAX-AGENT-ID:AG-0001
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/tagonly.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e8&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:tag-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Tag only
+DTSTART:20261028T170000Z
+DTEND:20261028T173000Z
+CATEGORIES:agent:AG-0001
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/unknownagent.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e9&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:unk-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Mystery agent
+DTSTART:20261029T090000Z
+DTEND:20261029T093000Z
+X-NOURAX-AGENT-ID:AG-0999
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/work/retiredagent.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e10&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:ret-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Retired agent
+DTSTART:20261029T100000Z
+DTEND:20261029T103000Z
+X-NOURAX-AGENT-ID:AG-0004
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>

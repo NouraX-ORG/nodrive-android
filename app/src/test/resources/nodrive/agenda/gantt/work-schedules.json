@@ -1,0 +1,8 @@
+[
+  {
+    "id": 1,
+    "name": "Mon-Fri",
+    "work_days": 31,
+    "owner_id": "mara"
+  }
+]

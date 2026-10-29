@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/td1.ics</d:href><d:propstat><d:prop><d:getetag>&quot;d1&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VTODO
+UID:td-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Renew passport
+DUE;VALUE=DATE:20261030
+END:VTODO
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/td2.ics</d:href><d:propstat><d:prop><d:getetag>&quot;d2&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VTODO
+UID:td-2
+DTSTAMP:20261027T080000Z
+SUMMARY:Late bill
+DUE;VALUE=DATE:20261026
+END:VTODO
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/td3.ics</d:href><d:propstat><d:prop><d:getetag>&quot;d3&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VTODO
+UID:td-3
+DTSTAMP:20261027T080000Z
+SUMMARY:Someday
+END:VTODO
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/td4.ics</d:href><d:propstat><d:prop><d:getetag>&quot;d4&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VTODO
+UID:td-4
+DTSTAMP:20261027T080000Z
+SUMMARY:Draft report
+DTSTART;VALUE=DATE:20261027
+DUE;VALUE=DATE:20261031
+CATEGORIES:agent:AG-0001
+PERCENT-COMPLETE:30
+END:VTODO
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/td5.ics</d:href><d:propstat><d:prop><d:getetag>&quot;d5&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VTODO
+UID:td-5
+DTSTAMP:20261027T080000Z
+SUMMARY:Completed already
+DUE;VALUE=DATE:20261027
+STATUS:COMPLETED
+COMPLETED:20261027T090000Z
+END:VTODO
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/td6.ics</d:href><d:propstat><d:prop><d:getetag>&quot;d6&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VTODO
+UID:td-6
+DTSTAMP:20261027T080000Z
+SUMMARY:Call back
+DUE:20261028T170000Z
+END:VTODO
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>

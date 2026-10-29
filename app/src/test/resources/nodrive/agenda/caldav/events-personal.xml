@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+<d:response><d:href>/remote.php/dav/calendars/ali/personal/dentist.ics</d:href><d:propstat><d:prop><d:getetag>&quot;e1&quot;</d:getetag><c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:dentist-1
+DTSTAMP:20261027T080000Z
+SUMMARY:Dentist
+DTSTART:20261028T100000Z
+DTEND:20261028T110000Z
+LOCATION:High Street
+DESCRIPTION:Check-up\, bring the card
+END:VEVENT
+END:VCALENDAR
+</c:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>

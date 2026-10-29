@@ -1,0 +1,70 @@
+[
+  {
+    "id": 10,
+    "title": "Team board",
+    "owner": {
+      "uid": "mara",
+      "displayname": "Mara",
+      "type": 0
+    },
+    "color": "2563EB",
+    "archived": false,
+    "labels": [
+      {
+        "id": 1,
+        "title": "🤖 Writer-Bot",
+        "color": "31CC7C",
+        "boardId": 10,
+        "cardId": null,
+        "lastModified": 0,
+        "ETag": "x"
+      },
+      {
+        "id": 2,
+        "title": "🤖 Design-Bot",
+        "color": "31CC7C",
+        "boardId": 10,
+        "cardId": null,
+        "lastModified": 0,
+        "ETag": "x"
+      },
+      {
+        "id": 3,
+        "title": "🤖 Ghost-Bot",
+        "color": "31CC7C",
+        "boardId": 10,
+        "cardId": null,
+        "lastModified": 0,
+        "ETag": "x"
+      }
+    ],
+    "acl": [
+      {
+        "id": 1,
+        "participant": {
+          "uid": "ali",
+          "displayname": "Ali",
+          "type": 0
+        },
+        "type": 0,
+        "boardId": 10,
+        "permissionEdit": true,
+        "permissionShare": false,
+        "permissionManage": false,
+        "owner": false
+      }
+    ],
+    "permissions": {
+      "PERMISSION_READ": true,
+      "PERMISSION_EDIT": true,
+      "PERMISSION_MANAGE": true,
+      "PERMISSION_SHARE": true
+    },
+    "users": [],
+    "deletedAt": 0,
+    "lastModified": 1790000000,
+    "settings": {
+      "calendar": true
+    }
+  }
+]

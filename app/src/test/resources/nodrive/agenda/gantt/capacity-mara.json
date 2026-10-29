@@ -1,0 +1,23 @@
+{
+  "window_days": 5,
+  "findings": [
+    {
+      "level": "warning",
+      "start": "2026-10-28",
+      "end": "2026-10-30",
+      "role_ids": [],
+      "person_ids": [
+        1
+      ],
+      "cause_person_ids": [
+        1
+      ],
+      "roles_without_people": [],
+      "deficit_hours": 6,
+      "task_ids": [
+        101,
+        102
+      ]
+    }
+  ]
+}

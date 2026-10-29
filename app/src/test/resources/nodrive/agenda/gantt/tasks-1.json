@@ -1,0 +1,501 @@
+[
+  {
+    "id": 101,
+    "project_id": 1,
+    "subproject_id": 401,
+    "title": "Write homepage copy",
+    "description": "",
+    "start_date": "2026-10-26 00:00:00",
+    "end_date": "2026-10-30 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 101,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 40,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1010,
+        "task_id": 101,
+        "resource_id": 1,
+        "work": 2,
+        "sort_order": 0
+      },
+      {
+        "id": 1011,
+        "task_id": 101,
+        "resource_id": 11,
+        "work": 6,
+        "sort_order": 1
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 102,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Prepare client demo",
+    "description": "",
+    "start_date": "2026-10-27 00:00:00",
+    "end_date": "2026-10-29 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 102,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 10,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1020,
+        "task_id": 102,
+        "resource_id": 1,
+        "work": 10,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 103,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Banner design",
+    "description": "",
+    "start_date": "2026-10-20 00:00:00",
+    "end_date": "2026-10-26 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 103,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 2,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 60,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1030,
+        "task_id": 103,
+        "resource_id": 2,
+        "work": 3,
+        "sort_order": 0
+      },
+      {
+        "id": 1031,
+        "task_id": 103,
+        "resource_id": 12,
+        "work": 8,
+        "sort_order": 1
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 104,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Publish banners",
+    "description": "",
+    "start_date": "2026-10-27 00:00:00",
+    "end_date": "2026-10-30 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 104,
+    "dependencies": [
+      {
+        "id": 1004,
+        "task_id": 104,
+        "predecessor_id": "t-103",
+        "dependency_type": "EA",
+        "lag_days": 0
+      }
+    ],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "blocked",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1040,
+        "task_id": 104,
+        "resource_id": 1,
+        "work": 4,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 105,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Review sitemap",
+    "description": "",
+    "start_date": "2026-10-29 00:00:00",
+    "end_date": "2026-10-31 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 105,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 20,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1050,
+        "task_id": 105,
+        "resource_id": 20,
+        "work": 2,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 106,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Orphan writing",
+    "description": "",
+    "start_date": "2026-10-28 00:00:00",
+    "end_date": "2026-10-30 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 106,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 11,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1060,
+        "task_id": 106,
+        "resource_id": 11,
+        "work": 5,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 107,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Cross pairing",
+    "description": "",
+    "start_date": "2026-10-28 00:00:00",
+    "end_date": "2026-10-29 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 107,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1070,
+        "task_id": 107,
+        "resource_id": 1,
+        "work": 2,
+        "sort_order": 0
+      },
+      {
+        "id": 1071,
+        "task_id": 107,
+        "resource_id": 12,
+        "work": 4,
+        "sort_order": 1
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 108,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Two agents",
+    "description": "",
+    "start_date": "2026-10-28 00:00:00",
+    "end_date": "2026-11-02 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 108,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1080,
+        "task_id": 108,
+        "resource_id": 1,
+        "work": 2,
+        "sort_order": 0
+      },
+      {
+        "id": 1081,
+        "task_id": 108,
+        "resource_id": 11,
+        "work": 3,
+        "sort_order": 1
+      },
+      {
+        "id": 1082,
+        "task_id": 108,
+        "resource_id": 13,
+        "work": 3,
+        "sort_order": 2
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 109,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Temp work",
+    "description": "",
+    "start_date": "2026-10-29 00:00:00",
+    "end_date": "2026-11-03 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 109,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 14,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1090,
+        "task_id": 109,
+        "resource_id": 14,
+        "work": 5,
+        "sort_order": 0
+      },
+      {
+        "id": 1091,
+        "task_id": 109,
+        "resource_id": 2,
+        "work": 2,
+        "sort_order": 1
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 110,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Finished task",
+    "description": "",
+    "start_date": "2026-10-20 00:00:00",
+    "end_date": "2026-10-22 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 110,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 100,
+    "status": "done",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1100,
+        "task_id": 110,
+        "resource_id": 1,
+        "work": 2,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 111,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Landing page build",
+    "description": "",
+    "start_date": "2026-10-28 00:00:00",
+    "end_date": "2026-10-30 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 111,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1110,
+        "task_id": 111,
+        "resource_id": 1,
+        "work": 6,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": 501,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 112,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Send invoice",
+    "description": "",
+    "start_date": "2026-10-27 00:00:00",
+    "end_date": "2026-10-28 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 112,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1120,
+        "task_id": 112,
+        "resource_id": 1,
+        "work": 1,
+        "sort_order": 0
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  },
+  {
+    "id": 113,
+    "project_id": 1,
+    "subproject_id": null,
+    "title": "Ghost agent task",
+    "description": "",
+    "start_date": "2026-10-29 00:00:00",
+    "end_date": "2026-10-30 00:00:00",
+    "color": null,
+    "work": null,
+    "sort_order": 113,
+    "dependencies": [],
+    "budget_planned": null,
+    "budget_unit": null,
+    "resource_id": 1,
+    "risk_level": null,
+    "actual_cost": null,
+    "progress_mode": "manual",
+    "manual_progress": 0,
+    "status": "in_progress",
+    "created_at": "2026-10-20 08:00:00",
+    "updated_at": "2026-10-27 09:00:00",
+    "resources": [
+      {
+        "id": 1130,
+        "task_id": 113,
+        "resource_id": 1,
+        "work": 2,
+        "sort_order": 0
+      },
+      {
+        "id": 1131,
+        "task_id": 113,
+        "resource_id": 15,
+        "work": 4,
+        "sort_order": 1
+      }
+    ],
+    "deck_card_id": null,
+    "deck_deviation_kinds": []
+  }
+]
