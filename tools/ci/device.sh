@@ -176,6 +176,14 @@ else
     echo "workspace apps test: FAIL"
 fi
 
+# The Gradle and Kotlin daemons of the build stay alive after the tests and hold gigabytes of the runner's memory; the screen sweep
+# does not need them. Runs of the branch with NoAgenda (more code to compile) were stopped by the runner ("received a shutdown
+# signal") during the sweep, so the daemons are stopped here and the memory is logged.
+./gradlew --stop > /dev/null 2>&1 || true
+pkill -f KotlinCompileDaemon > /dev/null 2>&1 || true
+{ echo "memory before the screen sweep:"; free -m; } >> "$OUT/memory.txt" 2>&1 || true
+tail -n 3 "$OUT/memory.txt" || true
+
 SWEEP_ARGS=()
 # CI blocks drive.nourax.org on purpose (tools/ci/dns-check.py), so the sign-in browser cannot open.
 [ -n "${NODRIVE_SIGNIN_OFFLINE:-}" ] && SWEEP_ARGS+=(--sign-in-offline)
