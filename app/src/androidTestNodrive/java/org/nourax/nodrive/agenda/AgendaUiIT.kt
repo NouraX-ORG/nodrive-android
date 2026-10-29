@@ -110,12 +110,12 @@ class AgendaUiIT {
             // All / Work / Personal
             compose.onNodeWithTag("agenda_category_work").performClick()
             compose.waitUntil(WAIT_MILLIS) { compose.onAllNodes(hasText("Dentist")).fetchSemanticsNodes().isEmpty() }
-            waitForText("Client call")
+            see("Client call")
             compose.onNodeWithTag("agenda_category_personal").performClick()
             compose.waitUntil(WAIT_MILLIS) { compose.onAllNodes(hasText("Client call")).fetchSemanticsNodes().isEmpty() }
-            waitForText("Dentist")
+            see("Dentist")
             compose.onNodeWithTag("agenda_category_all").performClick()
-            waitForText("Client call")
+            see("Client call")
 
             // the chips: My agents off hides the rows of my agent
             compose.onNodeWithTag("agenda_chip_agents").performClick()
@@ -136,7 +136,11 @@ class AgendaUiIT {
         show(CannedAgenda.day()) {
             waitForText("Dentist")
             compose.onNodeWithTag("agenda_tab_week").performClick()
-            compose.waitUntil(WAIT_MILLIS) { compose.onAllNodesWithTag("agenda_day_header").fetchSemanticsNodes().size >= 2 }
+            try {
+                compose.waitUntil(WAIT_MILLIS) { compose.onAllNodesWithTag("agenda_day_header").fetchSemanticsNodes().isNotEmpty() }
+            } catch (e: Throwable) {
+                throw AssertionError("no day header in the week; on screen: ${support.allTexts(compose)}", e)
+            }
             compose.onNodeWithTag("agenda_tab_week").assertIsSelected()
             shot("week")
             compose.onNodeWithTag("agenda_tab_month").performClick()

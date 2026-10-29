@@ -412,6 +412,36 @@ row is gone.
 - **The logs stay on the phone**, inside the app's private folder (4 files of 1 MB), and leave it only inside a scrubbed report.
 - Release-only behaviour (the crash screen of the release build) is not exercised in CI, which builds the debug flavour.
 
+### Tests 35 to 41: NoAgenda (read only)
+
+Use the newest test build (the `app-nodrive-debug.apk` of the newest green run, installed over the old one) and the owner's normal
+Nourax account. What changed in plain words: the side menu has a new first item in the Apps section, **NoAgenda**. It shows, on one day,
+week or month, everything you are responsible for: your calendar events, your to-dos, your NoGantt project tasks and your NoBoard cards,
+and who does each one (one of your agents, or you yourself: **Self**). If you run a project or board it also shows the problems in them
+under **My team**. In this step you can only look: nothing can be changed, and **Open in ...** opens the page of the Drive. Do these
+after test 2.
+
+| # | Test | What to do | What to report |
+|---|---|---|---|
+| 35 | Side menu | Open the side menu | Is **NoAgenda** the first item of the Apps section, above Dashboard and the other apps? Does a tap open the NoAgenda screen with the menu button at the top left? |
+| 36 | The question | Open NoAgenda for the first time | Does **Which of your calendars are personal?** appear once, with all your calendars ticked? Untick the work calendars and tap **Save**. Does the question stay away when you open NoAgenda again? Is the setting under **Sources**? |
+| 37 | Today | Look at **Today** with the **Day** tab | Do your real events and to-dos of today show, in time order? Does each row show the time, the source name and **Self** or an agent's name? Are late and due-today to-dos in their own sections? |
+| 38 | Week and Month | Tap **Week**, then **Month** | Is the week a list of seven days, and the month a small grid with a dot under days that have something, and a list below? Do the arrows and the date step by a week or a month? |
+| 39 | Filters | Tap the chips **Me**, **My agents**, **My team** one by one, and **Work** / **Personal** | Does each chip hide only its kind of work? Does **Work** hide the personal calendars and **Personal** hide the work ones? |
+| 40 | Projects and boards | Open **Sources** | Are your calendars, NoGantt projects and NoBoard boards listed with a setting? Is a project you only look at **Hidden**, and a project or board you run **Do + Oversee**? Does a calendar made by NoBoard say **Hidden automatically**? |
+| 41 | My team (only if you run a project or board) | Look at **Today** | Under **My team**: do you see only the problems (late, due today, blocked, nobody assigned, an agent without its person), each with the person and the agent? Does **Show all team tasks** list the others? |
+| 42 | Offline | Switch on airplane mode and open NoAgenda again | Does it say **You're offline. Showing what was saved at ...** and still show the last day? |
+| 43 | Open in ... | Tap a row, then **Open in NoCalendar** / **NoTasks** / **NoGantt** / **NoBoard** | Does the page of the Drive open inside the app, already signed in? |
+| 44 | Dark mode | Switch the phone to dark mode and look at NoAgenda | Is every screen readable, with the Nourax blue as the accent? |
+
+### NoAgenda: what the owner should know
+
+- **Read only.** This step changes nothing on the Drive or on the phone. Editing, the Timeline and the phone's own Calendar and Contacts sync are the next steps.
+- **The agent list is a file.** NoAgenda reads `NoAgenda/agent-registry.json` in your own NoDrive (the format of `plans/agent-registry.placeholder.json`). Without it everything shows as **Self**; **Sources** says so. The Nourax agents app will replace the file later.
+- **Only your own work.** An agent of another organisation is never named. An invitation to a meeting is always **Self**. Someone else's personal calendar is never read.
+- **Background refresh** runs about every 15 minutes, and only for accounts where NoAgenda was opened at least once.
+- **NoGantt shows no version** to a normal user, so NoAgenda checks that NoGantt's answers have the expected shape. If a NoGantt update changes the shape, the project rows turn read only with **Open in NoGantt**.
+
 ## 5. Server-side items for the Workspace session
 
 These belong to the Drive server, not to the app. They were found in the server 35 source

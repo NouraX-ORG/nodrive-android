@@ -100,7 +100,12 @@ class AccountAgenda(
     private val failures = HashMap<String, Int>()
     private val nextTryMs = HashMap<String, Long>()
 
-    init {
+    // The saved copy is read on first use, which is always on a background thread (Room refuses the main thread).
+    private var loadedFromStore = false
+
+    private fun ensureLoaded() {
+        if (loadedFromStore) return
+        loadedFromStore = true
         loadFromStore()
     }
 
@@ -172,6 +177,7 @@ class AccountAgenda(
 
     /** Changes a setting, saves it and gives the rows again from what is already read (no request). */
     override fun updateSettings(change: (SourceSettings) -> SourceSettings): AgendaSnapshot {
+        ensureLoaded()
         settings = change(settings)
         store.saveSettings(account, settings.toJson().toString())
         return snapshot()
@@ -180,6 +186,7 @@ class AccountAgenda(
     // ---- the rows -----------------------------------------------------------------------------------------------------
 
     override fun snapshot(): AgendaSnapshot {
+        ensureLoaded()
         val clockNow = clock.now()
         val zone = clock.zone()
         val today = clock.today()
@@ -237,6 +244,7 @@ class AccountAgenda(
 
     /** Reads every source once. [manual] (pull to refresh, the menu) ignores the back-off. */
     override fun refresh(manual: Boolean): AgendaSnapshot {
+        ensureLoaded()
         val nowMs = clock.now().toEpochMilli()
         val today = clock.today()
 

@@ -281,7 +281,8 @@ private fun rowKey(index: Int, row: AgendaRow): String = when (row) {
     is AgendaRow.DayHeader -> "day-${row.date}"
     is AgendaRow.Group -> "group-${index}-${row.kind}"
     is AgendaRow.Quiet -> "quiet-$index"
-    is AgendaRow.Item -> "item-${row.day}-${row.item.key}-${row.inTeam}"
+    // The index keeps the key unique even if a server sends two objects with one name.
+    is AgendaRow.Item -> "item-$index-${row.item.key}"
 }
 
 @Composable
