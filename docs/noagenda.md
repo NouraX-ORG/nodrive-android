@@ -38,7 +38,7 @@ packages. Everything except `ui/`, `android/` and `AgendaAccess*` is plain Kotli
 | `ical/`, `dav/` | a small iCalendar reader, CalDAV request bodies, a SAX multistatus parser (a DOCTYPE is refused), the calendar reader |
 | `ocs/`, `gantt/`, `deck/` | the OCS envelope, the account's info (`cloud/user`, capabilities), the NoGantt 2.4.1 client with its **contract check** (the version guard) and the Deck client (guard: `deck.version` 1.19) |
 | `logic/` | source settings and defaults, the mappers (calendar, NoGantt, NoBoard) with the agent rules and the integrity flags, dedupe, the filters of the Day, Week and Month lists |
-| `store/` | the offline cache: NoDrive's own Room database `nodrive_agenda.db` (settings and one JSON per home snapshot, per account) |
+| `store/` | the offline cache: NoDrive's own Room database `nodrive_agenda.db` (settings and one JSON per home snapshot, per account); the version 1 schema is committed in `app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase/1.json` and CI fails when it changes without being committed, so later versions get real migrations |
 | `AccountAgenda`, `AgendaRepository`, `AgendaAccess`, `AgendaAccounts` | one account's readers, merge, status and back-off; one refresh at a time; wiring to the running app; removal with the account |
 | `android/` | `AgendaDrawer` (the side-menu entry) and `AgendaRefreshWorker` (WorkManager, every 15 minutes, only after NoAgenda was opened for the account) |
 | `ui/` | `AgendaActivity` (a `DrawerActivity` with a `ComposeView`), the view model and the Material 3 screens in `ui/compose/` |
@@ -88,24 +88,23 @@ not named); dedupe of a linked Gantt task and card; the problem rows of a manage
 |---|---|
 | Unit tests (JVM, `app/src/test/java/org/nourax/nodrive/agenda/`, fixtures in `app/src/test/resources/nodrive/agenda/`) | registry, iCalendar, CalDAV (XML, reader, sync tokens, failures), NoGantt (contract, client, agents), Deck, the rules, the Day/Week/Month filters, the account end to end (fresh, saved, offline, back-off, refusals, one refresh at a time), the view model, links, privacy (nothing of the data in the log or the cache), safety (no delete, no write verb, no host name in the code) |
 | `agenda-server` job | `tools/ci/agenda-server.sh` starts a throwaway Nextcloud 35.0.2 with calendar 6.6.4, tasks 0.18.1, Deck 1.19.1 and nc_gantt 2.4.1 (pinned tarballs, SHA-256 checked) and seeds it with `tools/ci/agenda-seed.py`; then `org.nourax.nodrive.agenda.server.*` runs the **auth proof**, the **API contract** and the reads of four people |
-| `agenda-device` job | `tools/ci/agenda-device.sh` on the emulator (API 35): `AgendaUiIT` (canned data, light and dark, screenshots), `AgendaDatabaseIT`, `AgendaDrawerIT`, `AgendaLiveIT` (the real app against the throwaway server), `AgendaOfflineIT` (mobile data off) |
+| `agenda-device` job | `tools/ci/agenda-device.sh` on the emulator (API 35): `AgendaUiIT` (canned data, light and dark, screenshots), `AgendaDatabaseIT`, `AgendaDrawerIT`, `AgendaLiveIT` (the real app against the throwaway server), `AgendaWorkerIT` (the background refresh run by the real WorkManager: account gone, account present), `AgendaOfflineIT` (mobile data off) |
 
 ## Results (CI)
 
-[Run 40899247417](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40899247417) on branch `feature/noagenda-core`, code commit `60ec54a5ef` (later commits only change docs). The NoAgenda jobs, the branding gate, lint, unit tests and the server login proof are green. (The existing emulator job does not
-test NoAgenda; on this run it was stopped twice by "The runner has received a shutdown signal" during the Arabic part of the screen sweep,
-runner trouble. It is green on the final run of the branch.)
+[Run 40945879008](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40945879008) on branch `feature/noagenda-core`, code commit `35addb0c86` (later commits only change docs). All 7 jobs are green: the branding gate, lint, unit tests, the server login proof, NoAgenda API checks, NoAgenda on the emulator, and the existing emulator job.
+(On the way: the emulator image's own `googlesdksetup` app showed an "isn't responding" dialog on a busy runner, which dimmed the screens and made one offline test time out. `tools/ci/agenda-device.sh` now closes such a dialog with a watchdog, like `tools/ci/device.sh`.)
 
 | Check | Result |
 |---|---|
 | Branding gate | pass (`rebrand.py --check` up to date, the NoAgenda texts, drawables and hooks add no unclassified hit) |
 | Lint (warnings are errors) | pass |
-| Unit tests (`testNodriveDebugUnitTest`) | 993 tests in 140 suites, 0 failed; 163 of them in the 14 NoAgenda suites (154 run, 9 are the server tests that skip themselves here) |
+| Unit tests (`testNodriveDebugUnitTest`) | 999 tests in 140 suites, 0 failed; 169 of them in the 14 NoAgenda suites (159 run, 10 are the server tests that skip themselves here) |
 | `agenda-server`: **auth proof** against Nextcloud 35.0.2 with nc_gantt 2.4.1, Deck 1.19.1, Calendar 6.6.4, Tasks 0.18.1 (app password, Basic authentication, `OCS-APIRequest: true`) | **pass, nothing falls back to "Open in ..."**: NoGantt `my-tasks`, `projects`, `resources`, `capacity-check`, `task-sync`, `work-schedules`, `settings`, `projects/{id}/tasks`, `milestones`, `subprojects`, `shares` all HTTP 200; Deck `boards?details=true` and `boards/{id}/stacks` HTTP 200; CalDAV PROPFIND HTTP 207; the registry file HTTP 200. Without the `OCS-APIRequest` header NoGantt answers **412**, so NoAgenda always sends it |
 | `agenda-server`: **API contract** | pass: every key of the committed fixtures is present live with the same type (projects, resources, tasks, boards, cards); the answers pass `GanttContract`; Deck `1.19.1`; NoGantt has no capability for a normal user. New live keys are listed in the report (`projects`: `knowledge_folder`, `talk_events`, `talk_token`; boards and cards: Deck's own extras) |
 | `agenda-server`: reads of four people | pass: Ali's day with his agents, Mara's team problems, Sara's invalid agent list, Olaf sees no agent of another organisation |
 | `agenda-device` (emulator, API 35): screens on canned data, light and dark | pass: `AgendaUiIT` 13 tests in each look, `AgendaDatabaseIT` 3 tests in each look; no visible text names the server software |
-| `agenda-device`: against the throwaway server | pass: `AgendaDrawerIT` (NoAgenda is the first item of the Apps group, above the server's apps, highlighted on its screen), `AgendaLiveIT` 4 tests in light and dark (Ali, Mara, Sara, Olaf; "Open in NoCalendar / NoTasks / NoGantt / NoBoard" open the signed-in page), `AgendaOfflineIT` (data off: "You're offline. Showing what was saved at ...") |
+| `agenda-device`: against the throwaway server | pass: `AgendaDrawerIT` (NoAgenda is the first item of the Apps group, above the server's apps, highlighted on its screen), `AgendaLiveIT` 4 tests in light and dark (Ali, Mara, Sara, Olaf; "Open in NoCalendar / NoTasks / NoGantt / NoBoard" open the signed-in page), `AgendaWorkerIT` (account gone: rows forgotten and work cancelled; account present: saved copy refreshed), `AgendaOfflineIT` (data off: "You're offline. Showing what was saved at ...") |
 | Screenshots | 32 in light and dark (`nodrive-android-agenda-screens`), brightness check passed: the dark ones are dark, the light ones light |
 | Network check | never a connection to drive.nourax.org; no throwaway password in any uploaded file (leak check) |
 
