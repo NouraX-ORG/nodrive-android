@@ -91,7 +91,22 @@ class ReportsSafetyTest {
     }
 
     @Test
+    fun theScrubberMakesNoMatcherPerMatch() {
+        // Kotlin's Regex.replace(text) { }, find(text, start) and findAll make a new Matcher for each match; on Android a
+        // new Matcher copies the whole text. The scrubber steps one java.util.regex.Matcher with find() instead.
+        val scrubber = File(sources().first().parentFile, "Scrubber.kt")
+        val bad = code(scrubber).filter { (_, line) -> perMatchMatcher.containsMatchIn(line) }.map { "Scrubber.kt:${it.index + 1}" }
+        assertEquals("one Matcher per pattern: $bad", emptyList<String>(), bad)
+        assertTrue(code(scrubber).any { (_, line) -> line.contains("matcher.find()") })
+    }
+
+    private val perMatchMatcher = Regex("\\.replace\\(|\\.find\\([^)]|\\.findAll\\(|\\.split\\(|\\.matches\\(")
+
+    @Test
     fun theGuardWouldCatchWhatItIsFor() {
+        assertTrue(perMatchMatcher.containsMatchIn("out = pattern.replace(out) { it.value }"))
+        assertTrue(perMatchMatcher.containsMatchIn("var match = emailDomain.find(text, start)"))
+        assertTrue(!perMatchMatcher.containsMatchIn("while (matcher.find()) {"))
         assertTrue(Regex("\\.delete\\(").containsMatchIn("file.delete()"))
         assertTrue(Regex("https?://").containsMatchIn("val u = \"https://example.test\""))
         assertTrue(Regex("PeriodicWorkRequest").containsMatchIn("PeriodicWorkRequestBuilder<X>(1, DAYS)"))

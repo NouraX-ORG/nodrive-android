@@ -16,6 +16,8 @@
 #   ReportsOfflineIT  mobile data is turned off by this script: "Report a problem" must say that the report is saved on the
 #                      phone and enable Send again, the report stays in the outbox and the run stays queued. Data is then
 #                      turned on again (the next scripts need the network).
+#   ReportsScrubberSpeedIT  the scrubber on the emulator's own java.util.regex (a 4 MB log with 5000 addresses in a few
+#                      seconds; a 200 KB quoted secret is still removed). No server.
 # Then the server's own data folder is checked (tools/ci/reports-server-check.py). A native crash (kill -SEGV) is binding: the
 # next start must write an exit-*.txt with "Reason: CRASH_NATIVE" (seen on the CI emulator, API 35, run 40795318521).
 # Pulls reports-*.png to build/device/screens/reports/ and fails when one of the expected ones is missing.
@@ -30,6 +32,7 @@ SETTINGS=org.nourax.nodrive.reports.ReportsSettingsIT
 PROMPT=org.nourax.nodrive.reports.ReportsPromptIT
 UPLOAD=org.nourax.nodrive.reports.ReportsUploadIT
 OFFLINE=org.nourax.nodrive.reports.ReportsOfflineIT
+SCRUBBER=org.nourax.nodrive.reports.ReportsScrubberSpeedIT
 MAIN_ACTIVITY="$PKG/com.owncloud.android.ui.activity.FileDisplayActivity"
 SERVER=nodrive-ci-server
 DATA="/var/www/html/data/${NODRIVE_WS_USER:-citest}/files/Problem reports"
@@ -83,6 +86,10 @@ night no
 run_it light "$SETTINGS" settings 3
 night yes
 run_it dark "$SETTINGS" settings 3
+
+# ---- 1b. the scrubber on the emulator's own regex engine (speed and a very long quoted secret)
+night no
+run_it light "$SCRUBBER" scrubber-speed 2
 
 # ---- 2. the question after a crash (switch off): light, then dark
 for look in light dark; do

@@ -17,5 +17,9 @@
   `icon@2x.png` is replaced by `<email>` (a small over-scrub, accepted). A quoted secret is taken up to its closing quote; an
   unquoted one up to the first space. Unlabelled base64 of 40 to 63 characters with `+` or `/` is kept; labelled ones (for example
   `requesttoken`) are removed.
+- Speed on Android: every scrub pass steps ONE `java.util.regex.Matcher` with `find()`. Kotlin's `Regex.replace { }` and `find(text, start)`
+  make a new Matcher per match, and on Android a new Matcher copies the whole text, which made a log with thousands of account
+  addresses very slow. `ReportsSafetyTest` guards the source, and `ReportsScrubberSpeedIT` times a 4 MB log on the emulator. Quoted values
+  are unrolled loops (no stack overflow on a 200 KB value). A URL user-info part never spans a JSON quote.
 - If a second Send (or an automatic crash run) is queued while the first run is waiting, the first run sends every zip in the
   outbox; the run watched by the screen then finds it empty, and the screen says "Saved in your NoDrive > Problem reports."

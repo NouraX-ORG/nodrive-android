@@ -212,4 +212,38 @@ class ScrubberTest {
         gone("abc/def+ghi", "requesttoken: abc/def+ghi")
         gone("tok9", "requestToken=tok9")
     }
+
+    @Test
+    fun aVeryLongQuotedSecretIsRemovedWithoutAnOverflow() {
+        val secret = "correct horse battery staple ".repeat(7_000) // about 200 KB, spaces inside
+        val double = Scrubber.scrub("""before {"password":"$secret","user":"anna"} after""")
+        assertEquals("""before {"password":"<removed>","user":"anna"} after""", double)
+        val single = Scrubber.scrub("""password='$secret' end""")
+        assertEquals("password='<removed>' end", single)
+        val escaped = Scrubber.scrub("""body {\"appPassword\":\"$secret\",\"x\":1}""")
+        assertFalse("a word of the secret survived", escaped.contains("horse"))
+        assertTrue(escaped, escaped.contains("""\"x\":1"""))
+    }
+
+    @Test
+    fun aQuotedSecretKeepsAnEscapedQuoteInsideAndStopsAtTheRealOne() {
+        assertEquals("""{"password":"<removed>","u":1}""", Scrubber.scrub("""{"password":"ab\"cd ef","u":1}"""))
+        assertEquals("""{"password":"<removed>"}""", Scrubber.scrub("""{"password":"\"leading"}"""))
+    }
+
+    @Test
+    fun theHostOfAJsonFieldIsNotTakenForUserInfo() {
+        val json = """{"server":"https://drive.example.test","loginName":"alice@example.com"}"""
+        assertEquals("""{"server":"https://drive.example.test","loginName":"<email>"}""", Scrubber.scrub(json))
+        assertEquals("https://<removed>@host.example.test/x", Scrubber.scrub("https://user:secret@host.example.test/x"))
+    }
+
+    @Test
+    fun manyAddressesInOneLargeLogAreAllReplaced() {
+        val line = "Checking changes in alice@drive.example.test/Photos and bob%40drive.example.test ok\n"
+        val out = Scrubber.scrub(line.repeat(20_000))
+        assertFalse(out.contains("alice@"))
+        assertFalse(out.contains("bob%40"))
+        assertEquals(40_000, out.split("<email>").size - 1)
+    }
 }

@@ -6,6 +6,8 @@
  */
 package org.nourax.nodrive.reports
 
+import java.util.regex.Matcher
+
 /**
  * Takes secrets out of any text before it goes into a problem report (logs, crash text, the note of the user). Pure and
  * idempotent: running it twice changes nothing more. File and folder names are kept on purpose, because the report needs
@@ -40,7 +42,7 @@ object Scrubber {
     private val instanceCookie = Regex("\\b(oc[a-z0-9]{10,12})=[^;\\s,\"']+")
 
     // Passwords in a URL (https://user:secret@host/).
-    private val urlUserInfo = Regex("(?i)\\b(https?:/{2})[^/\\s:@]+:[^/\\s@]+@")
+    private val urlUserInfo = Regex("""(?i)\b(https?:/{2})[^/\s:@"]+:[^/\s@"]+@""")
 
     // URL query values.
     private val queryValue = Regex(
@@ -54,14 +56,21 @@ object Scrubber {
             "(?:token|passwd|password|secret|apikey|api_key|app_password|pwd))"
 
     // A quoted value is taken up to its closing quote, spaces included: "password":"correct horse battery staple".
-    private val namedSecretQuoted = Regex(
-        """$SECRET_NAME(["']?\s*[:=]\s*)(["'])(?!<removed>)((?:\\.|(?!\3)[^\\\r\n])+)""",
+    // One pattern per quote character, and the value is an unrolled loop (plain characters, then escape pairs). A group
+    // that repeats one character per round costs a backtrack frame for each of them, so a very long value overflows the
+    // stack (the pass would then stop quietly on Android).
+    private fun namedSecretQuoted(quote: String) = Regex(
+        """$SECRET_NAME(["']?\s*[:=]\s*)$quote(?!<removed>)""" +
+            """(?:[^$quote\\\r\n]+(?:\\.[^$quote\\\r\n]*)*|(?:\\.[^$quote\\\r\n]*)+)""",
         ignoreCase
     )
+    private val namedSecretDoubleQuoted = namedSecretQuoted("\"")
+    private val namedSecretSingleQuoted = namedSecretQuoted("'")
 
-    // The same inside JSON that is escaped in a string: \"appPassword\":\"two words\".
+    // The same inside JSON that is escaped in a string: \"appPassword\":\"two words\". The value is an unrolled loop too.
     private val namedSecretEscaped = Regex(
-        """$SECRET_NAME(\\["']\s*[:=]\s*\\)(["'])(?!<removed>)((?:[^\\\r\n]|\\(?!["']))+)""",
+        """$SECRET_NAME(\\["']\s*[:=]\s*\\)(["'])(?!<removed>)""" +
+            """(?:[^\\\r\n]|\\(?!["']))[^\\\r\n]*(?:\\(?!["'])[^\\\r\n]*)*""",
         ignoreCase
     )
 
@@ -98,43 +107,62 @@ object Scrubber {
     fun scrub(text: String): String {
         if (text.isEmpty()) return text
         var out = text
-        out = pemBlock.replace(out, KEY_MATERIAL)
-        out = pemLoose.replace(out, KEY_MATERIAL)
-        out = authHeader.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
-        out = cookieHeader.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
-        out = scheme.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
-        out = namedCookies.replace(out) { "${it.groupValues[1]}=$SECRET" }
-        out = instanceCookie.replace(out) { "${it.groupValues[1]}=$SECRET" }
-        out = urlUserInfo.replace(out) { "${it.groupValues[1]}$SECRET@" }
-        out = queryValue.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}=$SECRET" }
-        out = namedSecretQuoted.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${it.groupValues[3]}$SECRET" }
-        out = namedSecretEscaped.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${it.groupValues[3]}$SECRET" }
-        out = namedSecret.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
-        out = e2eField.replace(out) { "${it.groupValues[1]}$SECRET" }
-        out = appPassword.replace(out, SECRET)
-        out = jwt.replace(out, SECRET)
-        out = longRun.replace(out) { if (hasLetterAndDigit(it.value)) SECRET else it.value }
-        out = base64Run.replace(out) { if (looksLikeSecret(it.value)) SECRET else it.value }
+        out = pemBlock.replaceEach(out) { KEY_MATERIAL }
+        out = pemLoose.replaceEach(out) { KEY_MATERIAL }
+        out = authHeader.replaceEach(out) { "${it.group(1)}${it.group(2)}$SECRET" }
+        out = cookieHeader.replaceEach(out) { "${it.group(1)}${it.group(2)}$SECRET" }
+        out = scheme.replaceEach(out) { "${it.group(1)}${it.group(2)}$SECRET" }
+        out = namedCookies.replaceEach(out) { "${it.group(1)}=$SECRET" }
+        out = instanceCookie.replaceEach(out) { "${it.group(1)}=$SECRET" }
+        out = urlUserInfo.replaceEach(out) { "${it.group(1)}$SECRET@" }
+        out = queryValue.replaceEach(out) { "${it.group(1)}${it.group(2)}=$SECRET" }
+        out = namedSecretDoubleQuoted.replaceEach(out) { "${it.group(1)}${it.group(2)}\"$SECRET" }
+        out = namedSecretSingleQuoted.replaceEach(out) { "${it.group(1)}${it.group(2)}'$SECRET" }
+        out = namedSecretEscaped.replaceEach(out) { "${it.group(1)}${it.group(2)}${it.group(3)}$SECRET" }
+        out = namedSecret.replaceEach(out) { "${it.group(1)}${it.group(2)}$SECRET" }
+        out = e2eField.replaceEach(out) { "${it.group(1)}$SECRET" }
+        out = appPassword.replaceEach(out) { SECRET }
+        out = jwt.replaceEach(out) { SECRET }
+        out = longRun.replaceEach(out) { if (hasLetterAndDigit(it.group())) SECRET else it.group() }
+        out = base64Run.replaceEach(out) { if (looksLikeSecret(it.group())) SECRET else it.group() }
         out = scrubEmails(out)
         return out
     }
 
-    /** Replaces every address (local part of 1 to 64 characters, at-sign, domain) with a placeholder. Linear in the text. */
-    private fun scrubEmails(text: String): String {
+    /**
+     * Replaces every match of this pattern, with ONE [Matcher] that steps with find(). Kotlin's Regex.replace(text) { } and
+     * Regex.find(text, start) make a new Matcher for each match, and on Android a new Matcher copies the whole text into
+     * native memory: the cost of a pass would grow with matches times the length of the text.
+     */
+    private inline fun Regex.replaceEach(text: String, replacement: (Matcher) -> String): String {
+        val matcher = toPattern().matcher(text)
+        if (!matcher.find()) return text
         val builder = StringBuilder(text.length)
         var copied = 0
-        var match = emailDomain.find(text)
-        while (match != null) {
-            val atSign = match.range.first
+        do {
+            builder.append(text, copied, matcher.start()).append(replacement(matcher))
+            copied = matcher.end()
+        } while (matcher.find())
+        return builder.append(text, copied, text.length).toString()
+    }
+
+    /**
+     * Replaces every address (local part of 1 to 64 characters, at-sign, domain) with a placeholder. Linear in the text.
+     * A domain match holds no "@" and no "%", so no other match can start inside it: the matcher simply goes on.
+     */
+    private fun scrubEmails(text: String): String {
+        val matcher = emailDomain.toPattern().matcher(text)
+        val builder = StringBuilder(text.length)
+        var copied = 0
+        while (matcher.find()) {
+            val atSign = matcher.start()
             var start = atSign
             val floor = maxOf(copied, atSign - MAX_LOCAL_PART)
             while (start > floor && isLocalPartChar(text[start - 1])) start--
-            val isAddress = start < atSign
-            if (isAddress) {
+            if (start < atSign) {
                 builder.append(text, copied, start).append(EMAIL)
-                copied = match.range.last + 1
+                copied = matcher.end()
             }
-            match = emailDomain.find(text, if (isAddress) copied else atSign + 1)
         }
         return if (copied == 0) text else builder.append(text, copied, text.length).toString()
     }
