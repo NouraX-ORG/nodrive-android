@@ -70,6 +70,10 @@ class AgendaLiveIT {
                 compose.onAllNodes(hasText("Dentist")).fetchSemanticsNodes().isNotEmpty() ||
                 compose.onAllNodesWithTag("agenda_empty").fetchSemanticsNodes().isNotEmpty()
         }
+        // The dialog opens a moment after the rows are there (it is a window of its own).
+        runCatching {
+            compose.waitUntil(DIALOG_MILLIS) { compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isNotEmpty() }
+        }
         if (compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isNotEmpty()) {
             compose.onNodeWithTag(if (save) "agenda_personal_save" else "agenda_personal_skip").performClick()
             compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isEmpty() }
@@ -179,6 +183,7 @@ class AgendaLiveIT {
 
     private companion object {
         const val LOAD_MILLIS = 90_000L
+        const val DIALOG_MILLIS = 8_000L
         const val PAGE_MILLIS = 120_000L
     }
 }

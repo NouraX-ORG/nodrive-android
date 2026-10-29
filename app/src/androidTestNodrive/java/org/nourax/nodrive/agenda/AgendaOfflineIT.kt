@@ -54,6 +54,9 @@ class AgendaOfflineIT {
                 compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isNotEmpty() ||
                     compose.onAllNodes(hasText("Dentist")).fetchSemanticsNodes().isNotEmpty()
             }
+            runCatching {
+                compose.waitUntil(8_000L) { compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isNotEmpty() }
+            }
             if (compose.onAllNodesWithTag("agenda_personal_question").fetchSemanticsNodes().isNotEmpty()) {
                 compose.onNodeWithTag("agenda_personal_save").performClick()
             }
