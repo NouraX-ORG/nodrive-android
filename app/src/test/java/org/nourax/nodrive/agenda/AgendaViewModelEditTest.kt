@@ -162,6 +162,8 @@ class AgendaViewModelEditTest {
         vm.submit(listOf(command))
         // the refresh still holds the lock, and the screen already knows about the waiting change
         waitUntil("the waiting change is on screen", { "pending: ${repository.state.value?.edit?.pending?.size}" }) { repository.state.value?.edit?.pending?.size == 1 }
+        // nothing is left running behind the test
+        vm.viewModelScope.cancel()
         gate.countDown()
     }
 
@@ -182,12 +184,13 @@ class AgendaViewModelEditTest {
     @Test
     fun theNewItemSheetOpensAndCloses() {
         val f = fixture()
+        // The state is put together on another thread while the first load runs: it is waited for, not read at once.
         f.vm.startCreate(NewKind.EVENT)
-        assertEquals(NewKind.EVENT, f.vm.state.value.creating)
+        waitFor(f.vm) { it.creating == NewKind.EVENT }
         f.vm.stopCreate()
-        assertNull(f.vm.state.value.creating)
+        waitFor(f.vm) { it.creating == null }
         f.vm.startCreate(NewKind.TODO)
-        assertEquals(NewKind.TODO, f.vm.state.value.creating)
+        assertEquals(NewKind.TODO, waitFor(f.vm) { it.creating == NewKind.TODO }.creating)
     }
 
     @Test
@@ -195,9 +198,9 @@ class AgendaViewModelEditTest {
         val f = fixture()
         assertFalse(f.vm.state.value.view.conflictsOnly)
         f.vm.toggleConflicts()
-        assertTrue(f.vm.state.value.view.conflictsOnly)
+        waitFor(f.vm) { it.view.conflictsOnly }
         f.vm.toggleConflicts()
-        assertFalse(f.vm.state.value.view.conflictsOnly)
+        waitFor(f.vm) { !it.view.conflictsOnly }
     }
 
     @Test
@@ -205,8 +208,9 @@ class AgendaViewModelEditTest {
         val f = fixture()
         f.vm.select("a")
         f.vm.startEdit()
+        waitFor(f.vm) { it.editing }
         f.vm.select("b")
-        assertFalse(f.vm.state.value.editing)
+        waitFor(f.vm) { it.selectedKey == "b" && !it.editing }
     }
 
     private companion object {
