@@ -168,9 +168,11 @@ Drive, and no server is changed.
 - **Edit conflicts.** If the item changed somewhere else meanwhile (ETag, `updated_at` or `lastModified` differs, or a 412), the other
   change wins and the list **Not sent** at the top says "This changed somewhere else while you were editing. NoAgenda kept the other
   change." with **Apply my change again** (one fresh read, the same change on top of the new version, one write) and **Keep the other
-  change**. A refusal by the server (not allowed, too many people, a project that allows roles only, the work estimate would change,
+  change**. A card that a teammate moved to another list is written in the list it is in now, never back where it was. A refusal by the server (not allowed, too many people, a project that allows roles only, the work estimate would change,
   a label that needs board manager rights, a bad date) is said in plain words with **Open in ...** and **Drop my change**. Nothing is
-  dropped without a tap.
+  dropped without a tap. A server in maintenance mode (503, also 502, 504 or `Retry-After`) only makes a change wait, however long it lasts. A
+  change that a server error (500 and the like) kept from going out five times shows "The server answered with an error ..." with **Send
+  again**, which sends it with the version check it had.
 - **After a NoGantt date change** the message says what NoGantt moved ("Also moved: ...") and offers **Undo** for 10 seconds
   (NoGantt's own revert). If a linked card did not follow: "The linked card wasn't moved. Open in NoGantt to confirm."
 - **The four conflict kinds and the workload bar** (design 7), computed on the phone: a **Clash** (two timed items of mine overlap;
@@ -259,12 +261,13 @@ could not see), `EditQueueTest` (on screen at once and marked, sent in order whe
 tap, one send at a time, the overlay), `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`, `AgendaViewModelEditTest`, `EditRound2Test` (to-do dates, the cut description, "+" calendars, Gantt clash times),
 `AgendaSendWorkerNameTest`, and `AgendaSafetyTest` (writes only through the three writers and `WritePolicy`; a DELETE only for a calendar object; no Drive file).
 
-**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 13 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
+**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 14 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
 (create with an agent, edit title, time and agent, agent on and off, to-do done and not done, delete: the object is gone and the trash bin answers),
 `edit-gantt` (end date with the tasks NoGantt moved, Undo, percent done, done, Self to Writer-Bot to Self with the rows and their work unchanged, the three
 refusals: too many people, the work would change, an agent whose planning person is not visible), `edit-deck` (due date, done, label on and off, a label made on
 a board the person manages, refused on an edit-only board; description, start date and colour unchanged), `conflict` (the object, the NoGantt task and the card
-are changed by somebody else between the read and the write: the other change stays, "apply again" keeps both). What the server holds is read back as the
+are changed by somebody else between the read and the write: the other change stays, "apply again" keeps both; a card that the manager moved to another list stays
+there when "apply again" puts the new due date on it). What the server holds is read back as the
 same user with plain HTTP, not through the app's readers.
 
 **The agent id in the server's own pages** (`tools/ci/agenda-webedit.py`, Playwright for Python 1.55.0, Chromium, in the `agenda-server` job): the title of a tagged event is
@@ -335,9 +338,27 @@ Nits fixed: crash recovery without a blind overwrite; the half-done label switch
 logged (ids only); "organiser set and not me" is an invitation; unreadable queue rows are counted in the log; the unused keys and the fully
 qualified names are gone. The `adjust_lag` choice is written down above. The commit trailer stays `Claude Sonnet 5.5`, the model that wrote this code.
 
+## Round 3 of the review (what was fixed)
+
+The second review found 2 should-fix findings and 8 nits (`plans/round3-android-agenda-edit-review-2.md`). All are fixed, with tests:
+
+| Finding | Fix | Test |
+|---|---|---|
+| S1. "Apply my change again" on a card that someone moved to another list moved it back (Deck's update takes the list from the address) | `DeckWriter` reads the card (by its id, whatever list the address names) and writes every request to the stack the FRESH card is in; if that list is not one of the board's lists the card is on another board and nothing is written (conflict, "Open in NoBoard") | `EditServiceTest` (three tests: due or done, the label calls, another board); server phase `conflictACardMovedToAnotherListStaysThereWhenMyChangeIsAppliedAgain` |
+| S2. A maintenance window moved queued edits to "Not sent", where they could only be dropped | 502, 503, 504 and `Retry-After` are "wait" and never counted (`serverAnswer`); other 5xx answers keep the limit of 5; a "Not sent" card with a server error offers **Send again** (original version, no rebase, so the check still runs) | `EditServiceTest` (four kinds of "not ready" answer, ten runs each, then sent; 500 five times; Send again with and without a change meanwhile; only a server error offers it) |
+| 1. A name-only agent planning person was offered without sitting next to me | `GanttAgentChange.idsNextToMe`; a person known only by name needs to be on a task with my own planning person (the task being changed counts), else "Ask your project manager" | `GanttAgentChangeTest` |
+| 2. A write refused by `WritePolicy` looked like a lost network and held its lane | `HttpResult.refused` is a conflict `OTHER` (`write_refused`) | `EditServiceTest`, `AgendaSafetyTest` |
+| 3. The saved change showed only after a long refresh | `AgendaRepository.store` draws the queue again on the current snapshot (`AgendaEngine.withQueue`, from the rows before the overlay) | `AgendaViewModelEditTest` |
+| 4. The locked-description text named NoCalendar for to-dos | the text names no app ("Use the Open button ...") | none (text) |
+| 5. A to-do due time before the kept start time on the same day got a 415 | the item carries its start's time of day; `TodoForm.datesValid` compares times when both have one | `EditRound2Test` |
+| 6. A delete without `If-Match` | no ETag from the base version or the fresh read: conflict `OTHER` (`no_etag`), nothing deleted | `EditServiceTest` |
+| 7. The NoBoard guard used the saved Deck version when the capabilities no longer listed Deck; NoGantt was read twice per refresh | after the fresh capabilities an empty Deck version is "NoBoard is not available" (conflict, nothing written); the guard's NoGantt read is the refresh's read when nothing was sent there | by reading (the guard read is covered by the existing guard tests) |
+| 8. Fully qualified names; `serverErrors` said "in a row" | imports; the comment now says what is counted (5xx other than 502, 503, 504) | none |
+| 9. Commit trailers | unchanged: `Claude Sonnet 5.5` names the model that wrote this code; the new commits keep it | none |
+
 ## Server-side items found here (for the Workspace session; this step changes no server)
 
-See also section 5 of `docs/testing.md` (S18 to S20) and section 6 of `plans/noagenda-android-plan.md`.
+See also section 5 of `docs/testing.md` (S18 to S22) and section 6 of `plans/noagenda-android-plan.md`.
 
 - NoGantt's task update has no version precondition (no ETag, no `If-Match`), and Deck's card update is a full replace without one either. The app reads the item right
   before the write and compares `updated_at` / `lastModified`; a short race remains. A precondition (or a 409) on both would close it.

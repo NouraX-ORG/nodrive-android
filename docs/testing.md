@@ -554,6 +554,8 @@ NoAgenda (design section 11; the Workspace session does these, the app changes n
 | S18 | NoGantt's task update has no version precondition (no ETag or `If-Match`); NoAgenda reads `updated_at` right before the write, so a short race remains | A precondition or a 409 on `PUT tasks/{id}` would close it |
 | S19 | Deck's card update is a full replace without a precondition either (it also clears `done` when it is not sent) | NoAgenda always builds the update from the fresh card and sends `done`; a precondition on the card update would close the race |
 | S20 | The Workspace AI tools must write the agent of an event or a to-do the way NoAgenda does | `X-NOURAX-AGENT-ID` plus the registry's `calendar_tag` in `CATEGORIES`. CI proves both marks survive an edit in the Calendar and Tasks pages; re-run it before updating those apps |
+| S21 | Deck's card update (`PUT .../stacks/{stackId}/cards/{id}`) sets the card's list from the `stackId` in the address (`CardService::update`, `setStackId`), whatever list the card is in | NoAgenda always writes to the stack of the card it has just read, and refuses a card that is on another board. A Deck that ignored the address' stack, or answered 409 when it differs from the card's own, would make every client safer |
+| S22 | Nextcloud answers 503 in maintenance mode (every upgrade) | Nothing to change. NoAgenda treats 502, 503, 504 and `Retry-After` as "wait" and does not count them, so queued edits are sent after the window; announcing upgrade windows helps people who edit offline |
 
 ## 6. To-dos for later
 
