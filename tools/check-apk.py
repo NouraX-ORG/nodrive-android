@@ -305,14 +305,19 @@ def main() -> int:
     fact("intent-filter actions with 'nextcloud'", ", ".join(nc_actions) or "none")
 
     # --- account type and sync adapter (res/xml)
-    for xml_name in ("xml/authenticator", "xml/syncadapter_files"):
+    # The device calendar and contacts sync adapters (round 3) sync the PHONE's own Calendar and Contacts: their content authority is
+    # exactly the system provider's, never one of Nextcloud's; their account type is ours.
+    system_authority = {"xml/nodrive_sync_calendar": "com.android.calendar", "xml/nodrive_sync_contacts": "com.android.contacts"}
+    for xml_name in ("xml/authenticator", "xml/syncadapter_files", *system_authority):
         f = res.file_of(xml_name)
         if not f:
             fact(xml_name, "not found in the resource table", False)
             continue
         tree = apk.dump(xml_name.replace("/", "-"), "xmltree", "--file", f)
         for _chain, name, value in xml_attrs(tree, res):
-            if name in ("android:accountType", "android:contentAuthority"):
+            if name == "android:contentAuthority" and xml_name in system_authority:
+                fact(f"{xml_name} {name}", value, value == system_authority[xml_name])
+            elif name in ("android:accountType", "android:contentAuthority"):
                 fact(f"{xml_name} {name}", value, ours(value))
             elif name == "android:label":
                 fact(f"{xml_name} {name}", value, value == APP_LABEL)

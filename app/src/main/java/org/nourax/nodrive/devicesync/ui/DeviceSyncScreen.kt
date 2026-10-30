@@ -193,7 +193,7 @@ private fun Group(items: List<CollectionItem>, title: Int, actions: DeviceSyncAc
             Modifier
                 .fillMaxWidth()
                 .clickable { actions.toggle(item.href) }
-                .testTag("ds_item_" + item.name),
+                .testTag("ds_item_" + item.href.trimEnd('/').substringAfterLast('/')),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(checked = item.checked, onCheckedChange = { actions.toggle(item.href) })

@@ -214,9 +214,9 @@ jobs:
             -   name: NoAgenda Room schemas are committed
                 run: |
                     # Room writes app/schemas/<database>/<version>.json at build time. A new or changed schema must be committed
-                    # (it is what a later migration is checked against). NoAgenda has two databases: the cache of what it reads and
-                    # the offline queue of the changes.
-                    dirs="app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase app/schemas/org.nourax.nodrive.agenda.edit.EditDatabase"
+                    # (it is what a later migration is checked against). NoAgenda has two databases (the cache of what it reads and
+                    # the offline queue of the changes) and device sync has one (what it knows of each object it syncs).
+                    dirs="app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase app/schemas/org.nourax.nodrive.agenda.edit.EditDatabase app/schemas/org.nourax.nodrive.devicesync.store.DeviceSyncDatabase"
                     for dir in $dirs; do
                         if [ ! -s "$dir/1.json" ]; then echo "The Room schema $dir/1.json is missing."; exit 1; fi
                     done
@@ -235,6 +235,7 @@ jobs:
                     path: |
                         app/schemas/org.nourax.nodrive.agenda.store.AgendaDatabase/
                         app/schemas/org.nourax.nodrive.agenda.edit.EditDatabase/
+                        app/schemas/org.nourax.nodrive.devicesync.store.DeviceSyncDatabase/
                     if-no-files-found: warn
                     retention-days: 14
 
@@ -477,6 +478,126 @@ jobs:
                     name: nodrive-android-agenda-device-logs
                     path: |
                         build/device/agenda-*.log
+                        build/device/network-report.md
+                        build/agenda-server/server-report.md
+                    if-no-files-found: warn
+                    retention-days: 14
+
+    devicesync-device:
+        name: Device calendar and contacts sync on the emulator
+        needs: branding
+        runs-on: ubuntu-latest
+        timeout-minutes: 150
+        steps:
+            -   uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Set up JDK 21
+                uses: actions/setup-java@v6
+                with:
+                    distribution: temurin
+                    java-version: "21"
+
+            -   name: Set up Gradle
+                uses: gradle/actions/setup-gradle@v6
+                with:
+                    cache-provider: basic
+                    cache-read-only: ${{ env.GRADLE_CACHE_READ_ONLY }}
+
+            -   uses: actions/setup-python@v7
+                with:
+                    python-version: "3.12"
+
+            -   name: Install Pillow (the brightness check of the screenshots)
+                run: python -m pip install --disable-pip-version-check "Pillow==12.2.0"
+
+            # Same debug key as the other jobs, so this APK installs over the published one.
+            -   name: Restore debug keystore
+                uses: actions/cache/restore@v6
+                with:
+                    path: ~/.android/debug.keystore
+                    key: nodrive-debug-keystore-v1
+
+            -   name: Gradle settings for CI
+                run: |
+                    mkdir -p ~/.gradle
+                    echo "org.gradle.jvmargs=-Xmx6g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -XX:+UseParallelGC -XX:MaxMetaspaceSize=1g" >> ~/.gradle/gradle.properties
+
+            -   name: Build the nodriveDebug APK and its test APK
+                run: |
+                    ./gradlew --stacktrace :app:assembleNodriveDebug :app:assembleNodriveDebugAndroidTest
+                    sha256sum "$APK"
+
+            # The throwaway server with the four apps and the seed. The emulator reaches it as 10.0.2.2:8080. Never drive.nourax.org.
+            -   name: Start and seed the throwaway server
+                run: |
+                    bash tools/ci/agenda-server.sh start
+                    echo "NODRIVE_AG_DEVICE_URL=http://10.0.2.2:8080" >> "$GITHUB_ENV"
+
+            # A local DNS server answers "no such name" for every *.nourax.org name; the emulator uses it (-dns-server below).
+            -   name: Local DNS that never resolves nourax.org names
+                run: |
+                    sudo apt-get install -y --no-install-recommends dnsmasq-base
+                    sudo dnsmasq --conf-file=/dev/null --no-resolv --no-hosts --listen-address=127.0.0.2 --bind-interfaces                         --address=/nourax.org/ --server=127.0.0.53 --pid-file=/tmp/nodrive-dnsmasq.pid
+                    sleep 1
+                    python3 tools/ci/dns-check.py --server 127.0.0.2 --blocked drive.nourax.org --control github.com
+
+            -   name: Enable KVM
+                run: |
+                    echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+                    sudo udevadm control --reload-rules
+                    sudo udevadm trigger --name-match=kvm
+
+            -   name: Device sync tests on the emulator
+                uses: reactivecircus/android-emulator-runner@v2
+                with:
+                    api-level: 35
+                    target: google_apis
+                    arch: x86_64
+                    profile: pixel_6
+                    cores: 3
+                    ram-size: 4096M
+                    disk-size: 6000M
+                    emulator-boot-timeout: 900
+                    disable-animations: true
+                    emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -dns-server 127.0.0.2 -tcpdump ${{ github.workspace }}/build/device/network.pcap
+                    pre-emulator-launch-script: mkdir -p build/device
+                    script: bash tools/ci/devicesync-device.sh
+
+            -   name: Network check (never drive.nourax.org, no Nextcloud GmbH host)
+                if: ${{ always() }}
+                run: |
+                    set -o pipefail
+                    mkdir -p build/device
+                    rc=0
+                    python tools/check-network.py build/device/network.pcap --forbid-connection drive.nourax.org                         --report build/device/network-report.md > /dev/null || rc=$?
+                    cat build/device/network-report.md >> "$GITHUB_STEP_SUMMARY" || true
+                    sed -n '/^## Result/,$p' build/device/network-report.md || true
+                    exit "$rc"
+
+            -   name: No throwaway password in what is uploaded
+                if: ${{ always() }}
+                run: bash tools/ci/agenda-server.sh leakcheck build/device app/build/reports app/build/outputs/androidTest-results build/agenda-server
+
+            -   name: Upload screenshots
+                if: ${{ always() }}
+                uses: actions/upload-artifact@v7
+                with:
+                    name: nodrive-android-devicesync-screens
+                    path: build/device/screens/devicesync/
+                    if-no-files-found: warn
+                    retention-days: 14
+
+            -   name: Upload logs
+                if: ${{ always() }}
+                uses: actions/upload-artifact@v7
+                with:
+                    name: nodrive-android-devicesync-device-logs
+                    path: |
+                        build/device/devicesync-*.log
+                        build/device/devicesync-*.md
+                        build/device/devicesync-*.txt
                         build/device/network-report.md
                         build/agenda-server/server-report.md
                     if-no-files-found: warn
