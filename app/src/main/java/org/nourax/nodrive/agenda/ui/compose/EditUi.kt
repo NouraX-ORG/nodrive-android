@@ -55,6 +55,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.owncloud.android.R
@@ -85,6 +87,13 @@ fun DateField(label: String, value: LocalDate?, optional: Boolean, texts: Agenda
     var show by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+        if (value != null) {
+            // one day back or forward without the picker (a quick nudge of a date)
+            val before = stringResource(R.string.nodrive_agenda_edit_day_before)
+            val after = stringResource(R.string.nodrive_agenda_edit_day_after)
+            TextButton(onClick = { onChange(value.minusDays(1)) }, modifier = Modifier.testTag("${tag}_minus").semantics { contentDescription = before }) { Text("\u2212") }
+            TextButton(onClick = { onChange(value.plusDays(1)) }, modifier = Modifier.testTag("${tag}_plus").semantics { contentDescription = after }) { Text("+") }
+        }
         TextButton(onClick = { show = true }, modifier = Modifier.testTag(tag)) {
             Text(value?.let { texts.shortDate(it) } ?: stringResource(R.string.nodrive_agenda_edit_no_date))
         }

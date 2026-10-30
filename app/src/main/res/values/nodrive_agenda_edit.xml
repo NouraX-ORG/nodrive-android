@@ -27,6 +27,8 @@
     <string name="nodrive_agenda_edit_clear">Clear</string>
     <string name="nodrive_agenda_edit_no_date">No date</string>
     <string name="nodrive_agenda_edit_time">Time</string>
+    <string name="nodrive_agenda_edit_day_before">One day earlier</string>
+    <string name="nodrive_agenda_edit_day_after">One day later</string>
     <string name="nodrive_agenda_edit_mark_done">Mark done</string>
     <string name="nodrive_agenda_edit_status_not_started">Not started</string>
     <string name="nodrive_agenda_edit_status_in_progress">In progress</string>

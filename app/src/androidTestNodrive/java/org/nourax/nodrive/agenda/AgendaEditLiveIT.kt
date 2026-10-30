@@ -7,7 +7,6 @@
 package org.nourax.nodrive.agenda
 
 import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -33,7 +32,6 @@ import org.nourax.nodrive.agenda.registry.AgentRegistry
 import org.nourax.nodrive.agenda.ui.AgendaActivity
 import java.time.Instant
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -151,37 +149,6 @@ class AgendaEditLiveIT {
         waitGoneTag("agenda_conflict_card", 1_000)
     }
 
-    /** Picks [target] in the date picker that the field [fieldTag] opens (the picker opens at the month of [current]). */
-    private fun pickDay(fieldTag: String, current: LocalDate, target: LocalDate) {
-        tap(fieldTag)
-        waitForTag("${fieldTag}_ok")
-        if (YearMonth.from(current) != YearMonth.from(target)) {
-            compose.onNode(hasContentDescription("next month", substring = true, ignoreCase = true)).performClick()
-            compose.waitForIdle()
-        }
-        val byDescription = hasContentDescription(" ${target.dayOfMonth}, ${target.year}", substring = true)
-        val byText = hasText(target.dayOfMonth.toString())
-        val day = target.dayOfMonth.toString()
-        try {
-            compose.waitUntil(DIALOG_MILLIS * 2) {
-                compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty() ||
-                    compose.onAllNodes(byText, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
-        } catch (e: Throwable) {
-            throw AssertionError("day $day not found in the picker; on screen: " + support.allTexts(compose).joinToString(" | "), e)
-        }
-        // the dialog is the topmost window, so its day is the last match
-        val byDesc = compose.onAllNodes(byDescription).fetchSemanticsNodes()
-        if (byDesc.isNotEmpty()) {
-            compose.onAllNodes(byDescription)[byDesc.size - 1].performClick()
-        } else {
-            val found = compose.onAllNodes(byText, useUnmergedTree = true).fetchSemanticsNodes()
-            compose.onAllNodes(byText, useUnmergedTree = true)[found.size - 1].performClick()
-        }
-        compose.onNodeWithTag("${fieldTag}_ok").performClick()
-        waitGoneTag("${fieldTag}_ok")
-    }
-
     // ---- the tests ---------------------------------------------------------------------------------------------------------------
     @Test
     fun anEventIsMadeWithAnAgentChangedAndDeleted() {
@@ -272,7 +239,8 @@ class AgendaEditLiveIT {
             openRow("Live task A $tag")
             tap("agenda_edit")
             waitForTag("edit_end_date")
-            pickDay("edit_end_date", monthStart.plusDays(2), target)
+            // the end date goes one day later with the "+" next to it (the date picker is the same field)
+            tap("edit_end_date_plus")
             tap("edit_save")
             waitGoneTag("agenda_detail")
             // NoGantt took the new date; the screen says so and offers Undo for a few seconds
