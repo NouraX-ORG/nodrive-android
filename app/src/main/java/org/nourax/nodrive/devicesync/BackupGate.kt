@@ -40,6 +40,10 @@ class BackupGate(
     private val davUser: String,
     private val timeoutMs: Long = FIFTEEN_MINUTES
 ) {
+    /** The status of the last listing that could not be read (for the reason of a failure). */
+    @Volatile
+    private var lastStatus = 0
+
     sealed class Result {
         object Done : Result()
         class Failed(val reason: String) : Result()
@@ -80,7 +84,11 @@ class BackupGate(
             "PROPFIND", path, mapOf("Depth" to "1"), DavXml.propfindBody(listOf(Dav.NS_DAV to "getetag")), "application/xml; charset=utf-8"
         )
         if (reply.status == 404) return emptySet()
-        if (!reply.multistatus) return null
+        if (!reply.multistatus) {
+            AgendaLog.w(TAG, "backup gate: the listing of a backup folder answered ${reply.status} (refused=${reply.refused}, network=${reply.networkError})")
+            lastStatus = reply.status
+            return null
+        }
         return DavXml.parseMultistatus(reply.body).responses.map { it.href }.filter { !it.endsWith("/") }.toSet()
     }
 
@@ -109,8 +117,8 @@ class BackupGate(
         if (!wantContacts && !wantCalendars) return Result.Done
         val contactsPath = filesPath(R.string.contacts_backup_folder)
         val calendarPath = filesPath(R.string.calendar_backup_folder)
-        val beforeContacts = if (wantContacts) names(contactsPath) ?: return Result.Failed("offline") else emptySet()
-        val beforeCalendars = if (wantCalendars) names(calendarPath) ?: return Result.Failed("offline") else emptySet()
+        val beforeContacts = if (wantContacts) names(contactsPath) ?: return Result.Failed("offline_$lastStatus") else emptySet()
+        val beforeCalendars = if (wantCalendars) names(calendarPath) ?: return Result.Failed("offline_$lastStatus") else emptySet()
         AgendaLog.i(TAG, "backup gate starts: contacts=$wantContacts calendars=$wantCalendars before=${beforeContacts.size}/${beforeCalendars.size}")
         progress(R.string.nodrive_device_sync_backup_running)
         if (wantContacts && !awaitJob { jobs.startImmediateContactsBackup(user) }) return Result.Failed("contacts_job")

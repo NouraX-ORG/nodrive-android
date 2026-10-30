@@ -6,7 +6,7 @@
  */
 package org.nourax.nodrive.devicesync.calendar
 
-import android.graphics.Color
+import androidx.core.graphics.toColorInt
 import org.nourax.nodrive.agenda.AgendaLog
 import org.nourax.nodrive.devicesync.ConflictPlan
 import org.nourax.nodrive.devicesync.DeleteGuard
@@ -86,9 +86,9 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
     }
 
     private fun parseColor(text: String): Int = try {
-        Color.parseColor(text.ifEmpty { RemoteCollection.DEFAULT_COLOR })
+        text.ifEmpty { RemoteCollection.DEFAULT_COLOR }.toColorInt()
     } catch (_: IllegalArgumentException) {
-        Color.parseColor(RemoteCollection.DEFAULT_COLOR)
+        RemoteCollection.DEFAULT_COLOR.toColorInt()
     }
 
     private fun exceptionsFor(rows: List<CalendarRow>, master: CalendarRow): List<CalendarRow> =

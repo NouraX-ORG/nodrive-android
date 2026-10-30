@@ -6,7 +6,7 @@
  */
 package org.nourax.nodrive.devicesync.model
 
-import android.graphics.Color
+import androidx.core.graphics.toColorInt
 
 /** A calendar or an address book of the account, as the server lists it. */
 class RemoteCollection(
@@ -24,9 +24,9 @@ class RemoteCollection(
     val defaultOn: Boolean get() = offReason.isEmpty()
 
     fun colorInt(): Int = try {
-        Color.parseColor(colorText.ifEmpty { DEFAULT_COLOR })
+        colorText.ifEmpty { DEFAULT_COLOR }.toColorInt()
     } catch (_: IllegalArgumentException) {
-        Color.parseColor(DEFAULT_COLOR)
+        DEFAULT_COLOR.toColorInt()
     }
 
     companion object {
