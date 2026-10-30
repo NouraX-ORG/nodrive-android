@@ -53,9 +53,9 @@ data class AgendaUiState(
 class AgendaViewModel(
     private val repository: AgendaRepository,
     private val clock: AgendaClock,
-    private val onOpened: () -> Unit = {},
     /** A change could not be sent now: the background send is queued for when the phone is online. */
-    private val onQueued: () -> Unit = {}
+    private val onQueued: () -> Unit = {},
+    private val onOpened: () -> Unit = {}
 ) : ViewModel() {
     private val viewState = MutableStateFlow(ViewState(date = clock.today()))
     private val page = MutableStateFlow(AgendaPage.MAIN)
@@ -248,6 +248,6 @@ class AgendaViewModel(
         private val onQueued: () -> Unit = {}
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = AgendaViewModel(repository, clock, onOpened, onQueued) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = AgendaViewModel(repository, clock, onQueued, onOpened) as T
     }
 }

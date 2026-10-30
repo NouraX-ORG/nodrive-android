@@ -227,7 +227,7 @@ class AgendaUiIT {
     }
 
     @Test
-    fun aRowOpensItsDetailWithOnlyOpenIn() {
+    fun aRowOpensItsDetailWithTheFactsAndTheActions() {
         show(CannedAgenda.day()) {
             waitForText("Client call")
             compose.onNodeWithText("Client call").performClick()
@@ -237,8 +237,8 @@ class AgendaUiIT {
             waitForText("Self")
             shot("detail")
             compose.onNodeWithTag("agenda_detail").assertIsDisplayed()
-            // nothing in the sheet changes anything in this step
-            assertTrue(compose.onAllNodes(hasText("Delete")).fetchSemanticsNodes().isEmpty())
+            // the sheet offers to change the event (a Gantt task or a card is never deleted here), but nothing is saved before Save
+            waitForText("Edit")
             assertTrue(compose.onAllNodes(hasText("Save")).fetchSemanticsNodes().isEmpty())
         }
     }

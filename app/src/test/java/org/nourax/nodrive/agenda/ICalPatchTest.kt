@@ -188,7 +188,10 @@ class ICalPatchTest {
     fun longLinesAreFoldedAtSeventyFiveOctetsWithoutCuttingACharacter() {
         val title = "Ünïcödé ".repeat(30)
         val after = CalendarEdit.patch(sampleEvent(), false, mapOf(EditKeys.SUMMARY to title), now)
-        for (line in lines(after)) assertTrue("line too long: ${line.toByteArray().size}", line.toByteArray(Charsets.UTF_8).size <= 75)
+        // the lines that were written are folded (the lines that were there are kept as they were, even a long one)
+        val written = lines(after).dropWhile { !it.startsWith("SUMMARY") }.takeWhile { it.startsWith("SUMMARY") || it.startsWith(" ") }
+        assertTrue(written.size > 1)
+        for (line in written) assertTrue("line too long: ${line.toByteArray().size}", line.toByteArray(Charsets.UTF_8).size <= 75)
         val summary = ICalText.parse(after).first { it.type == "VEVENT" }.text("SUMMARY")
         assertEquals(title, summary)
     }

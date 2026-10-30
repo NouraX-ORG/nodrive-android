@@ -94,7 +94,8 @@ class EditQueueTest {
         val put = f.http.requests.single { it.method == "PUT" }
         assertTrue(put.body.contains("SUMMARY:Client call moved"))
         assertEquals("\"e2\"", put.headers["If-Match"])
-        assertTrue("the home is read again after the write", f.http.requests.any { it.method == "REPORT" })
+        // (the calendar is read again; the fake server's sync token never changes, so only the check of the calendars is sent)
+        assertTrue("the home is read again after the write", f.http.requests.any { it.method == "PROPFIND" })
         assertFalse(online.build.items.any { it.pending })
     }
 
@@ -109,7 +110,7 @@ class EditQueueTest {
         f.http.requests.clear()
         val state = f.agenda.refresh(manual = true)
         val order = f.http.requests.map { it.method }
-        assertTrue("the write comes before the first read of a home", order.indexOf("PUT") in 0 until order.indexOf("REPORT"))
+        assertTrue("the write comes before the first read of a home", order.indexOf("PUT") in 0 until order.indexOf("PROPFIND"))
         assertTrue(state.edit.pending.isEmpty())
     }
 

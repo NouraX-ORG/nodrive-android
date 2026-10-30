@@ -112,8 +112,11 @@ class EditRunner(
         var notice: EditNotice? = null
         var conflicts = 0
         var offline = false
-        for (stored in store.commands(account)) {
+        // Each command is read again from the queue when its turn comes: a command that was sent before it has already given it the
+        // version it made (see rebase).
+        for (id in store.commands(account).map { it.id }) {
             if (offline) break
+            val stored = store.commands(account).firstOrNull { it.id == id } ?: continue
             // A command that was being sent when the app stopped may have reached the server: it is applied on the newest version.
             val command = if (stored.state == CommandState.SENDING) stored.copy(rebase = true) else stored
             store.update(command.copy(state = CommandState.SENDING))
