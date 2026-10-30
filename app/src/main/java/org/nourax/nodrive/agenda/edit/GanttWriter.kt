@@ -9,6 +9,7 @@ package org.nourax.nodrive.agenda.edit
 import com.google.gson.JsonArray
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
+import org.nourax.nodrive.agenda.AgendaLog
 import org.nourax.nodrive.agenda.gantt.GanttClient
 import org.nourax.nodrive.agenda.net.AgendaHttp
 import org.nourax.nodrive.agenda.net.getOcs
@@ -37,7 +38,14 @@ class GanttWriter(
 
     private fun ocs(path: String) = OcsJson.parse(http.getOcs("$base$path${if (path.contains('?')) "&" else "?"}format=json"))
 
-    private class Fresh(val task: JsonObject, val project: JsonObject?, val resources: List<JsonObject>, val hoursPerPt: Double)
+    private class Fresh(
+        val task: JsonObject,
+        val project: JsonObject?,
+        val resources: List<JsonObject>,
+        val hoursPerPt: Double,
+        /** The planning people that are on any task of this project. */
+        val inProject: Set<Int>
+    )
 
     private sealed interface Read {
         class Ok(val fresh: Fresh) : Read
@@ -49,17 +57,7 @@ class GanttWriter(
         val projectId = command.locInt("projectId")
         val taskId = command.locInt("taskId")
         val reply = ocs("projects/$projectId/tasks")
-        if (!reply.ok) {
-            return Read.Stop(
-                when {
-                    reply.networkError || reply.httpStatus == 0 || reply.httpStatus >= SERVER_ERROR -> SendResult.Offline
-                    reply.httpStatus == UNAUTHORIZED -> SendResult.Offline
-                    reply.httpStatus == FORBIDDEN -> SendResult.Conflict(ConflictReason.REFUSED, "http403")
-                    reply.httpStatus == NOT_FOUND -> SendResult.Conflict(ConflictReason.GONE)
-                    else -> SendResult.Conflict(ConflictReason.OTHER, "http${reply.httpStatus}")
-                }
-            )
-        }
+        if (!reply.ok) return Read.Stop(stopFor(reply.httpStatus, reply.networkError))
         val task = (reply.data as? JsonArray)?.objects()?.firstOrNull { intOf(it.get("id")) == taskId }
             ?: return Read.Stop(SendResult.Conflict(ConflictReason.GONE))
         val version = task.str("updated_at")
@@ -73,11 +71,22 @@ class GanttWriter(
             val projects = ocs("projects")
             project = (projects.data as? JsonArray)?.objects()?.firstOrNull { intOf(it.get("id")) == projectId }
             val all = ocs("resources")
-            if (!all.ok) return Read.Stop(SendResult.Offline)
+            if (!all.ok) return Read.Stop(stopFor(all.httpStatus, all.networkError))
             resources = (all.data as? JsonArray)?.objects().orEmpty()
             (ocs("settings").data as? JsonObject)?.let { hoursPerPt = GanttAgentChange.hoursPerPtOf(it) }
         }
-        return Read.Ok(Fresh(task, project, resources, hoursPerPt))
+        val inProject = GanttAgentChange.idsInProject((reply.data as? JsonArray)?.objects().orEmpty())
+        return Read.Ok(Fresh(task, project, resources, hoursPerPt, inProject))
+    }
+
+    // What a failed read means. NoGantt's 401 and 403 are the "does not accept this sign-in" case: a refusal, not a wait.
+    private fun stopFor(status: Int, networkError: Boolean): SendResult = when {
+        networkError || status == 0 -> SendResult.Offline
+        status >= SERVER_ERROR -> SendResult.ServerError(status)
+        status == UNAUTHORIZED -> SendResult.Conflict(ConflictReason.REFUSED, "http401")
+        status == FORBIDDEN -> SendResult.Conflict(ConflictReason.REFUSED, "http403")
+        status == NOT_FOUND -> SendResult.Conflict(ConflictReason.GONE)
+        else -> SendResult.Conflict(ConflictReason.OTHER, "http$status")
     }
 
     /** The text of a date field with the time of day that the task had (NoGantt keeps "2026-11-04 00:00:00"). */
@@ -123,7 +132,7 @@ class GanttWriter(
         val target: Agent? = if (agentId == EditKeys.SELF || agentId.isEmpty()) null else registry().byId(agentId)
             ?: return SendResult.Conflict(ConflictReason.AGENT_NOT_IN_PROJECT, agentId)
         if (target != null && !ctx.isMe(target.person)) return SendResult.Conflict(ConflictReason.REFUSED, "not_my_agent")
-        return when (val plan = GanttAgentChange.plan(fresh.task, fresh.project, fresh.resources, ctx, target)) {
+        return when (val plan = GanttAgentChange.plan(fresh.task, fresh.project, fresh.resources, ctx, target, fresh.inProject)) {
             is GanttAgentChange.Plan.Refuse -> SendResult.Conflict(plan.reason, plan.detail)
             GanttAgentChange.Plan.Same -> SendResult.Done(fresh.task.str("updated_at"))
             is GanttAgentChange.Plan.Send -> {
@@ -141,6 +150,10 @@ class GanttWriter(
                 if (result is SendResult.Done) {
                     // What the server saved must be what was sent (it drops a row it can not see, without a word).
                     val matches = result.answer?.let { GanttAgentChange.answerMatches(plan.rows, it) } ?: false
+                    if (!matches) {
+                        // Ids only, never names or values.
+                        AgendaLog.w(TAG, "agent change: sent rows ${plan.rows.map { it.resourceId }}, got ${result.answer?.let { GanttAgentChange.idsOf(it) }}")
+                    }
                     result.copy(checkInHome = !matches)
                 } else {
                     result
@@ -151,7 +164,7 @@ class GanttWriter(
 
     private fun put(command: EditCommand, body: JsonObject): SendResult {
         val reply = http.sendJson("PUT", "${base}tasks/${command.locInt("taskId")}?format=json", body)
-        reply.failure()?.let { failure ->
+        reply.failure(appPassword = true)?.let { failure ->
             if (failure is SendResult.Conflict && failure.reason == ConflictReason.OTHER) return mapBad(reply.status, reply.text())
             return failure
         }
@@ -193,6 +206,7 @@ class GanttWriter(
     }
 
     private companion object {
+        const val TAG = "AgendaGantt"
         const val SERVER_ERROR = 500
         const val UNAUTHORIZED = 401
         const val FORBIDDEN = 403

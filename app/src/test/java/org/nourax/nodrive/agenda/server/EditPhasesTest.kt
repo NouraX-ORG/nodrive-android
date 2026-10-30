@@ -166,6 +166,48 @@ class EditPhasesTest {
         assertEquals(404, ali.raw.get(href).status)
     }
 
+    // A to-do the way the Tasks page makes it (a start and a due date WITH a time): moving the start must not give the server a
+    // to-do with mixed value types (sabre answers 415), and the time of day stays.
+    @Test
+    fun editCalendarTimedTodoKeepsItsTimesWhenTheStartMoves() {
+        val ali = Session("ali")
+        val uid = "r2-timed-$tag"
+        val title = "Timed todo $tag"
+        val start = day(2).toString().replace("-", "")
+        val due = day(6).toString().replace("-", "")
+        val ics = listOf(
+            "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Throwaway//EN", "BEGIN:VTODO", "UID:$uid", "DTSTAMP:20261001T080000Z",
+            "SUMMARY:$title", "DTSTART:${start}T090000Z", "DUE:${due}T170000Z", "STATUS:NEEDS-ACTION", "END:VTODO", "END:VCALENDAR"
+        ).joinToString("\r\n") + "\r\n"
+        val href = "remote.php/dav/calendars/ali/personal/$uid.ics"
+        val made = ali.raw.request("PUT", href, ics, mapOf("Content-Type" to "text/calendar; charset=utf-8", "If-None-Match" to "*"))
+        assertTrue("the server takes a timed to-do: ${made.status}", made.status in 200..299)
+        var snapshot = ali.refresh()
+        val agents = snapshot.build.myAgents
+        val item = snapshot.mine(title)
+        val form = TodoForm.of(item, UTC)
+        // the start moves one day later; the due date and its time stay
+        snapshot = ali.agenda.submit(EditCommands.todo(item, form.copy(start = form.start!!.plusDays(1)), UTC, agents)!!)
+        snapshot.clean("timed to-do, start moved")
+        var text = ali.raw.get(href).body
+        assertTrue(text, text.contains("DTSTART:${day(3).toString().replace("-", "")}T090000Z"))
+        assertTrue(text, text.contains("DUE:${due}T170000Z"))
+        assertFalse(text, text.contains("VALUE=DATE"))
+        row("edit-calendar timed to-do start", true, "DTSTART moved a day with its time; DUE unchanged; no mixed value types")
+
+        // a new due day on a to-do with a timed start: the due keeps the start's value type
+        val again = snapshot.mine(title)
+        val later = TodoForm.of(again, UTC)
+        snapshot = ali.agenda.submit(EditCommands.todo(again, later.copy(due = later.due!!.plusDays(1), dueTime = null), UTC, agents)!!)
+        snapshot.clean("timed to-do, due day moved")
+        text = ali.raw.get(href).body
+        assertFalse(text, text.contains("VALUE=DATE"))
+        assertTrue(text, text.contains("DUE:${day(7).toString().replace("-", "")}T"))
+        ali.agenda.submit(EditCommands.removeObject(snapshot.mine(title)))
+        assertEquals(404, ali.raw.get(href).status)
+        row("edit-calendar timed to-do due", true, "DUE moved as a date and time, never as a bare date")
+    }
+
     // ---- edit-gantt -------------------------------------------------------------------------------------------------------
     @Test
     fun editGanttDatesPercentDoneAndUndo() {

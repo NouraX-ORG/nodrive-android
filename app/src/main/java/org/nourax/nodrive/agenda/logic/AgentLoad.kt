@@ -22,7 +22,7 @@ data class AgentOverbooked(val agentId: String, val agentName: String, val date:
  * The load of the agents (design 7): an agent's items count for the AGENT, against its registry availability and capacity, never
  * for the person. Capacity per working day is `capacity_hours_per_week` divided by the days of the weekly pattern; days off and days
  * the pattern does not list have no capacity at all. Load is the agent's own `work` on Gantt tasks, spread evenly over its working
- * days, plus the hours of its timed events.
+ * days, plus the hours of its timed events and of its timed cards (a start and a due time on one day).
  */
 object AgentLoad {
     private val dayNames = mapOf(
@@ -66,6 +66,11 @@ object AgentLoad {
                 if (item.kind == ItemKind.EVENT && item.timed) {
                     val start = item.start ?: continue
                     val end = item.end?.takeIf { it.isAfter(start) } ?: continue
+                    addEvent(load, start, end, agentZone)
+                } else if (item.kind == ItemKind.CARD) {
+                    // A card with a start and a due time on one day counts for its hours, like a timed event (design 7).
+                    val start = item.clashStart ?: continue
+                    val end = item.clashEnd?.takeIf { it.isAfter(start) } ?: continue
                     addEvent(load, start, end, agentZone)
                 } else if (item.kind == ItemKind.GANTT_TASK && item.agentWorkHours > 0) {
                     val first = item.startDate ?: item.endDate ?: continue

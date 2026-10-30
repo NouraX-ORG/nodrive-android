@@ -57,7 +57,14 @@ data class EditCommand(
     val attempts: Int = 0,
     val state: CommandState = CommandState.WAITING,
     /** True after "Apply my change again": the newest version is the base. */
-    val rebase: Boolean = false
+    val rebase: Boolean = false,
+    /** How many times in a row the server answered with an error of its own (5xx). After a few, the change moves to "Not sent". */
+    val serverErrors: Int = 0,
+    /**
+     * Found in the state "being sent" after the app stopped: it may have reached the server. It is sent only against the version the
+     * person saw, unless the server already has exactly this change (then it counts as sent).
+     */
+    val recovered: Boolean = false
 ) {
     fun loc(key: String): String = locator[key].orEmpty()
 
@@ -116,13 +123,10 @@ object EditKeys {
 
     /** `AG-0001`, or `SELF`. */
     const val AGENT = "agent"
-    const val AGENT_NAME = "agentName"
 
     /** The calendar tag of the new agent ("" for Self) and, joined with US, the tags of all my agents (to take off). */
     const val AGENT_TAG = "agentTag"
     const val ALL_TAGS = "allTags"
-    const val BOARD_LABEL = "boardLabel"
-    const val ALL_LABELS = "allLabels"
     const val SELF = "SELF"
     const val SEP = "\u001F"
 
@@ -130,10 +134,6 @@ object EditKeys {
     const val NEW_KIND = "newKind"
     const val OBJECT_NAME = "objectName"
     const val UID = "uid"
-
-    /** The id of the row that was edited, for a Gantt task: ids of the registry planning people of my agents. */
-    const val MY_AGENT_RESOURCES = "myAgentResources"
-    const val TARGET_RESOURCE = "targetResource"
 
     fun day(date: LocalDate): String = "D:$date"
 

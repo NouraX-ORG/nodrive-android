@@ -7,6 +7,7 @@
 package org.nourax.nodrive.agenda
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,10 +56,22 @@ class AgendaRepository(private val agenda: AgendaEngine) {
         }
     }
 
+    /**
+     * Keeps the changes in the queue (design 9: nothing is lost silently). It does not wait for the lock that a refresh may hold, and
+     * a closed screen cannot cancel it, so a change that the person saved is stored whatever happens to the screen next.
+     */
+    suspend fun store(commands: List<EditCommand>) {
+        withContext(NonCancellable + Dispatchers.IO) { agenda.enqueue(commands) }
+    }
+
+    /** Whether a change waits in the queue. Like [store] it takes no lock and a closed screen cannot cancel it. */
+    suspend fun hasPending(): Boolean = withContext(NonCancellable + Dispatchers.IO) { agenda.hasPending() }
+
     /** Queues a change and sends it at once when there is a network. The screen shows it from the first moment (design 9). */
     suspend fun submit(command: EditCommand) {
+        store(listOf(command))
         mutex.withLock {
-            withContext(Dispatchers.IO) { _state.value = agenda.submit(command) }
+            withContext(Dispatchers.IO) { _state.value = agenda.sendPending(manual = true) }
         }
     }
 

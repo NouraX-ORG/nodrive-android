@@ -141,6 +141,26 @@ class AgentLoadTest {
     }
 
     @Test
+    fun aTimedCardOfTheAgentCountsLikeATimedEvent() {
+        val a = agent()
+        val card = AgendaItem(
+            key = "c", kind = ItemKind.CARD, home = Home.BOARD, title = "c", agent = ref(a), workKind = WorkKind.MY_AGENT,
+            clashStart = Instant.parse("${monday}T09:00:00Z"), clashEnd = Instant.parse("${monday}T18:00:00Z")
+        )
+        // 9 h against 8 h a day
+        assertEquals(listOf(monday), over(listOf(card), a).keys.toList())
+        // 2 h fit
+        assertTrue(over(listOf(card.copy(clashEnd = Instant.parse("${monday}T11:00:00Z"))), a).isEmpty())
+        // a card without times adds nothing
+        assertTrue(over(listOf(card.copy(clashStart = null, clashEnd = null)), a).isEmpty())
+        // it adds to the other work of the day: 6 h of tasks and a 3 h card
+        val three = card.copy(clashEnd = Instant.parse("${monday}T12:00:00Z"))
+        assertEquals(listOf(monday), over(listOf(task(a, monday, monday, 6.0), three), a).keys.toList())
+        // a card of another agent is not counted
+        assertTrue(over(listOf(card.copy(agent = ref(agent(id = "AG-0002")))), a).isEmpty())
+    }
+
+    @Test
     fun aDoneItemIsNotLoad() {
         val a = agent()
         assertTrue(over(listOf(task(a, monday, monday, 20.0).copy(done = true)), a).isEmpty())

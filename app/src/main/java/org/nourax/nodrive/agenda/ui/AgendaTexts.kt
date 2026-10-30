@@ -113,6 +113,7 @@ class AgendaTexts(private val context: Context) {
         ReadOnlyReason.BOARD_VIEW_ONLY -> s(R.string.nodrive_agenda_ro_board)
         ReadOnlyReason.MILESTONE -> s(R.string.nodrive_agenda_ro_milestone)
         ReadOnlyReason.PROBLEM_ROW -> s(R.string.nodrive_agenda_ro_problem)
+        ReadOnlyReason.SOURCE_REFUSED -> s(R.string.nodrive_agenda_edit_ro_refused)
     }
 
     // ---- dates and times ------------------------------------------------------------------------------------------
@@ -210,6 +211,7 @@ class AgendaTexts(private val context: Context) {
         ConflictReason.REFUSED -> when (conflict.detail) {
             "version_guard" -> s(R.string.nodrive_agenda_edit_version_guard)
             "progress_from_board" -> s(R.string.nodrive_agenda_edit_percent_from_board)
+            "http401", "http403" -> s(R.string.nodrive_agenda_edit_refused_signin)
             else -> s(R.string.nodrive_agenda_edit_refused)
         }
         ConflictReason.INVALID -> s(R.string.nodrive_agenda_edit_invalid)

@@ -193,7 +193,7 @@ class EditQueueTest {
 
             override fun updateSettings(change: (SourceSettings) -> SourceSettings) = real.updateSettings(change)
 
-            override fun submit(command: EditCommand): AgendaSnapshot {
+            override fun sendPending(manual: Boolean): AgendaSnapshot {
                 calls.incrementAndGet()
                 maxRunning.accumulateAndGet(running.incrementAndGet()) { a, b -> maxOf(a, b) }
                 entered.complete(Unit)

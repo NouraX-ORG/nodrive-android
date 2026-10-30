@@ -11,6 +11,7 @@ import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import org.nourax.nodrive.agenda.deck.DeckClient
 import org.nourax.nodrive.agenda.net.AgendaHttp
+import org.nourax.nodrive.agenda.net.HttpResult
 import org.nourax.nodrive.agenda.net.getOcs
 import org.nourax.nodrive.agenda.ocs.OcsJson
 import org.nourax.nodrive.agenda.ocs.arr
@@ -50,7 +51,7 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
 
     private fun readCard(command: EditCommand): Read {
         val reply = http.getOcs(cardPath(command))
-        reply.failure()?.let { return Read.Stop(it) }
+        reply.failure(appPassword = true)?.let { return Read.Stop(it) }
         val card = OcsJson.parseElement(reply.body) as? JsonObject ?: return Read.Stop(SendResult.Conflict(ConflictReason.OTHER, "bad_card_answer"))
         val version = versionOf(card)
         if (!command.rebase && command.baseVersion.isNotEmpty() && version != command.baseVersion) {
@@ -119,7 +120,7 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
             is Read.Ok -> r.card
         }
         val put = http.sendJson("PUT", cardPath(command), updateBody(card, command))
-        put.failure()?.let { return it }
+        put.failure(appPassword = true)?.let { return it }
         return SendResult.Done(newVersion = currentVersion(command))
     }
 
@@ -142,7 +143,7 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
             return SendResult.Conflict(ConflictReason.REFUSED, "not_my_agent")
         }
         val boardReply = http.getOcs("${base}boards/${command.locInt("boardId")}")
-        boardReply.failure()?.let { return it }
+        boardReply.failure(appPassword = true)?.let { return it }
         val board = OcsJson.parseElement(boardReply.body) as? JsonObject ?: return SendResult.Conflict(ConflictReason.OTHER, "bad_board_answer")
         val mine = registry.ofPerson(me).map { AgentRegistry.normalize(it.boardLabel) }.filter { it.isNotEmpty() }.toSet()
         val labels = board.arr("labels").objects()
@@ -160,7 +161,7 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
                 create.addProperty("title", target.boardLabel)
                 create.addProperty("color", LABEL_COLOR)
                 val made = http.sendJson("POST", "${base}boards/${command.locInt("boardId")}/labels", create)
-                made.failure()?.let { return it }
+                made.failure(appPassword = true)?.let { return it }
                 targetId = (OcsJson.parseElement(made.body) as? JsonObject)?.let { intOf(it.get("id")) } ?: 0
                 if (targetId == 0) return SendResult.Conflict(ConflictReason.OTHER, "label_not_made")
             }
@@ -172,23 +173,26 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
             val id = intOf(label.get("id"))
             if (id == targetId || AgentRegistry.normalize(label.str("title")) !in mine) continue
             val reply = http.sendJson("PUT", "${cardPath(command)}/removeLabel", JsonObject().also { it.addProperty("labelId", id) })
-            if (!reply.ok) {
-                putBack(command, removed)
-                return reply.failure() ?: SendResult.Conflict(ConflictReason.OTHER, "label_not_removed")
-            }
+            if (!reply.ok) return stoppedHalfway(command, removed, reply, "label_not_removed")
             removed += id
         }
         if (targetId != 0 && onCard.none { intOf(it.get("id")) == targetId }) {
             val reply = http.sendJson("PUT", "${cardPath(command)}/assignLabel", JsonObject().also { it.addProperty("labelId", targetId) })
-            if (!reply.ok) {
-                putBack(command, removed)
-                return reply.failure() ?: SendResult.Conflict(ConflictReason.OTHER, "label_not_assigned")
-            }
+            if (!reply.ok) return stoppedHalfway(command, removed, reply, "label_not_assigned")
         }
         return SendResult.Done(newVersion = currentVersion(command))
     }
 
-    // The labels that were taken off are put on again, so a failed change leaves the card as it was.
+    // The change stopped after some labels were already taken off: they are put on again, so a failed change leaves the card as it was.
+    // The card is different now (this very change touched it), so a lost network is reported as "half done" with the card's new
+    // version: the next try starts from it and does not call NoAgenda's own change "changed somewhere else".
+    private fun stoppedHalfway(command: EditCommand, removed: List<Int>, reply: HttpResult, code: String): SendResult {
+        val failure = reply.failure(appPassword = true) ?: SendResult.Conflict(ConflictReason.OTHER, code)
+        if (removed.isEmpty()) return failure
+        putBack(command, removed)
+        return if (failure is SendResult.Offline || failure is SendResult.ServerError) SendResult.HalfDone(currentVersion(command)) else failure
+    }
+
     private fun putBack(command: EditCommand, removed: List<Int>) {
         for (id in removed) http.sendJson("PUT", "${cardPath(command)}/assignLabel", JsonObject().also { it.addProperty("labelId", id) })
     }

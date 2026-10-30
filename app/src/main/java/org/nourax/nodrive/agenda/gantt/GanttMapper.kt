@@ -31,7 +31,11 @@ import org.nourax.nodrive.agenda.ocs.objects
 import org.nourax.nodrive.agenda.ocs.str
 import org.nourax.nodrive.agenda.registry.Agent
 import org.nourax.nodrive.agenda.registry.AgentRegistry
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /**
@@ -73,6 +77,20 @@ object GanttMapper {
     }
 
     private fun isLate(end: LocalDate?, status: String, today: LocalDate) = end != null && end.isBefore(today) && status != "done"
+
+    /**
+     * A task that starts and ends on one day with real times (NoGantt writes "2026-11-04 09:00:00", the wall time of the server) has
+     * clash times, like a card or an event. A task that is not timed, or spans days, has none (plan 2.7).
+     */
+    fun clashTimes(startText: String, endText: String, zone: ZoneId): Pair<Instant, Instant>? {
+        fun parse(text: String): LocalDateTime? =
+            if (text.length < CLASH_TEXT_LENGTH) null else runCatching { LocalDateTime.parse(text.take(CLASH_TEXT_LENGTH).replace(' ', 'T')) }.getOrNull()
+        val start = parse(startText) ?: return null
+        val end = parse(endText) ?: return null
+        if (!start.isBefore(end) || start.toLocalDate() != end.toLocalDate()) return null
+        if (start.toLocalTime() == LocalTime.MIDNIGHT && end.toLocalTime() == LocalTime.MIDNIGHT) return null
+        return start.atZone(zone).toInstant() to end.atZone(zone).toInstant()
+    }
 
     fun taskCopyCalendarUri(snapshot: GanttSnapshot): String {
         if (!snapshot.taskSync.bool("enabled")) return ""
@@ -229,6 +247,8 @@ object GanttMapper {
                 }
                 val phase = phaseNames[intOf(task.get("subproject_id"))].orEmpty()
 
+                val clash = clashTimes(task.str("start_date"), task.str("end_date"), ctx.zone)
+
                 fun common(key: String): AgendaItem = AgendaItem(
                     key = key,
                     kind = ItemKind.GANTT_TASK,
@@ -259,7 +279,9 @@ object GanttMapper {
                     deckCardId = deckCardId,
                     boardBadge = deckCardId > 0,
                     readOnly = viewerOnly,
-                    readOnlyReason = if (viewerOnly) ReadOnlyReason.VIEWER_PROJECT else ReadOnlyReason.NONE
+                    readOnlyReason = if (viewerOnly) ReadOnlyReason.VIEWER_PROJECT else ReadOnlyReason.NONE,
+                    clashStart = clash?.first,
+                    clashEnd = clash?.second
                 )
 
                 fun agentFor(p: Person): AgentRef = when {
@@ -490,4 +512,5 @@ object GanttMapper {
     }
 
     private const val DESCRIPTION_LIMIT = 2000
+    private const val CLASH_TEXT_LENGTH = 19
 }

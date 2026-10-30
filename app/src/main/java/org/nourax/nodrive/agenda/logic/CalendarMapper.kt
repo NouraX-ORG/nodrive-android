@@ -124,6 +124,7 @@ object CalendarMapper {
                     else -> ReadOnlyReason.CALENDAR_READ_ONLY
                 },
                 organizerIsMe = organizerIsMe,
+                hasOrganizer = rec.organizer.isNotEmpty(),
                 myPartstat = myPartstat,
                 invitation = invitation
             )

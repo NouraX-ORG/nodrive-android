@@ -60,7 +60,10 @@ object AnalysisBuilder {
         val (from, to) = window(today)
         val badges = Conflicts.badges(items, output.workingHours, output.holidays)
         val days = Workload.compute(items, output.workingHours, output.holidays, zone, from, to)
-        val agents = registry.agents.filter { !it.isRetired }
+        // Only the agents whose name I may see (my own, and those of my organisations: the core's mayNameAgent, design 4.1) are
+        // checked: the My team row names the agent, and the name of another organisation's agent is never shown.
+        val organisations = registry.organisationsOf(me)
+        val agents = registry.agents.filter { !it.isRetired && (it.person.equals(me, ignoreCase = true) || it.organisation in organisations) }
         val over = AgentLoad.overbooked(items, agents, zone, from, to)
         return Analysis(badges, days, over, ganttChoices(items, registry, gantt, me, myName, hoursPerPt))
     }
@@ -82,7 +85,7 @@ object AnalysisBuilder {
             val data = gantt.projectData[item.projectId] ?: continue
             val task = data.tasks.objects().firstOrNull { intOf(it.get("id")) == item.taskId } ?: continue
             val project = gantt.projects.objects().firstOrNull { intOf(it.get("id")) == item.projectId }
-            out[item.key] = GanttAgentChange.choices(task, project, resources, ctx)
+            out[item.key] = GanttAgentChange.choices(task, project, resources, ctx, GanttAgentChange.idsInProject(data.tasks.objects()))
         }
         return out
     }

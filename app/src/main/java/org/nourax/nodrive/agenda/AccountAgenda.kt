@@ -9,6 +9,7 @@ package org.nourax.nodrive.agenda
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import org.nourax.nodrive.agenda.dav.CalendarReadOptions
+import org.nourax.nodrive.agenda.edit.ConflictReason
 import org.nourax.nodrive.agenda.edit.EditCommand
 import org.nourax.nodrive.agenda.edit.EditNotice
 import org.nourax.nodrive.agenda.edit.EditRunner
@@ -17,9 +18,12 @@ import org.nourax.nodrive.agenda.edit.EditStore
 import org.nourax.nodrive.agenda.edit.GanttAgentChange
 import org.nourax.nodrive.agenda.edit.InMemoryEditStore
 import org.nourax.nodrive.agenda.edit.PendingOverlay
+import org.nourax.nodrive.agenda.edit.SendResult
 import org.nourax.nodrive.agenda.logic.Analysis
 import org.nourax.nodrive.agenda.logic.AnalysisBuilder
+import org.nourax.nodrive.agenda.model.AgendaItem
 import org.nourax.nodrive.agenda.model.Home
+import org.nourax.nodrive.agenda.model.ReadOnlyReason
 import org.nourax.nodrive.agenda.dav.CalendarReader
 import org.nourax.nodrive.agenda.dav.CalendarSnapshot
 import org.nourax.nodrive.agenda.deck.DeckClient
@@ -27,6 +31,7 @@ import org.nourax.nodrive.agenda.deck.DeckFetchOptions
 import org.nourax.nodrive.agenda.deck.DeckSnapshot
 import org.nourax.nodrive.agenda.gantt.GanttClient
 import org.nourax.nodrive.agenda.gantt.GanttFetchOptions
+import org.nourax.nodrive.agenda.gantt.GanttFetchResult
 import org.nourax.nodrive.agenda.gantt.GanttMapper
 import org.nourax.nodrive.agenda.gantt.GanttSnapshot
 import org.nourax.nodrive.agenda.logic.AgendaBuilder
@@ -89,6 +94,15 @@ interface AgendaEngine {
     /** Queues a change and sends it at once when there is a network (design 9). */
     fun submit(command: EditCommand): AgendaSnapshot = snapshot()
 
+    /**
+     * Only stores the changes in the queue. It takes no lock and does no network call, so it is safe to call while a refresh runs and
+     * it finishes even when the screen that asked for it has been closed.
+     */
+    fun enqueue(commands: List<EditCommand>) {}
+
+    /** Whether any change waits in the queue. Same rules as [enqueue]. */
+    fun hasPending(): Boolean = false
+
     /** Sends what waits in the queue. */
     fun sendPending(manual: Boolean): AgendaSnapshot = snapshot()
 
@@ -141,7 +155,8 @@ class AccountAgenda(
         registry = { registry },
         me = { server.uid.ifEmpty { account.substringBefore('@') } },
         myName = { server.displayName },
-        guarded = { home -> if (home == Home.GANTT) !gantt.contractOk else !DeckClient.versionIsTested(deck.version) }
+        guarded = { home -> if (home == Home.GANTT) !gantt.contractOk else !DeckClient.versionIsTested(server.deckVersion.ifEmpty { deck.version }) },
+        prepare = { home -> prepareGuard(home) }
     )
 
     private fun ensureLoaded() {
@@ -250,7 +265,8 @@ class AccountAgenda(
         val savedAt = listOf(calendar.fetchedAtMs, gantt.fetchedAtMs, deck.fetchedAtMs).maxOrNull() ?: 0L
         // The changes that wait to be sent are drawn on top of the saved data, so the effect shows at once (plan 2.3).
         val edit = runner.state(lastNotice)
-        val items = PendingOverlay.apply(built.items, edit.pending, registry, today, zone)
+        val locked = lockRefused(built.items)
+        val items = PendingOverlay.apply(locked, edit.pending, registry, today, zone)
         val build = if (items === built.items) built else built.copy(items = items)
         val analysis = AnalysisBuilder.build(
             build, registry, gantt, davUser, server.displayName.ifEmpty { davUser }, GanttAgentChange.hoursPerPtOf(gantt.settings), today, zone
@@ -258,12 +274,59 @@ class AccountAgenda(
         return AgendaSnapshot(build, LinkedHashMap(statuses), registry.status, registry.skipped, settings, today, zone, savedAt, analysis, edit)
     }
 
+    // The rows of a part (NoGantt, NoBoard) that does not accept the sign-in stay in view, but can not be changed (design 5).
+    private fun lockRefused(items: List<AgendaItem>): List<AgendaItem> {
+        val ganttRefused = statuses[StatusKeys.GANTT]?.state == SourceState.REFUSED
+        val boardRefused = statuses[StatusKeys.BOARD]?.state == SourceState.REFUSED
+        if (!ganttRefused && !boardRefused) return items
+        return items.map { item ->
+            val refused = (item.home == Home.GANTT && ganttRefused) || (item.home == Home.BOARD && boardRefused)
+            if (!refused) {
+                item
+            } else {
+                item.copy(
+                    readOnly = true,
+                    readOnlyReason = if (item.readOnlyReason == ReadOnlyReason.NONE) ReadOnlyReason.SOURCE_REFUSED else item.readOnlyReason
+                )
+            }
+        }
+    }
+
     // ---- the edits ---------------------------------------------------------------------------------------------------
 
+    override fun enqueue(commands: List<EditCommand>) {
+        for (command in commands) runner.enqueue(command)
+    }
+
+    override fun hasPending(): Boolean = runner.hasPending()
+
     override fun submit(command: EditCommand): AgendaSnapshot {
-        ensureLoaded()
-        runner.enqueue(command)
+        enqueue(listOf(command))
         return sendPending(manual = true)
+    }
+
+    /**
+     * Before the first NoGantt or NoBoard change of a run goes out, the version guard is read again: the server may have been updated
+     * while the change waited, and a full-replace write must never reach a version that was not tested (design 5). Null = go on;
+     * otherwise what the command gets instead.
+     */
+    private fun prepareGuard(home: Home): SendResult? {
+        val nowMs = clock.now().toEpochMilli()
+        if (home == Home.BOARD) {
+            val result = ServerInfoClient.fetchCapabilities(http, server, nowMs)
+            if (!result.ok) return failedGuard(result.status, result.networkError)
+            server = result.info
+            store.write(account, Sources.USER, StoredSource(gson.toJson(server), "", nowMs, "ok"))
+            return null
+        }
+        val result = readGantt(manual = true, nowMs) ?: return null
+        return if (result.ok) null else failedGuard(result.status, result.networkError)
+    }
+
+    private fun failedGuard(status: Int, networkError: Boolean): SendResult = when {
+        networkError || status == 0 || status >= HTTP_SERVER_ERROR -> SendResult.Offline
+        status == HTTP_UNAUTHORIZED || status == HTTP_FORBIDDEN -> SendResult.Conflict(ConflictReason.REFUSED, "http$status")
+        else -> SendResult.Offline
     }
 
     override fun sendPending(manual: Boolean): AgendaSnapshot {
@@ -400,8 +463,8 @@ class AccountAgenda(
         }
     }
 
-    private fun readGantt(manual: Boolean, nowMs: Long) {
-        if (!allowed(StatusKeys.GANTT, manual)) return
+    private fun readGantt(manual: Boolean, nowMs: Long): GanttFetchResult? {
+        if (!allowed(StatusKeys.GANTT, manual)) return null
         val options = GanttFetchOptions(
             davUser = server.uid,
             serverAdmin = server.isServerAdmin,
@@ -419,6 +482,7 @@ class AccountAgenda(
         } else {
             statuses[StatusKeys.GANTT] = failedStatus(StatusKeys.GANTT, gantt.loaded, gantt.fetchedAtMs, result.status, true)
         }
+        return result
     }
 
     private fun readCalendar(manual: Boolean, nowMs: Long, today: LocalDate) {
@@ -471,6 +535,9 @@ class AccountAgenda(
     }
 
     private companion object {
+        const val HTTP_UNAUTHORIZED = 401
+        const val HTTP_FORBIDDEN = 403
+        const val HTTP_SERVER_ERROR = 500
         const val HOUR_MS = 3_600_000L
         const val REGISTRY_MISSING = "missing"
         val BACKOFF_MINUTES = listOf(5, 10, 20, 30)

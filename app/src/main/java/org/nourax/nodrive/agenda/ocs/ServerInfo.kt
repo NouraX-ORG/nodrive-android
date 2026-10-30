@@ -51,6 +51,14 @@ object ServerInfoClient {
     fun applyCapabilities(data: JsonObject, previous: ServerInfo): ServerInfo =
         previous.copy(deckVersion = data.obj("capabilities").obj("deck").str("version"), capabilitiesKnown = true)
 
+    /** Only the capabilities (the Deck version), read again right before a write to NoBoard. Nothing else is touched. */
+    fun fetchCapabilities(http: AgendaHttp, previous: ServerInfo, nowMs: Long): ServerInfoResult {
+        val reply = OcsJson.parse(http.getOcs("ocs/v1.php/cloud/capabilities?format=json"))
+        val data = reply.data as? JsonObject
+        if (!reply.ok || data == null) return ServerInfoResult(false, reply.httpStatus, reply.networkError, previous)
+        return ServerInfoResult(true, reply.httpStatus, false, applyCapabilities(data, previous))
+    }
+
     /** `cloud/user` for the id, name, e-mail and groups; `cloud/capabilities` for the Deck version. */
     fun fetch(http: AgendaHttp, previous: ServerInfo, nowMs: Long): ServerInfoResult {
         val userReply = OcsJson.parse(http.getOcs("ocs/v2.php/cloud/user?format=json"))

@@ -100,16 +100,34 @@ object GanttAgentChange {
 
     private fun samePt(a: Double?, b: Double?): Boolean = (a == null && b == null) || (a != null && b != null && abs(a - b) <= WORK_TOLERANCE)
 
-    /** The planning person of [agent] that I can see, or null. */
-    private fun resourceOf(agent: Agent, resources: List<JsonObject>, ctx: Context): JsonObject? =
-        resources.firstOrNull { agentOf(it, resources, ctx)?.id == agent.id }
+    /** The ids of the people on a task, in order (for the log: ids only). */
+    fun idsOf(task: JsonObject): List<Int> = rowsOf(task).map { it.resourceId }
+
+    /** The ids of the people that are on any task of a project (design 4.5: an agent's planning person "in that project"). */
+    fun idsInProject(tasks: Iterable<JsonObject>): Set<Int> = tasks.flatMap { rowsOf(it) }.map { it.resourceId }.toSet()
+
+    /**
+     * The planning person of [agent] that I can see, or null. When the agent has more than one, the one that is already on a task of
+     * this project ([inProject]) is preferred.
+     */
+    private fun resourceOf(agent: Agent, resources: List<JsonObject>, ctx: Context, inProject: Set<Int>): JsonObject? {
+        val candidates = resources.filter { agentOf(it, resources, ctx)?.id == agent.id }
+        return candidates.firstOrNull { intOf(it.get("id")) in inProject } ?: candidates.firstOrNull()
+    }
 
     /**
      * The new list of people for the task (a fresh read of it), or the reason why nothing is sent. [target] is one of my agents, or
      * null for Self. All reads are the caller's: the fresh task, the project, and the planning people that I can see.
      */
     @Suppress("ReturnCount", "CyclomaticComplexMethod")
-    fun plan(task: JsonObject, project: JsonObject?, resources: List<JsonObject>, ctx: Context, target: Agent?): Plan {
+    fun plan(
+        task: JsonObject,
+        project: JsonObject?,
+        resources: List<JsonObject>,
+        ctx: Context,
+        target: Agent?,
+        inProject: Set<Int> = emptySet()
+    ): Plan {
         val byId = resources.associateBy { intOf(it.get("id")) }
         val rows = rowsOf(task)
         // My own row has to be there: the task is mine.
@@ -120,7 +138,7 @@ object GanttAgentChange {
         val mine = rows.filter { row -> byId[row.resourceId]?.let { agentOf(it, resources, ctx)?.let { a -> ctx.isMe(a.person) } } == true }
         var targetRow: Row? = null
         if (target != null) {
-            val resource = resourceOf(target, resources, ctx) ?: return Plan.Refuse(ConflictReason.AGENT_NOT_IN_PROJECT, target.name)
+            val resource = resourceOf(target, resources, ctx, inProject) ?: return Plan.Refuse(ConflictReason.AGENT_NOT_IN_PROJECT, target.name)
             val rid = intOf(resource.get("id"))
             targetRow = rows.firstOrNull { it.resourceId == rid } ?: Row(rid, null)
         }
@@ -145,7 +163,7 @@ object GanttAgentChange {
     }
 
     /** The choices of my agents for a task: Self is always there; the others are agents whose planning person I can see. */
-    fun choices(task: JsonObject, project: JsonObject?, resources: List<JsonObject>, ctx: Context): List<Choice> {
+    fun choices(task: JsonObject, project: JsonObject?, resources: List<JsonObject>, ctx: Context, inProject: Set<Int> = emptySet()): List<Choice> {
         val byId = resources.associateBy { intOf(it.get("id")) }
         val onTask = rowsOf(task).mapNotNull { row -> byId[row.resourceId]?.let { agentOf(it, resources, ctx) } }.filter { ctx.isMe(it.person) }
         val out = ArrayList<Choice>()
@@ -154,7 +172,7 @@ object GanttAgentChange {
             val current = onTask.any { it.id == agent.id }
             val note = when {
                 agent.isPaused && !current -> ChoiceNote.PAUSED
-                resourceOf(agent, resources, ctx) == null -> ChoiceNote.NOT_IN_PROJECT
+                resourceOf(agent, resources, ctx, inProject) == null -> ChoiceNote.NOT_IN_PROJECT
                 else -> ChoiceNote.NONE
             }
             out += Choice(agent.id, agent.name, enabled = note == ChoiceNote.NONE, note = note, current = current)

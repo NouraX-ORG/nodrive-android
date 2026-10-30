@@ -155,7 +155,10 @@ data class SourceSettings(
     val chipTeam: Boolean = true,
     val showAllTeam: Boolean = false,
     /** NoAgenda was opened at least once for this account: only then the background refresh runs. */
-    val everOpened: Boolean = false
+    val everOpened: Boolean = false,
+    /** The calendar of the last new event and the list of the last new to-do ("+" offers them first when the server has no default). */
+    val lastEventCalendar: String = "",
+    val lastTodoList: String = ""
 ) {
     fun calendarMode(calendar: CalendarInfo, taskCopyCalendarUri: String): CalendarMode {
         if (autoHiddenReason(calendar, taskCopyCalendarUri) != AutoHiddenReason.NONE) return CalendarMode.HIDDEN
@@ -206,6 +209,8 @@ data class SourceSettings(
         o.addProperty("chipTeam", chipTeam)
         o.addProperty("showAllTeam", showAllTeam)
         o.addProperty("everOpened", everOpened)
+        o.addProperty("lastEventCalendar", lastEventCalendar)
+        o.addProperty("lastTodoList", lastTodoList)
         return o
     }
 
@@ -254,7 +259,9 @@ data class SourceSettings(
                 chipAgents = flag("chipAgents", true),
                 chipTeam = flag("chipTeam", true),
                 showAllTeam = flag("showAllTeam", false),
-                everOpened = o.bool("everOpened")
+                everOpened = o.bool("everOpened"),
+                lastEventCalendar = o.str("lastEventCalendar"),
+                lastTodoList = o.str("lastTodoList")
             )
         }
     }

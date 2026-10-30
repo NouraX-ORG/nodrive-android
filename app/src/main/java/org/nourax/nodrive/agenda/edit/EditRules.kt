@@ -49,6 +49,15 @@ data class Capabilities(
 )
 
 object EditRules {
+    /** The readers keep the first 2,000 characters of a description (CalendarReader). A description that long may have been cut. */
+    const val DESCRIPTION_LIMIT = 2000
+
+    /**
+     * The description of an event or to-do that may have been cut for the phone is not changed here: writing the cut text back would
+     * delete the rest on the server. The sheet says so and points to the Calendar or Tasks page.
+     */
+    fun descriptionLocked(item: AgendaItem): Boolean = item.description.length >= DESCRIPTION_LIMIT
+
     private val NONE = Capabilities(EditBlock.NOT_MINE, canEdit = false, canDelete = false, canTickDone = false, percentFromBoard = false, canChangeAgent = false)
 
     fun of(item: AgendaItem): Capabilities {
@@ -59,7 +68,8 @@ object EditRules {
         return when (item.home) {
             Home.CALENDAR -> when {
                 item.repeating -> NONE.copy(block = EditBlock.REPEATING_EVENT)
-                item.invitation -> NONE.copy(block = EditBlock.INVITATION)
+                // An event that someone else organises is theirs to change, also when my address was not matched as an attendee.
+                item.invitation || (item.hasOrganizer && !item.organizerIsMe) -> NONE.copy(block = EditBlock.INVITATION)
                 else -> Capabilities(EditBlock.NONE, canEdit = true, canDelete = true, canTickDone = false, percentFromBoard = false, canChangeAgent = true)
             }
             Home.TASKS -> when {

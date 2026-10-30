@@ -10,6 +10,8 @@ import org.nourax.nodrive.agenda.ical.ICalText
 import org.nourax.nodrive.agenda.net.AgendaHttp
 import org.nourax.nodrive.agenda.net.HttpResult
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 /**
  * Events and to-dos through CalDAV, with ETags (design 9, plan 2.4). A change is: read the object (with its ETag), compare the
@@ -17,7 +19,7 @@ import java.time.Instant
  * a 412 answer, is a conflict: the other change wins and nothing is overwritten. Delete is the only DELETE NoAgenda ever sends
  * (the server keeps the object in the calendar's trash bin).
  */
-class CalDavWriter(private val http: AgendaHttp) {
+class CalDavWriter(private val http: AgendaHttp, private val zone: () -> ZoneId = { ZoneOffset.UTC }) {
     private val textHeaders = mapOf("Accept" to "text/calendar")
 
     fun send(command: EditCommand, now: Instant): SendResult = when (command.kind) {
@@ -35,17 +37,19 @@ class CalDavWriter(private val http: AgendaHttp) {
         val got = http.send("GET", href, textHeaders)
         got.failure()?.let { return it }
         val etag = etagOf(got)
-        if (!command.rebase && command.baseVersion.isNotEmpty() && etag.isNotEmpty() && !sameVersion(etag, command.baseVersion)) {
-            return SendResult.Conflict(ConflictReason.CHANGED_ELSEWHERE, "etag", etag)
-        }
         val text = got.text()
         val isTodo = command.loc("isTodo") == "true"
+        if (!command.rebase && command.baseVersion.isNotEmpty() && etag.isNotEmpty() && !sameVersion(etag, command.baseVersion)) {
+            // A change found "being sent" after a stop may have reached the server before: then the new version is its own.
+            if (command.recovered && CalendarEdit.alreadyApplied(text, isTodo, command.change, zone())) return SendResult.Done(newVersion = etag)
+            return SendResult.Conflict(ConflictReason.CHANGED_ELSEWHERE, "etag", etag)
+        }
         val wanted = if (isTodo) "VTODO" else "VEVENT"
         val components = ICalText.parse(text).filter { it.type == wanted }
         if (components.size != 1 || components[0].has("RRULE") || components[0].has("RDATE") || components[0].has("RECURRENCE-ID")) {
             return SendResult.Conflict(ConflictReason.NOW_REPEATING)
         }
-        val patched = CalendarEdit.patch(text, isTodo, command.change, now)
+        val patched = CalendarEdit.patch(text, isTodo, command.change, now, zone())
         val put = http.send(
             "PUT", href, mapOf("If-Match" to etag.ifEmpty { command.baseVersion }),
             patched.toByteArray(Charsets.UTF_8), "text/calendar; charset=utf-8"
@@ -61,7 +65,7 @@ class CalDavWriter(private val http: AgendaHttp) {
         if (calendar.isEmpty() || name.isEmpty() || uid.isEmpty()) return SendResult.Conflict(ConflictReason.OTHER, "no_address")
         val href = calendar.trimEnd('/') + "/" + name
         val isTodo = command.change[EditKeys.NEW_KIND] == "todo"
-        val text = CalendarEdit.create(isTodo, uid, command.change, now)
+        val text = CalendarEdit.create(isTodo, uid, command.change, now, zone())
         val put = http.send("PUT", href, mapOf("If-None-Match" to "*"), text.toByteArray(Charsets.UTF_8), "text/calendar; charset=utf-8")
         if (put.status == PRECONDITION_FAILED) {
             // A first try may have reached the server although its answer was lost: the same UID there means it is done.

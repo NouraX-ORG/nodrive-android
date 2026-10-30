@@ -18,6 +18,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
 import com.google.gson.Gson
+import org.nourax.nodrive.agenda.AgendaLog
 
 /** One waiting change. The command itself is one JSON (no password or token, only the semantic change). */
 @Entity(tableName = "agenda_command")
@@ -92,6 +93,10 @@ abstract class EditDatabase : RoomDatabase() {
 }
 
 class RoomEditStore(private val db: EditDatabase) : EditStore {
+    private companion object {
+        const val TAG = "AgendaEditStore"
+    }
+
     private val dao get() = db.dao()
     private val gson = Gson()
 
@@ -116,7 +121,13 @@ class RoomEditStore(private val db: EditDatabase) : EditStore {
         dao.updateCommand(CommandEntity(command.id, command.account, command.createdMs, command.itemKey, gson.toJson(command)))
     }
 
-    override fun commands(account: String): List<EditCommand> = dao.commands(account).mapNotNull { command(it) }
+    override fun commands(account: String): List<EditCommand> {
+        val rows = dao.commands(account)
+        val commands = rows.mapNotNull { command(it) }
+        // A row that can not be read is never sent and never shown; it is at least counted in the log (no content, no ids of people).
+        if (commands.size != rows.size) AgendaLog.w(TAG, "${rows.size - commands.size} unreadable queue rows")
+        return commands
+    }
 
     override fun remove(account: String, id: Long) = dao.removeCommand(account, id)
 
@@ -125,7 +136,12 @@ class RoomEditStore(private val db: EditDatabase) : EditStore {
         return conflict.copy(id = id)
     }
 
-    override fun conflicts(account: String): List<EditConflict> = dao.conflicts(account).mapNotNull { conflict(it) }
+    override fun conflicts(account: String): List<EditConflict> {
+        val rows = dao.conflicts(account)
+        val conflicts = rows.mapNotNull { conflict(it) }
+        if (conflicts.size != rows.size) AgendaLog.w(TAG, "${rows.size - conflicts.size} unreadable conflict rows")
+        return conflicts
+    }
 
     override fun removeConflict(account: String, id: Long) = dao.removeConflict(account, id)
 

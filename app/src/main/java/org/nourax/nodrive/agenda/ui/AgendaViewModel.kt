@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.nourax.nodrive.agenda.AgendaRepository
 import org.nourax.nodrive.agenda.AgendaSnapshot
+import org.nourax.nodrive.agenda.edit.CommandKind
 import org.nourax.nodrive.agenda.edit.EditCommand
 import org.nourax.nodrive.agenda.logic.AgendaView
 import org.nourax.nodrive.agenda.logic.CalendarMode
@@ -26,6 +27,7 @@ import org.nourax.nodrive.agenda.logic.ViewState
 import org.nourax.nodrive.agenda.logic.WorkMode
 import org.nourax.nodrive.agenda.logic.WorkingHours
 import org.nourax.nodrive.agenda.model.AgendaClock
+import org.nourax.nodrive.agenda.model.Home
 import java.time.LocalDate
 
 enum class AgendaPage { MAIN, SOURCES }
@@ -178,15 +180,39 @@ class AgendaViewModel(
 
     fun toggleConflicts() = viewState.update { it.copy(conflictsOnly = !it.conflictsOnly) }
 
-    /** Sends the changes (queued first, so none is lost) and closes the sheets. The screen shows them at once, marked as waiting. */
+    /**
+     * Keeps the changes and closes the sheets, then sends them. The changes are stored FIRST, before any wait for the lock that a
+     * refresh may hold and in a way a closed screen cannot cancel, so a change is never lost when the person presses Back at once.
+     * If the screen goes away or the phone is offline, the background send takes over (it also finishes what is still waiting).
+     */
     fun submit(commands: List<EditCommand>) {
         if (commands.isEmpty()) return
         editing.value = false
         creating.value = null
         selected.value = null
         viewModelScope.launch {
-            for (command in commands) repository.submit(command)
-            if (repository.state.value?.edit?.pending?.isNotEmpty() == true) onQueued()
+            repository.store(commands)
+            try {
+                repository.sendPending(manual = true)
+                rememberCalendars(commands)
+            } finally {
+                // Cancelled or not sent: it stays in the queue and goes out in the background.
+                if (repository.hasPending()) onQueued()
+            }
+        }
+    }
+
+    // The calendar or list of a new item is the first choice of the next "+" when the server has no default.
+    private suspend fun rememberCalendars(commands: List<EditCommand>) {
+        val created = commands.filter { it.kind == CommandKind.CAL_CREATE }
+        val event = created.firstOrNull { it.home != Home.TASKS }?.loc("calendarUri").orEmpty()
+        val todo = created.firstOrNull { it.home == Home.TASKS }?.loc("calendarUri").orEmpty()
+        if (event.isEmpty() && todo.isEmpty()) return
+        repository.updateSettings {
+            it.copy(
+                lastEventCalendar = event.ifEmpty { it.lastEventCalendar },
+                lastTodoList = todo.ifEmpty { it.lastTodoList }
+            )
         }
     }
 

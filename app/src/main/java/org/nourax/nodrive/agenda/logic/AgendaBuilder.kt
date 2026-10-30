@@ -236,9 +236,13 @@ object AgendaBuilder {
             taskCopyCalendarUri = ctx.taskCopyCalendarUri,
             workingHours = workingHours(input),
             holidays = holidays(input),
+            // "+" offers only the person's own calendars and lists that show on the agenda (Personal or Work): an item made in a team
+            // calendar would have no organiser or attendee and vanish at the next refresh, and private content would land where the
+            // team sees it (design 6.4); a Hidden calendar is never read back.
             writableCalendars = input.calendar.calendars.filter {
-                !it.ignored && !it.readOnly && !it.subscribed && !it.birthdays && !it.deckBoard &&
-                    SourceSettings.autoHiddenReason(it, ctx.taskCopyCalendarUri) == AutoHiddenReason.NONE
+                it.mine && !it.ignored && !it.readOnly && !it.subscribed && !it.birthdays && !it.deckBoard &&
+                    SourceSettings.autoHiddenReason(it, ctx.taskCopyCalendarUri) == AutoHiddenReason.NONE &&
+                    ctx.settings.calendarMode(it, ctx.taskCopyCalendarUri).let { mode -> mode == CalendarMode.PERSONAL || mode == CalendarMode.WORK }
             }.map {
                 WritableCalendar(
                     uri = it.uri,

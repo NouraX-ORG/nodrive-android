@@ -68,12 +68,15 @@ import org.nourax.nodrive.agenda.edit.CardForm
 import org.nourax.nodrive.agenda.edit.EditCommand
 import org.nourax.nodrive.agenda.edit.EditCommands
 import org.nourax.nodrive.agenda.edit.EditKeys
+import org.nourax.nodrive.agenda.edit.EditRules
+import org.nourax.nodrive.agenda.edit.NewItemDefaults
 import org.nourax.nodrive.agenda.edit.EventForm
 import org.nourax.nodrive.agenda.edit.TaskForm
 import org.nourax.nodrive.agenda.edit.TodoForm
 import org.nourax.nodrive.agenda.logic.WritableCalendar
 import org.nourax.nodrive.agenda.model.AgendaItem
 import org.nourax.nodrive.agenda.model.Home
+import org.nourax.nodrive.agenda.registry.Agent
 import org.nourax.nodrive.agenda.ui.AgendaTexts
 import org.nourax.nodrive.agenda.ui.NewKind
 import java.time.Instant
@@ -214,7 +217,7 @@ private fun EventEditor(
     item: AgendaItem,
     snapshot: AgendaSnapshot,
     texts: AgendaTexts,
-    agents: List<org.nourax.nodrive.agenda.registry.Agent>,
+    agents: List<Agent>,
     options: List<AgentOption>,
     onSave: (List<EditCommand>) -> Unit,
     onCancel: () -> Unit
@@ -222,7 +225,7 @@ private fun EventEditor(
     val zone = snapshot.zone
     val initial = remember(item.key) { EventForm.of(item, zone) }
     var form by remember(item.key) { mutableStateOf(initial) }
-    EventFields(form, texts, options) { form = it }
+    EventFields(form, texts, options, descriptionLocked = EditRules.descriptionLocked(item)) { form = it }
     SaveRow(valid = eventValid(form), onCancel = onCancel) {
         onSave(listOfNotNull(EditCommands.event(item, form, zone, agents)))
     }
@@ -234,7 +237,7 @@ private fun eventValid(form: EventForm): Boolean {
 }
 
 @Composable
-private fun EventFields(form: EventForm, texts: AgendaTexts, options: List<AgentOption>, onChange: (EventForm) -> Unit) {
+private fun EventFields(form: EventForm, texts: AgendaTexts, options: List<AgentOption>, descriptionLocked: Boolean = false, onChange: (EventForm) -> Unit) {
     OutlinedTextField(
         value = form.title,
         onValueChange = { onChange(form.copy(title = it)) },
@@ -269,13 +272,27 @@ private fun EventFields(form: EventForm, texts: AgendaTexts, options: List<Agent
             color = MaterialTheme.colorScheme.error
         )
     }
-    OutlinedTextField(
-        value = form.description,
-        onValueChange = { onChange(form.copy(description = it)) },
-        label = { Text(stringResource(R.string.nodrive_agenda_edit_description)) },
-        modifier = Modifier.fillMaxWidth().testTag("edit_description")
-    )
+    DescriptionField(form.description, descriptionLocked) { onChange(form.copy(description = it)) }
     AgentChoices(options, form.agentId) { onChange(form.copy(agentId = it)) }
+}
+
+// The description. One that was cut for the phone (2,000 characters) is shown but not changed: writing it back would delete the rest.
+@Composable
+private fun DescriptionField(value: String, locked: Boolean, onChange: (String) -> Unit) {
+    if (locked) {
+        Text(
+            stringResource(R.string.nodrive_agenda_edit_description_locked),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().testTag("edit_description_locked")
+        )
+    } else {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            label = { Text(stringResource(R.string.nodrive_agenda_edit_description)) },
+            modifier = Modifier.fillMaxWidth().testTag("edit_description")
+        )
+    }
 }
 
 @Composable
@@ -283,21 +300,21 @@ private fun TodoEditor(
     item: AgendaItem,
     snapshot: AgendaSnapshot,
     texts: AgendaTexts,
-    agents: List<org.nourax.nodrive.agenda.registry.Agent>,
+    agents: List<Agent>,
     options: List<AgentOption>,
     onSave: (List<EditCommand>) -> Unit,
     onCancel: () -> Unit
 ) {
     val zone = snapshot.zone
     var form by remember(item.key) { mutableStateOf(TodoForm.of(item, zone)) }
-    TodoFields(form, texts, options) { form = it }
-    SaveRow(valid = form.title.isNotBlank(), onCancel = onCancel) {
+    TodoFields(form, texts, options, descriptionLocked = EditRules.descriptionLocked(item)) { form = it }
+    SaveRow(valid = form.title.isNotBlank() && form.datesValid(), onCancel = onCancel) {
         onSave(listOfNotNull(EditCommands.todo(item, form, zone, agents)))
     }
 }
 
 @Composable
-private fun TodoFields(form: TodoForm, texts: AgendaTexts, options: List<AgentOption>, onChange: (TodoForm) -> Unit) {
+private fun TodoFields(form: TodoForm, texts: AgendaTexts, options: List<AgentOption>, descriptionLocked: Boolean = false, onChange: (TodoForm) -> Unit) {
     OutlinedTextField(
         value = form.title,
         onValueChange = { onChange(form.copy(title = it)) },
@@ -311,12 +328,15 @@ private fun TodoFields(form: TodoForm, texts: AgendaTexts, options: List<AgentOp
     form.dueTime?.let { time ->
         TimeField(stringResource(R.string.nodrive_agenda_edit_time), time, texts, "edit_due_time") { onChange(form.copy(dueTime = it)) }
     }
-    OutlinedTextField(
-        value = form.description,
-        onValueChange = { onChange(form.copy(description = it)) },
-        label = { Text(stringResource(R.string.nodrive_agenda_edit_description)) },
-        modifier = Modifier.fillMaxWidth().testTag("edit_description")
-    )
+    if (!form.datesValid()) {
+        Text(
+            stringResource(R.string.nodrive_agenda_edit_due_before_start),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.testTag("edit_due_before_start")
+        )
+    }
+    DescriptionField(form.description, descriptionLocked) { onChange(form.copy(description = it)) }
     AgentChoices(options, form.agentId) { onChange(form.copy(agentId = it)) }
 }
 
@@ -325,12 +345,12 @@ private fun TaskEditor(
     item: AgendaItem,
     snapshot: AgendaSnapshot,
     texts: AgendaTexts,
-    agents: List<org.nourax.nodrive.agenda.registry.Agent>,
+    agents: List<Agent>,
     options: List<AgentOption>,
     onSave: (List<EditCommand>) -> Unit,
     onCancel: () -> Unit
 ) {
-    val caps = org.nourax.nodrive.agenda.edit.EditRules.of(item)
+    val caps = EditRules.of(item)
     var form by remember(item.key) { mutableStateOf(TaskForm.of(item)) }
     val start = form.start
     val end = form.end
@@ -369,7 +389,7 @@ private fun TaskEditor(
 private fun CardEditor(
     item: AgendaItem,
     texts: AgendaTexts,
-    agents: List<org.nourax.nodrive.agenda.registry.Agent>,
+    agents: List<Agent>,
     options: List<AgentOption>,
     onSave: (List<EditCommand>) -> Unit,
     onCancel: () -> Unit
@@ -388,7 +408,9 @@ fun NewItemSheet(kind: NewKind, snapshot: AgendaSnapshot, texts: AgendaTexts, da
     val agents = snapshot.build.myAgents
     val options = remember(agents) { AgentOptions.forNew(agents) }
     val zone = snapshot.zone
-    var calendar by remember(calendars) { mutableStateOf(calendars.firstOrNull { it.isDefault } ?: calendars.firstOrNull()) }
+    // The server's default, then the last one used, then the first of the person's own; a team calendar is never preselected.
+    val lastUsed = if (kind == NewKind.EVENT) snapshot.settings.lastEventCalendar else snapshot.settings.lastTodoList
+    var calendar by remember(calendars) { mutableStateOf(NewItemDefaults.pick(calendars, lastUsed)) }
     var event by remember(day) {
         mutableStateOf(
             EventForm("", false, day, LocalTime.of(EventForm.DEFAULT_HOUR, 0), day, LocalTime.of(EventForm.DEFAULT_HOUR + 1, 0), "", EditKeys.SELF)
@@ -414,7 +436,7 @@ fun NewItemSheet(kind: NewKind, snapshot: AgendaSnapshot, texts: AgendaTexts, da
             } else {
                 CalendarChoice(kind, calendars, calendar) { calendar = it }
                 if (kind == NewKind.EVENT) EventFields(event, texts, options) { event = it } else TodoFields(todo, texts, options) { todo = it }
-                val valid = if (kind == NewKind.EVENT) eventValid(event) else todo.title.isNotBlank()
+                val valid = if (kind == NewKind.EVENT) eventValid(event) else todo.title.isNotBlank() && todo.datesValid()
                 SaveRow(valid = valid && calendar != null, onCancel = onDismiss) {
                     val target = calendar ?: return@SaveRow
                     val command = if (kind == NewKind.EVENT) EditCommands.newEvent(target, event, zone, agents) else EditCommands.newTodo(target, todo, zone, agents)

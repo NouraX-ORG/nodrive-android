@@ -6,6 +6,7 @@
  */
 package org.nourax.nodrive.agenda.edit
 
+import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.WritableCalendar
 import org.nourax.nodrive.agenda.model.AgendaItem
 import org.nourax.nodrive.agenda.model.Category
@@ -59,6 +60,9 @@ data class TodoForm(
     val description: String,
     val agentId: String
 ) {
+    /** A start after the due date is refused (the server would too: it is not a valid to-do). */
+    fun datesValid(): Boolean = start == null || due == null || !due.isBefore(start)
+
     companion object {
         fun of(item: AgendaItem, zone: ZoneId): TodoForm = TodoForm(
             title = item.title,
@@ -132,7 +136,8 @@ object EditCommands {
         val before = EventForm.of(item, zone)
         val change = LinkedHashMap<String, String>()
         if (form.title != before.title) change[EditKeys.SUMMARY] = form.title
-        if (form.description != before.description) change[EditKeys.DESCRIPTION] = form.description
+        // A description that was cut for the phone is never written back: the part after the cut would be lost on the server.
+        if (form.description != before.description && !EditRules.descriptionLocked(item)) change[EditKeys.DESCRIPTION] = form.description
         val timeChanged = form.allDay != before.allDay || form.startDate != before.startDate || form.endDate != before.endDate ||
             (!form.allDay && (form.startTime != before.startTime || form.endTime != before.endTime))
         if (timeChanged) {
@@ -152,7 +157,7 @@ object EditCommands {
         val before = TodoForm.of(item, zone)
         val change = LinkedHashMap<String, String>()
         if (form.title != before.title) change[EditKeys.SUMMARY] = form.title
-        if (form.description != before.description) change[EditKeys.DESCRIPTION] = form.description
+        if (form.description != before.description && !EditRules.descriptionLocked(item)) change[EditKeys.DESCRIPTION] = form.description
         if (form.start != before.start) change[EditKeys.START] = form.start?.let { EditKeys.day(it) }.orEmpty()
         if (form.due != before.due || form.dueTime != before.dueTime) {
             val due = form.due
@@ -198,10 +203,7 @@ object EditCommands {
             out += base(item, CommandKind.DECK_UPDATE, mapOf(EditKeys.DUE to (form.due?.let { EditKeys.day(it) }.orEmpty())))
         }
         if (form.agentId != currentAgent(item)) {
-            val agent = agents.firstOrNull { it.id == form.agentId }
-            val change = mutableMapOf(EditKeys.AGENT to form.agentId)
-            agent?.let { change[EditKeys.BOARD_LABEL] = it.boardLabel }
-            out += base(item, CommandKind.DECK_AGENT, change)
+            out += base(item, CommandKind.DECK_AGENT, mapOf(EditKeys.AGENT to form.agentId))
         }
         return out
     }
@@ -227,7 +229,7 @@ object EditCommands {
                 "calendarUri" to calendar.uri,
                 "calendarName" to calendar.name,
                 "calendarColor" to calendar.color,
-                "category" to (if (calendar.mode == org.nourax.nodrive.agenda.logic.CalendarMode.PERSONAL) Category.PERSONAL.name else Category.WORK.name)
+                "category" to (if (calendar.mode == CalendarMode.PERSONAL) Category.PERSONAL.name else Category.WORK.name)
             ),
             change = full
         )

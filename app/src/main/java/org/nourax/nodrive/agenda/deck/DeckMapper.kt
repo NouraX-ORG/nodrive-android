@@ -33,6 +33,10 @@ import org.nourax.nodrive.agenda.ocs.objects
 import org.nourax.nodrive.agenda.ocs.str
 import org.nourax.nodrive.agenda.registry.Agent
 import org.nourax.nodrive.agenda.registry.AgentRegistry
+import java.time.Instant
+import java.time.LocalTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /** NoBoard (Deck) cards -> rows (design 4.2, 6.2, 6.3). */
@@ -75,16 +79,16 @@ object DeckMapper {
     }
 
     /** A card with a start and a due time on one day (not both at midnight) has real times; only then it can clash. */
-    fun clashTimes(startText: String, dueText: String, zone: java.time.ZoneId): Pair<java.time.Instant, java.time.Instant>? {
-        fun parse(text: String): java.time.Instant? =
-            if (text.length <= 10) null else runCatching { java.time.OffsetDateTime.parse(text).toInstant() }.getOrNull()
+    fun clashTimes(startText: String, dueText: String, zone: ZoneId): Pair<Instant, Instant>? {
+        fun parse(text: String): Instant? =
+            if (text.length <= 10) null else runCatching { OffsetDateTime.parse(text).toInstant() }.getOrNull()
         val start = parse(startText) ?: return null
         val due = parse(dueText) ?: return null
         if (!start.isBefore(due)) return null
         val s = start.atZone(zone)
         val d = due.atZone(zone)
         if (s.toLocalDate() != d.toLocalDate()) return null
-        if (s.toLocalTime() == java.time.LocalTime.MIDNIGHT && d.toLocalTime() == java.time.LocalTime.MIDNIGHT) return null
+        if (s.toLocalTime() == LocalTime.MIDNIGHT && d.toLocalTime() == LocalTime.MIDNIGHT) return null
         return start to due
     }
 

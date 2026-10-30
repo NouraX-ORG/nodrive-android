@@ -15,6 +15,11 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.nourax.nodrive.agenda.edit.CommandState
+import org.nourax.nodrive.agenda.edit.SendResult
+import org.nourax.nodrive.agenda.net.AgendaHttp
+import org.nourax.nodrive.agenda.net.HttpResult
+import java.util.concurrent.CopyOnWriteArrayList
 import org.nourax.nodrive.agenda.edit.CardForm
 import org.nourax.nodrive.agenda.edit.CommandKind
 import org.nourax.nodrive.agenda.edit.ConflictReason
@@ -735,5 +740,257 @@ class EditServiceTest {
         assertEquals(CommandKind.GANTT_UPDATE, EditCommands.taskDone(taskItem()).kind)
         assertEquals(CommandKind.DECK_UPDATE, EditCommands.cardDone(cardItem()).kind)
         assertNotNull(EditCommands.task(taskItem(), TaskForm.of(taskItem()).copy(agentId = "AG-0001"), agents).single { it.kind == CommandKind.GANTT_AGENT })
+    }
+
+    // ---- round 2 of the review ----------------------------------------------------------------------------------------------
+
+    @Test
+    fun aDescriptionOf3000CharactersIsStillWholeOnTheServerAfterAnotherFieldChanged() {
+        val server = EditFakeServer()
+        val first = eventItem(server)
+        val long = "x".repeat(3000)
+        val base = sampleEvent()
+        val from = base.indexOf("DESCRIPTION:Bring")
+        val to = base.indexOf("DTSTART;TZID", from)
+        server.putObject(eventHref, base.substring(0, from) + "DESCRIPTION:" + long + "\r\n" + base.substring(to))
+        // the reader keeps 2,000 characters; the editor shows them, and the person also typed more into the field
+        val item = first.copy(description = long.take(2000), version = server.etagOf(eventHref))
+        val form = eventForm(item)
+        assertEquals(2000, form.description.length)
+        val store = InMemoryEditStore()
+        val r = runner(server, store)
+        r.enqueue(EditCommands.event(item, form.copy(title = "Moved", description = form.description + " and more"), UTC, agents)!!)
+        r.run()
+        val text = server.objects.getValue(eventHref.trimStart('/')).text
+        assertTrue(text.contains("SUMMARY:Moved"))
+        assertTrue("the whole description is still there", text.contains("DESCRIPTION:$long"))
+        assertTrue(store.conflicts("ali@test").isEmpty())
+    }
+
+    /** The fake server with a hook: [before] may answer a request itself (a refused sign-in, an error, no network); [after] sees it. */
+    private class Wrapped(
+        val inner: EditFakeServer,
+        val before: (String) -> HttpResult? = { null },
+        val after: (String) -> Unit = {}
+    ) : AgendaHttp {
+        val calls = CopyOnWriteArrayList<String>()
+
+        override fun send(method: String, path: String, headers: Map<String, String>, body: ByteArray?, contentType: String?): HttpResult {
+            calls += "$method $path"
+            val answer = before(path) ?: inner.send(method, path, headers, body, contentType)
+            after(path)
+            return answer
+        }
+    }
+
+    private fun runnerOn(http: AgendaHttp, store: InMemoryEditStore) = EditRunner("ali@test", http, store, clock, { registry }, { "ali" }, { "Ali" })
+
+    @Test
+    fun aRefusedSignInAtNoBoardDoesNotHoldBackACalendarEdit() {
+        val server = deckServer()
+        val event = eventItem(server)
+        val http = Wrapped(server, before = { if (it.contains("apps/deck")) HttpResult(401) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.cardDone(cardItem()))
+        r.enqueue(EditCommands.event(event, eventForm(event).copy(title = "Still goes out"), UTC, agents)!!)
+        val report = r.run()
+        // the card change is "not sent" (the part refuses the sign-in); the calendar edit went out behind it
+        assertEquals(1, report.newConflicts)
+        val conflict = store.conflicts("ali@test").single()
+        assertEquals(ConflictReason.REFUSED, conflict.reason)
+        assertEquals("http401", conflict.detail)
+        assertTrue(server.objects.getValue(eventHref.trimStart('/')).text.contains("SUMMARY:Still goes out"))
+        assertTrue(store.commands("ali@test").isEmpty())
+    }
+
+    @Test
+    fun aRefusedSignInAtNoGanttIsARefusalToo() {
+        val server = ganttServer()
+        val http = Wrapped(server, before = { if (it.contains("nc_gantt")) HttpResult(401) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        r.run()
+        assertEquals("http401", store.conflicts("ali@test").single().detail)
+        assertTrue(store.commands("ali@test").isEmpty())
+    }
+
+    @Test
+    fun aCalendarLoginThatNeedsRepairStillWaits() {
+        val server = EditFakeServer()
+        val event = eventItem(server)
+        val http = Wrapped(server, before = { if (it.contains("remote.php/dav")) HttpResult(401) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.event(event, eventForm(event).copy(title = "Later"), UTC, agents)!!)
+        r.run()
+        assertEquals(1, store.commands("ali@test").size)
+        assertTrue(store.conflicts("ali@test").isEmpty())
+    }
+
+    @Test
+    fun aPlaceThatDoesNotAnswerStopsOnlyItsOwnChanges() {
+        val server = ganttServer()
+        val event = eventItem(server)
+        val http = Wrapped(server, before = { if (it.contains("nc_gantt")) HttpResult(0, networkError = true) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        r.enqueue(EditCommands.taskDone(taskItem().copy(key = "gantt:task:6", taskId = 6)))
+        r.enqueue(EditCommands.event(event, eventForm(event).copy(title = "Calendar goes on"), UTC, agents)!!)
+        val report = r.run()
+        assertTrue(server.objects.getValue(eventHref.trimStart('/')).text.contains("SUMMARY:Calendar goes on"))
+        // both Gantt changes wait; the second was not even tried (the first one found no network)
+        assertEquals(2, store.commands("ali@test").size)
+        assertEquals(1, http.calls.count { it.contains("nc_gantt") })
+        assertEquals(0, report.newConflicts)
+    }
+
+    @Test
+    fun aServerErrorThatKeepsComingMovesTheChangeToNotSentAfterFiveTriesAndNeverHoldsTheCalendarBack() {
+        val server = ganttServer()
+        val event = eventItem(server)
+        val http = Wrapped(server, before = { if (it.contains("nc_gantt")) HttpResult(500) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        for (n in 1 until EditRunner.MAX_SERVER_ERRORS) {
+            r.run()
+            assertEquals("try $n: still waiting", n, store.commands("ali@test").single().serverErrors)
+            assertTrue(store.conflicts("ali@test").isEmpty())
+        }
+        // a calendar edit made meanwhile is not held back
+        r.enqueue(EditCommands.event(event, eventForm(event).copy(title = "Not held back"), UTC, agents)!!)
+        val last = r.run()
+        assertEquals(1, last.newConflicts)
+        val conflict = store.conflicts("ali@test").single()
+        assertEquals(ConflictReason.OTHER, conflict.reason)
+        assertEquals("http500", conflict.detail)
+        assertTrue(store.commands("ali@test").isEmpty())
+        assertTrue(server.objects.getValue(eventHref.trimStart('/')).text.contains("SUMMARY:Not held back"))
+    }
+
+    @Test
+    fun theVersionGuardIsReadAgainBeforeTheFirstGanttOrBoardChangeOfARun() {
+        val server = deckServer()
+        val asked = CopyOnWriteArrayList<Home>()
+        val store = InMemoryEditStore()
+        var gantt = false
+        val r = EditRunner(
+            "ali@test", server, store, clock, { registry }, { "ali" }, { "Ali" },
+            guarded = { gantt },
+            prepare = { home ->
+                asked += home
+                if (home == Home.GANTT) gantt = true // the server was updated while the change waited: the guard now says no
+                null
+            }
+        )
+        r.enqueue(EditCommands.cardDone(cardItem()))
+        r.enqueue(EditCommands.cardDone(cardItem().copy(key = "deck:card:8", cardId = 8)).copy(rebase = true))
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        r.run()
+        // once per place per run, however many changes go there
+        assertEquals(listOf(Home.BOARD, Home.GANTT), asked)
+        // the Gantt change was stopped by the guard that was read again, and sent nothing
+        assertEquals("version_guard", store.conflicts("ali@test").single().detail)
+        assertTrue(server.requests.none { it.path.contains("nc_gantt") })
+    }
+
+    @Test
+    fun whenTheGuardCanNotBeReadNothingIsWrittenThereAndTheChangeWaits() {
+        val server = deckServer()
+        val store = InMemoryEditStore()
+        val r = EditRunner(
+            "ali@test", server, store, clock, { registry }, { "ali" }, { "Ali" },
+            prepare = { SendResult.Offline }
+        )
+        r.enqueue(EditCommands.cardDone(cardItem()))
+        r.run()
+        assertTrue(server.requests.isEmpty())
+        assertEquals(1, store.commands("ali@test").size)
+    }
+
+    @Test
+    fun aGanttChangeFoundBeingSentAfterACrashIsNotWrittenOverAChangeMadeElsewhere() {
+        val server = ganttServer()
+        val store = InMemoryEditStore()
+        val r = runner(server, store)
+        // the person saw an older version; the task was changed elsewhere since
+        val stored = r.enqueue(EditCommands.taskDone(taskItem(version = "2026-10-27 08:00:00")))
+        store.update(stored.copy(state = CommandState.SENDING))
+        val report = runner(server, store).run()
+        assertEquals(1, report.newConflicts)
+        assertTrue(server.writes().isEmpty())
+        assertEquals(ConflictReason.CHANGED_ELSEWHERE, store.conflicts("ali@test").single().reason)
+    }
+
+    @Test
+    fun aCalendarChangeFoundBeingSentAfterACrashIsDoneWhenTheServerAlreadyHasIt() {
+        val server = EditFakeServer()
+        val event = eventItem(server)
+        val store = InMemoryEditStore()
+        val r = runner(server, store)
+        val stored = r.enqueue(EditCommands.event(event, eventForm(event).copy(title = "Once"), UTC, agents)!!)
+        // another change reached the server too, so the version moved on and the text is not the one the person saw
+        server.putObject(eventHref, sampleEvent().replace("SUMMARY:Dentist", "SUMMARY:Once"))
+        store.update(stored.copy(state = CommandState.SENDING))
+        val report = runner(server, store).run()
+        assertEquals(0, report.newConflicts)
+        assertTrue(server.writes().isEmpty())
+        assertTrue(store.commands("ali@test").isEmpty())
+        // but a different text there is a conflict, never an overwrite
+        val other = eventItem(server)
+        val second = r.enqueue(EditCommands.event(other, eventForm(other).copy(title = "Mine"), UTC, agents)!!)
+        server.putObject(eventHref, sampleEvent().replace("SUMMARY:Dentist", "SUMMARY:Theirs"))
+        store.update(second.copy(state = CommandState.SENDING))
+        val again = runner(server, store).run()
+        assertEquals(1, again.newConflicts)
+        assertTrue(server.objects.getValue(eventHref.trimStart('/')).text.contains("SUMMARY:Theirs"))
+    }
+
+    @Test
+    fun aLabelSwitchThatLostTheNetworkHalfWayIsFinishedOnTheNextTryWithoutAFalseConflict() {
+        val server = deckServer(onCard = listOf(20 to "$robot Research-Bot"))
+        server.board.getAsJsonArray("labels").add(JsonParser.parseString("""{"id":21,"title":"$robot Writer-Bot","color":"31CC7C"}"""))
+        var down = false
+        val http = Wrapped(server, before = { if (down) HttpResult(0, networkError = true) else null }, after = { if (it.endsWith("removeLabel")) down = true })
+        val item = cardItem(AgentRef(isSelf = false, id = "AG-0003", name = "Research-Bot"))
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.card(item, CardForm.of(item).copy(agentId = "AG-0001"), agents).single())
+        r.run()
+        // the old label is off, the new one is not on yet, and the change waits (it is not a conflict)
+        assertEquals(emptyList<Int>(), server.card.getAsJsonArray("labels").map { it.asJsonObject.get("id").asInt })
+        val waiting = store.commands("ali@test").single()
+        assertEquals(CommandState.WAITING, waiting.state)
+        assertTrue(waiting.rebase || waiting.baseVersion != "1000")
+        assertTrue(store.conflicts("ali@test").isEmpty())
+        // the network is back: the switch is finished
+        down = false
+        val report = r.run()
+        assertEquals(0, report.newConflicts)
+        assertTrue(store.conflicts("ali@test").isEmpty())
+        assertTrue(store.commands("ali@test").isEmpty())
+        assertEquals(listOf(21), server.card.getAsJsonArray("labels").map { it.asJsonObject.get("id").asInt })
+    }
+
+    @Test
+    fun aChangeIsFoldedIntoAWaitingOneEvenWhileAnotherThreadSends() {
+        // two threads: one keeps sending, the other stores changes of the same thing; every change must end up in the server's text
+        val server = EditFakeServer()
+        val event = eventItem(server)
+        val store = InMemoryEditStore()
+        val r = runner(server, store)
+        val titles = (1..40).map { "T$it" }
+        val sender = Thread { repeat(40) { r.run() } }
+        sender.start()
+        for (t in titles) r.enqueue(EditCommands.event(event, eventForm(event).copy(title = t), UTC, agents)!!.copy(baseVersion = ""))
+        sender.join()
+        r.run()
+        assertTrue(store.commands("ali@test").isEmpty())
+        assertTrue(store.conflicts("ali@test").isEmpty())
+        // the last change stored is the one on the server
+        assertTrue(server.objects.getValue(eventHref.trimStart('/')).text.contains("SUMMARY:T40"))
     }
 }

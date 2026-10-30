@@ -21,6 +21,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.cancel
+import org.nourax.nodrive.agenda.edit.CommandKind
+import org.nourax.nodrive.agenda.edit.EditCommand
+import org.nourax.nodrive.agenda.edit.EditKeys
+import org.nourax.nodrive.agenda.model.Home
 import org.nourax.nodrive.agenda.edit.EditCommands
 import org.nourax.nodrive.agenda.edit.EventForm
 import org.nourax.nodrive.agenda.edit.InMemoryEditStore
@@ -29,6 +35,8 @@ import org.nourax.nodrive.agenda.store.InMemoryAgendaStore
 import org.nourax.nodrive.agenda.ui.AgendaUiState
 import org.nourax.nodrive.agenda.ui.AgendaViewModel
 import org.nourax.nodrive.agenda.ui.NewKind
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** The buttons of the edit step on the view model: the sheets, the queue, the Conflicts filter. */
@@ -78,6 +86,36 @@ class AgendaViewModelEditTest {
         assertEquals("Moved", row.title)
         assertTrue(row.pending)
         assertEquals(1, f.store.commands(account).size)
+    }
+
+    @Test
+    fun aChangeSavedWhileARefreshHoldsTheLockIsStoredEvenWhenTheScreenIsClosedAtOnce() {
+        val started = CountDownLatch(1)
+        val gate = CountDownLatch(1)
+        val store = InMemoryEditStore()
+        val real = AccountAgenda(account, FakeHttp(), InMemoryAgendaStore(), clock, editStore = store)
+        // the refresh that starts when NoAgenda opens is slow and holds the repository's lock
+        val engine = object : AgendaEngine by real {
+            override fun refresh(manual: Boolean): AgendaSnapshot {
+                started.countDown()
+                gate.await()
+                return real.snapshot()
+            }
+        }
+        val queued = AtomicInteger()
+        val vm = AgendaViewModel(AgendaRepository(engine), clock, onQueued = { queued.incrementAndGet() })
+        assertTrue("the refresh started", started.await(WAIT_MS, TimeUnit.MILLISECONDS))
+        val first = EditCommand(kind = CommandKind.CAL_PATCH, itemKey = "cal:a", home = Home.CALENDAR, title = "A", change = mapOf(EditKeys.SUMMARY to "A2"))
+        val second = EditCommand(kind = CommandKind.CAL_PATCH, itemKey = "cal:b", home = Home.CALENDAR, title = "B", change = mapOf(EditKeys.SUMMARY to "B2"))
+        // one Save that makes two commands, then Back at once
+        vm.submit(listOf(first, second))
+        runBlocking { withTimeout(WAIT_MS) { while (store.commands(account).size < 2) kotlinx.coroutines.delay(10) } }
+        vm.viewModelScope.cancel()
+        runBlocking { withTimeout(WAIT_MS) { while (queued.get() == 0) kotlinx.coroutines.delay(10) } }
+        gate.countDown()
+        // both commands are in the queue, and the background send was asked for
+        assertEquals(listOf("A", "B"), store.commands(account).map { it.title })
+        assertEquals(1, queued.get())
     }
 
     @Test

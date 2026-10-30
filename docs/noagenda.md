@@ -205,9 +205,37 @@ of step 1 are reused).
   one file never touches the other.
 - A new event or to-do is written with a random UUID as its name and UID; if the answer to the first try is lost, the second try finds the
   same UID on the server and counts as done (no duplicate, no conflict).
-- A command that was being sent when the app stopped is applied on the newest version (all values are absolute, so applying them twice
-  is harmless); it is not reported as a conflict.
-- A to-do's due date is written as a date; the time of day is kept only when the to-do already has a due time (then there is a time field).
+- A command that was being sent when the app stopped (it may have reached the server) is sent only against the version the person saw.
+  For an event or a to-do, a different version on the server is checked first: when the server's text already has exactly this change
+  (only `DTSTAMP`, `LAST-MODIFIED` and `SEQUENCE` differ), the command counts as sent. Otherwise it is a conflict, never an overwrite.
+  (A Gantt or Deck change in that state is a conflict when the version moved, even if the move was its own: "Keep the other change" is
+  harmless then, and "Apply my change again" is idempotent.)
+- A to-do's start and due date are always written in the same value type (sabre/vobject refuses a mixed to-do and the server answers 415).
+  The date that is not being changed decides: a due DAY next to a timed start becomes a day and time (the start's time of day); a due TIME
+  next to a day start makes the start a day and time (midnight). A start that moves keeps its time of day and its `TZID`. The editors
+  refuse a due date before the start.
+- A description of 2,000 characters or more may have been cut for the phone, so the editor shows it but does not change it ("This
+  description is too long to change here. Change it in the Calendar or Tasks page (Open in NoCalendar)."); the cut text is never written back.
+- "+" offers only the person's own calendars and lists that show on the agenda (Personal or Work, not Team, not Hidden). It starts with the
+  server's default, then the last one used for events (or to-dos), then the first of the person's own. A team calendar is never preselected.
+- The version guard is read again before the first NoGantt or NoBoard change of every run (NoBoard: the capabilities for the Deck version;
+  NoGantt: the contract read of NoGantt, as in a refresh). If it can not be read, the change waits; if it is not the tested version the
+  change goes to "Not sent" with "version_guard" and nothing is written.
+- The three places a change goes to (CalDAV, NoGantt, NoBoard) do not hold each other back: a place that does not answer stops only its own
+  changes in that run. A 401 or 403 from NoGantt or NoBoard is a refusal ("does not accept NoDrive's sign-in. Make this change there"), the
+  rows of that source are locked, and a 401 from CalDAV still waits (the sign-in is repaired in the app). A server error (5xx) is tried five
+  times, then the change moves to "Not sent" ("This change could not be sent.") instead of waiting for ever.
+- A NoBoard label switch that loses the network half way puts the labels it took off back (best effort) and remembers the card's new
+  version, so the next try is not reported as "changed somewhere else".
+- A date change from the sheet sends plain dates (no `adjust_lag`): the person typed the end date, and snapping it to NoGantt's lag rule
+  could override it. (Builder's call 20 of the plan said `adjust_lag=true` for the sheet; the Timeline step decides for its own drag.)
+- The agent of a Gantt task prefers a planning person that is already on a task of the same project when the agent has more than one.
+- An agent of another organisation is never checked for overbooking nor named in My team (design 4.1); a timed card counts in its agent's
+  load like a timed event; a Gantt task that starts and ends on one day with real times has clash times.
+- A change is stored in the queue first, without waiting for the lock a refresh may hold and in a way a closed screen cannot cancel; the
+  send follows. If the screen is closed meanwhile (or the phone is offline), the background send is queued; if the process dies in that
+  moment, the 15-minute refresh sends it first.
+- A to-do's due date written for a to-do that already has a due time keeps the time of day (there is a time field).
 - A Gantt "done" sets `status: done` and, when the progress is manual, `manual_progress: 100`. Percent done of a task whose progress comes
   from the board is read only. NoGantt dates keep the time of day the task had.
 - The Deck update is a full replace on the server: the request is always built from the fresh card, always carries `done` (a time, or null),
@@ -275,6 +303,25 @@ changed the item (the queue now reads each command again when its turn comes); t
 that had scrolled away now look at the top of the list. The emulator image's own `googlesdksetup` app still sometimes shows an "isn't responding" dialog; the watchdog of step 1 closes it.
 
 
+## Round 2 of the review (what was fixed)
+
+The independent review of this branch found 8 should-fix findings and 11 nits (`plans/round3-android-agenda-edit-review-1.md`). All 8 are fixed, with tests:
+
+| Finding | Fix | Test |
+|---|---|---|
+| 1. An edit was lost when the screen closed while a refresh held the lock | `AgendaRepository.store` writes the commands in a `NonCancellable` scope without the lock, then the send follows; `EditRunner` guards its queue with its own lock so a fold and a send never overwrite each other | `AgendaViewModelEditTest` (a slow refresh holds the lock, Save with two commands, the scope is cancelled: both are in the queue and the background send was asked for); `EditServiceTest` (two threads) |
+| 2. A description over 2,000 characters was cut on the server | the field is locked and no command carries it | `EditRound2Test`, `EditServiceTest` (3,000 characters stay whole) |
+| 3. To-do dates mixed value types (415) | `CalendarEdit` keeps one value type and the time of day; editors refuse a due date before the start | `EditRound2Test` (13 cases), server phase `editCalendarTimedTodoKeepsItsTimesWhenTheStartMoves` |
+| 4. "+" offered Team and Hidden calendars | only own Personal or Work calendars; default, last used, first own | `EditRound2Test` |
+| 5. Gantt and Deck changes passed an old guard | the guard is read again before the first such change of a run | `EditServiceTest` |
+| 6. A 401 or an error held the whole queue back | per-place stops, 401 and 403 are refusals, five server errors move a change to "Not sent", rows of a refused source are locked | `EditServiceTest` (5 tests) |
+| 7. Another organisation's agent was named in My team | only agents whose name may be shown are checked | `AnalysisTest` |
+| 8. Timed cards and same-day Gantt tasks | cards count in the agent's load; Gantt clash times | `AgentLoadTest`, `EditRound2Test` |
+
+Nits fixed: crash recovery without a blind overwrite; the half-done label switch; the planning person of the project; the answer mismatch is
+logged (ids only); "organiser set and not me" is an invitation; unreadable queue rows are counted in the log; the unused keys and the fully
+qualified names are gone. The `adjust_lag` choice is written down above. The commit trailer stays `Claude Sonnet 5.5`, the model that wrote this code.
+
 ## Server-side items found here (for the Workspace session; this step changes no server)
 
 See also section 5 of `docs/testing.md` (S18 to S20) and section 6 of `plans/noagenda-android-plan.md`.
@@ -287,6 +334,10 @@ See also section 5 of `docs/testing.md` (S18 to S20) and section 6 of `plans/noa
 ## Left for later (to-dos)
 
 - The date picker and the time picker dialogs are standard Material 3 dialogs; CI changes a date with the "one day earlier / later" buttons next to the date, not through the dialog.
-- NoGantt tasks have dates, not times, so only events and cards with real start and due times can clash (design 7 says "Gantt tasks and cards with set times").
+- NoGantt tasks have dates, and a time only when the server keeps one in the date text: only a Gantt task that starts and ends on one day with
+  real times can clash. The agents' load in My team is worked out from the team rows that are loaded (problems only, by default), so it can
+  under-report the load of other people's agents.
+- A change stored behind another one of the same item whose new version could not be read gets "take the newest version" (no conflict check
+  for that one write); the window is a single failed read.
 - Other people's rows (My team) and milestones are not editable here, only opened in their own app.
 - Translations of `nodrive_agenda_edit.xml`.

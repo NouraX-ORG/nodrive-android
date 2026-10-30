@@ -8,6 +8,7 @@ package org.nourax.nodrive.agenda.ical
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -119,6 +120,14 @@ class ICalPatch(source: String, private val component: String) {
 
     fun has(name: String): Boolean = indexOf(name) >= 0
 
+    /** The parameter text (for example ";TZID=Europe/Berlin") of the first property of that name, or null when there is none. */
+    fun paramText(name: String): String? {
+        val i = indexOf(name)
+        if (i < 0) return null
+        val text = lines[i].unfolded()
+        return text.substring(name.length, valueStart(text).coerceAtLeast(name.length))
+    }
+
     /** Removes every property of that name. */
     fun remove(name: String): ICalPatch {
         val upper = name.uppercase()
@@ -153,6 +162,9 @@ class ICalPatch(source: String, private val component: String) {
     fun setUtc(name: String, instant: Instant): ICalPatch = set(name, "", UTC_FORMAT.format(instant.atOffset(ZoneOffset.UTC)))
 
     fun setDate(name: String, date: LocalDate): ICalPatch = set(name, ";VALUE=DATE", DATE_FORMAT.format(date))
+
+    /** A local date and time written as it is, with [params] (for example ";TZID=Europe/Berlin", or empty for a floating time). */
+    fun setLocal(name: String, params: String, dateTime: LocalDateTime): ICalPatch = set(name, params, LOCAL_FORMAT.format(dateTime))
 
     /** The values of every CATEGORIES line, unescaped. */
     fun categories(): List<String> =
@@ -210,6 +222,7 @@ class ICalPatch(source: String, private val component: String) {
     companion object {
         private val UTC_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
         private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+        private val LOCAL_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
         private const val FOLD_OCTETS = 75
 
         fun escape(text: String): String {

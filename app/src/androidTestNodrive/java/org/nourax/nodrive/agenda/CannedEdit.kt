@@ -133,6 +133,18 @@ class CannedEditEngine(private val start: AgendaSnapshot, var online: Boolean = 
     }
 
     override fun submit(command: EditCommand): AgendaSnapshot {
+        record(command)
+        return rebuild()
+    }
+
+    // The screen stores the changes first (enqueue) and sends afterwards (sendPending).
+    override fun enqueue(commands: List<EditCommand>) {
+        commands.forEach { record(it) }
+    }
+
+    override fun hasPending(): Boolean = pending.isNotEmpty()
+
+    private fun record(command: EditCommand) {
         val stored = command.copy(id = ++sequence)
         submitted += stored
         if (online) {
@@ -143,7 +155,6 @@ class CannedEditEngine(private val start: AgendaSnapshot, var online: Boolean = 
             pending += stored
             notice = EditNotice(sequence, stored.title, queued = true)
         }
-        return rebuild()
     }
 
     override fun resolveConflict(id: Long, applyAgain: Boolean): AgendaSnapshot {

@@ -49,6 +49,9 @@ enum class ReadOnlyReason {
     CALENDAR_READ_ONLY,
     VIEWER_PROJECT,
     BOARD_VIEW_ONLY,
+
+    /** NoGantt or NoBoard does not accept the sign-in: the rows stay in view, but nothing is written there (design 5). */
+    SOURCE_REFUSED,
     MILESTONE,
     PROBLEM_ROW
 }
@@ -142,6 +145,8 @@ data class AgendaItem(
     val uid: String = "",
     val recurrenceId: String = "",
     val organizerIsMe: Boolean = false,
+    /** The event names an organiser (also when my address was not matched as an attendee). */
+    val hasOrganizer: Boolean = false,
     val myPartstat: String = "",
     val myWorkHours: Double = -1.0,
     /** The work (hours) that the planning person of my agent has on this Gantt task; -1 = none or not known. */

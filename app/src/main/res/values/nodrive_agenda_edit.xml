@@ -61,6 +61,10 @@
     <string name="nodrive_agenda_edit_card_not_moved">The linked card wasn\'t moved. Open in NoGantt to confirm.</string>
     <string name="nodrive_agenda_edit_gone">This item is gone from the server, so your change was not sent.</string>
     <string name="nodrive_agenda_edit_refused">The server did not allow this change.</string>
+    <string name="nodrive_agenda_edit_refused_signin">NoGantt or NoBoard does not accept NoDrive\'s sign-in. Make this change there (use Open in NoGantt or NoBoard).</string>
+    <string name="nodrive_agenda_edit_ro_refused">NoGantt or NoBoard does not accept NoDrive\'s sign-in, so this can be read here but not changed. Use Open in NoGantt or NoBoard.</string>
+    <string name="nodrive_agenda_edit_description_locked">This description is too long to change here. Change it in the Calendar or Tasks page (Open in NoCalendar).</string>
+    <string name="nodrive_agenda_edit_due_before_start">The due date can\'t be before the start.</string>
     <string name="nodrive_agenda_edit_invalid">The server did not accept this value.</string>
     <string name="nodrive_agenda_edit_now_repeating">This item repeats now. Change it in the Calendar or Tasks page.</string>
     <string name="nodrive_agenda_edit_label_manage">You need to manage this board to add the label %1$s.</string>

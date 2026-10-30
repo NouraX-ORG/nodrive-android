@@ -19,10 +19,14 @@ import org.nourax.nodrive.agenda.logic.BuildOutput
 import org.nourax.nodrive.agenda.logic.ConflictBadge
 import org.nourax.nodrive.agenda.logic.ViewState
 import org.nourax.nodrive.agenda.logic.WorkingHours
+import org.nourax.nodrive.agenda.gantt.GanttSnapshot
 import org.nourax.nodrive.agenda.model.AgendaItem
+import org.nourax.nodrive.agenda.model.AgentRef
 import org.nourax.nodrive.agenda.model.Home
 import org.nourax.nodrive.agenda.model.ItemKind
+import org.nourax.nodrive.agenda.model.WorkKind
 import org.nourax.nodrive.agenda.registry.Agent
+import org.nourax.nodrive.agenda.registry.AgentRegistry
 import java.time.DayOfWeek
 import java.time.Instant
 
@@ -48,6 +52,32 @@ class AnalysisTest {
         assertTrue(ganttRows.isNotEmpty())
         assertTrue(analysis.ganttChoices.isNotEmpty())
         assertTrue(ganttRows.map { it.key }.containsAll(analysis.ganttChoices.keys))
+    }
+
+    @Test
+    fun anAgentOfAnotherOrganisationIsNeverCheckedOrNamed() {
+        val registry = AgentRegistry.parse(
+            (
+                """{"schema":"nourax-agent-registry","version":1,"agents":[
+                {"id":"AG-0001","name":"Writer-Bot","person":"ali","status":"active","organisation":"o",
+                 "availability":{"timezone":"UTC","weekly":[{"days":["wed"],"from":"09:00","to":"17:00"}],"capacity_hours_per_week":8,"days_off":[]}},
+                {"id":"AG-0002","name":"Design-Bot","person":"sara","status":"active","organisation":"o",
+                 "availability":{"timezone":"UTC","weekly":[{"days":["wed"],"from":"09:00","to":"17:00"}],"capacity_hours_per_week":8,"days_off":[]}},
+                {"id":"AG-0009","name":"Spy-Bot","person":"omar","status":"active","organisation":"other",
+                 "availability":{"timezone":"UTC","weekly":[{"days":["wed"],"from":"09:00","to":"17:00"}],"capacity_hours_per_week":8,"days_off":[]}}]}"""
+                ).toByteArray()
+        )
+        fun task(id: String) = AgendaItem(
+            key = "t-$id", kind = ItemKind.GANTT_TASK, home = Home.GANTT, title = "t", startDate = TODAY, endDate = TODAY, due = TODAY,
+            agent = AgentRef(isSelf = false, id = id, name = "n"), workKind = WorkKind.MY_AGENT, agentWorkHours = 20.0
+        )
+        val items = listOf(task("AG-0001"), task("AG-0002"), task("AG-0009"))
+        val ali = AnalysisBuilder.build(output(items), registry, GanttSnapshot(), "ali", "Ali", 8.0, TODAY, UTC)
+        // my own agent and an agent of my own organisation are checked; the agent of the other organisation is not
+        assertEquals(listOf("AG-0001", "AG-0002"), ali.agentOver[TODAY].orEmpty().map { it.agentId })
+        // a team leader with no agents of their own has no organisation at all: no agent is named to them
+        val leader = AnalysisBuilder.build(output(items), registry, GanttSnapshot(), "mara", "Mara", 8.0, TODAY, UTC)
+        assertTrue(leader.agentOver.isEmpty())
     }
 
     @Test
