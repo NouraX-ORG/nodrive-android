@@ -262,11 +262,6 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
         }
     }
 
-    private fun clearChildren(eventId: Long) {
-        resolver.delete(scope.reminders, CalendarContract.Reminders.EVENT_ID + " = ?", arrayOf(eventId.toString()))
-        resolver.delete(scope.attendees, CalendarContract.Attendees.EVENT_ID + " = ?", arrayOf(eventId.toString()))
-    }
-
     /** Adds the event and its changed occurrences as new rows; returns the id of the event's row. */
     fun insertObject(calendarId: Long, href: String, etag: String, parsed: ParsedObject): Long {
         val uri = checkNotNull(resolver.insert(scope.events, valuesOf(calendarId, parsed.master, href, etag))) { "the phone did not add the event" }
@@ -288,13 +283,14 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
         }
     }
 
-    /** Puts the server's version into the existing rows: the event is updated, its occurrences are written again. */
-    fun replaceObject(masterId: Long, calendarId: Long, href: String, etag: String, parsed: ParsedObject) {
-        resolver.update(ContentUris.withAppendedId(scope.events, masterId), valuesOf(null, parsed.master, href, etag), null, null)
-        clearChildren(masterId)
-        addChildren(masterId, parsed.master)
-        deleteExceptions(masterId, calendarId, href)
-        insertExceptions(calendarId, href, masterId, parsed)
+    /**
+     * Puts the server's version in place of the rows of the event: they are removed and written again as new rows (the provider's
+     * insert path is the one that is proven for every column; an update of a whole row is refused by some provider versions).
+     * Returns the id of the new row of the event.
+     */
+    fun replaceObject(masterId: Long, calendarId: Long, href: String, etag: String, parsed: ParsedObject): Long {
+        deleteObject(masterId, calendarId, href)
+        return insertObject(calendarId, href, etag, parsed)
     }
 
     // The selection names the calendar (one of ours, found through the scoped query) next to the event it belongs to.

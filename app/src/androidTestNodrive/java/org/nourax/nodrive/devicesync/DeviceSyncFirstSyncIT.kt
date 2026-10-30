@@ -194,8 +194,10 @@ class DeviceSyncFirstSyncIT {
             // the backup, then the first sync
             compose.waitUntil(BACKUP_MILLIS) {
                 compose.onAllNodesWithTag("ds_backup_done").fetchSemanticsNodes().isNotEmpty() ||
-                    compose.onAllNodesWithTag("ds_first_sync_text").fetchSemanticsNodes().isNotEmpty()
+                    compose.onAllNodesWithTag("ds_first_sync_text").fetchSemanticsNodes().isNotEmpty() ||
+                    compose.onAllNodesWithTag("ds_backup_failed").fetchSemanticsNodes().isNotEmpty()
             }
+            assertTrue("the backup failed (see the log lines of DeviceSyncModel)", compose.onAllNodesWithTag("ds_backup_failed").fetchSemanticsNodes().isEmpty())
             val backupDoneAt = DeviceSyncSettings.get(support.context, support.account.name).backupDoneUtc
             assertTrue("the backup is recorded before the first sync", backupDoneAt > 0)
             assertTrue("the calendar backup is on the server", support.listing("remote.php/dav/files/ali/.Calendar-Backup/").size > backupBeforeCalendar)

@@ -158,14 +158,14 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         }
         when (ConflictPlan.decide(dirty && !masterRow.deleted, masterRow.deleted, ServerState.CHANGED)) {
             Decision.APPLY_SERVER -> {
-                store.replaceObject(masterRow.id, p.calId, href, etag, parsed)
-                putObject(p, href, etag, uid, data, masterRow.id)
+                val id = store.replaceObject(masterRow.id, p.calId, href, etag, parsed)
+                putObject(p, href, etag, uid, data, id)
                 p.changed++
             }
             Decision.SERVER_WINS_KEEP_PHONE_VERSION -> {
                 keepPhoneVersion(p, href, known, masterRow, exceptions, uid)
-                store.replaceObject(masterRow.id, p.calId, href, etag, parsed)
-                putObject(p, href, etag, uid, data, masterRow.id)
+                val id = store.replaceObject(masterRow.id, p.calId, href, etag, parsed)
+                putObject(p, href, etag, uid, data, id)
                 p.changed++
             }
             Decision.KEEP_SERVER_VERSION -> {
@@ -346,8 +346,8 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
             putObject(p, href, etag, uid, got.text(), master.id)
             return
         }
-        store.replaceObject(master.id, p.calId, href, etag, parsed)
-        putObject(p, href, etag, parsed.master.uid, got.text(), master.id)
+        val id = store.replaceObject(master.id, p.calId, href, etag, parsed)
+        putObject(p, href, etag, parsed.master.uid, got.text(), id)
         p.changed++
     }
 

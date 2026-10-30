@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.nourax.nodrive.agenda.AgendaLog
 import org.nourax.nodrive.devicesync.BackupGate
 import org.nourax.nodrive.devicesync.DeviceSyncControl
 import org.nourax.nodrive.devicesync.DeviceSyncRunner
@@ -158,6 +159,7 @@ class DeviceSyncModel(
         viewModelScope.launch {
             val connection = withContext(Dispatchers.IO) { DeviceSyncRunner.connect(context, account) }
             if (connection == null) {
+                AgendaLog.w(TAG, "backup: no connection to the account's server")
                 mutable.update { it.copy(backupRunning = false, backupFailed = true) }
                 return@launch
             }
@@ -169,6 +171,7 @@ class DeviceSyncModel(
                 delay(BACKUP_PAUSE_MS)
                 startFirstSync()
             } else {
+                AgendaLog.w(TAG, "backup failed: ${(result as? BackupGate.Result.Failed)?.reason}")
                 mutable.update { it.copy(backupRunning = false, backupFailed = true) }
             }
         }
@@ -300,6 +303,7 @@ class DeviceSyncModel(
     }
 
     private companion object {
+        const val TAG = "DeviceSyncModel"
         const val BACKUP_PAUSE_MS = 1500L
         const val SYNC_STEP_MS = 1000L
         const val SYNC_WAIT_STEPS = 25

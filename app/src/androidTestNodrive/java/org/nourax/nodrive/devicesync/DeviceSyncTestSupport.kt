@@ -43,6 +43,9 @@ class DeviceSyncTestSupport {
     lateinit var account: Account
     lateinit var raw: LiveRaw
 
+    /** What the last [listing] was answered (for the message of a failed check). */
+    var lastListing: String = ""
+
     private val stamp = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC)
 
     fun grantPermissions() {
@@ -174,6 +177,7 @@ class DeviceSyncTestSupport {
         val reply = http.send(
             "PROPFIND", path, mapOf("Depth" to "1"), DavXml.propfindBody(listOf(Dav.NS_DAV to "getetag")), "application/xml; charset=utf-8"
         )
+        lastListing = "$path answered ${reply.status}: " + reply.text().take(LISTING_SAMPLE)
         if (!reply.multistatus) return emptyList()
         return DavXml.parseMultistatus(reply.body).responses.map { it.href }.filter { !it.endsWith("/") }
     }
@@ -206,5 +210,6 @@ class DeviceSyncTestSupport {
 
     private companion object {
         const val PNG_QUALITY = 100
+        const val LISTING_SAMPLE = 600
     }
 }

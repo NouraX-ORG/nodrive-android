@@ -41,7 +41,7 @@ class RemovedContactsCopy(private val http: AgendaHttp, private val davUser: Str
             when {
                 reply.ok -> return true
                 reply.status == 412 -> continue // the name is taken: never replace, try the next one
-                reply.status == 409 && !made -> {
+                (reply.status == 409 || reply.status == 404) && !made -> {
                     // the folder is not there yet (the backup makes it, but it may not have run): make it, once
                     lastStatus = http.send("MKCOL", folder()).status
                     made = true

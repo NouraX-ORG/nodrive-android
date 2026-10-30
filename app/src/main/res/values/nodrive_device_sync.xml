@@ -69,7 +69,6 @@
         <item quantity="one">%d change waiting to be sent</item>
         <item quantity="other">%d changes waiting to be sent</item>
     </plurals>
-    <string name="nodrive_device_sync_on_phone">On this phone</string>
 
     <!-- "Not saved" -->
     <string name="nodrive_device_sync_not_saved">Not saved</string>
