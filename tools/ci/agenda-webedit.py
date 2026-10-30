@@ -154,7 +154,8 @@ def main():
             try:
                 page.wait_for_selector(".fc-event", timeout=30000)
                 page.locator(".fc-event", has_text="Web edit event").first.click()
-                # the editor of Calendar 6: a popover (or the sidebar) with the title field and an Update (or Save) button
+                # Calendar 6 shows a read-only popover first: its Edit button opens the editor with the title field and an Update (or Save) button
+                page.get_by_role("button", name=re.compile("^Edit$", re.I)).first.click()
                 title = page.locator("input[placeholder='Title']").first
                 title.wait_for(timeout=15000)
                 title.fill("Web edit event edited")

@@ -62,6 +62,11 @@ class LiveRaw(private val base: String, private val user: String, private val to
         return parts.firstOrNull { it.contains("SUMMARY:$summary\r\n") || it.contains("SUMMARY:$summary\n") }
     }
 
+    /** The event or to-do with that SUMMARY in the person's own calendars (a new item goes into the server's default one). */
+    fun blockAny(summary: String): String? = listOf("personal", "work").firstNotNullOfOrNull { block(it, summary) }
+
+    fun exportAll(): String = listOf("personal", "work").joinToString("\n") { export(it) }
+
     // ---- NoGantt ---------------------------------------------------------------------------------------------------------------
     private val gantt = "ocs/v2.php/apps/nc_gantt/api/v1/"
 

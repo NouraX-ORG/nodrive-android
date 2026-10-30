@@ -88,7 +88,7 @@ def main():
     # ---- the screens' changes while online (AgendaEditLiveIT) ----
     work = export("ali", "work")
     personal = export("ali", "personal")
-    row("live event deleted", block(work, "Live event") is None and "Live event" not in work, "no event of the live test is left in the work calendar")
+    row("live event deleted", "Live event" not in work and "Live event" not in personal, "no event of the live test is left in the calendars")
     todo = None
     for part in re.findall(r"BEGIN:VTODO.*?END:VTODO", personal, re.S):
         if "SUMMARY:Live todo" in part:

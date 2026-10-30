@@ -193,9 +193,9 @@ class AgendaEditLiveIT {
             sent()
             see(title)
             // the server holds the event with the agent id twice (property and category)
-            eventually("the new event") { ali.block("work", title) != null }
-            val created = ali.block("work", title)
-            assertNotNull("the event is in the work calendar", created)
+            eventually("the new event") { ali.blockAny(title) != null }
+            val created = ali.blockAny(title)
+            assertNotNull("the event is in one of the calendars", created)
             assertTrue(created, created!!.contains("X-NOURAX-AGENT-ID:AG-0001"))
             assertTrue(created, created.contains("agent:AG-0001"))
 
@@ -209,8 +209,8 @@ class AgendaEditLiveIT {
             waitGoneTag("agenda_detail")
             sent()
             see("$title edited")
-            eventually("the changed event") { ali.block("work", "$title edited") != null }
-            val edited = ali.block("work", "$title edited")
+            eventually("the changed event") { ali.blockAny("$title edited") != null }
+            val edited = ali.blockAny("$title edited")
             assertNotNull(edited)
             assertTrue(edited, edited!!.contains("DTSTART;VALUE=DATE:"))
             assertTrue("the agent is still there", edited.contains("X-NOURAX-AGENT-ID:AG-0001"))
@@ -224,7 +224,7 @@ class AgendaEditLiveIT {
             waitGoneTag("agenda_delete_question")
             sent()
             compose.waitUntil(LOAD_MILLIS) { compose.onAllNodes(hasText("$title edited")).fetchSemanticsNodes().isEmpty() }
-            eventually("the event is deleted") { !ali.export("work").contains("$title edited") }
+            eventually("the event is deleted") { !ali.exportAll().contains("$title edited") }
         }
     }
 
@@ -257,15 +257,17 @@ class AgendaEditLiveIT {
     fun aGanttEndDateIsMovedAndUndone() {
         val project = mara.projectId("Website")
         val aliResource = mara.resourceId("Ali")
-        val first = mara.createTask(project, "Live task A $tag", today.toString(), today.plusDays(2).toString(), listOf(aliResource to 4.0))
-        val second = mara.createTask(project, "Live task B $tag", today.plusDays(3).toString(), today.plusDays(4).toString(), listOf(aliResource to 2.0))
+        // all inside the current month, so the date picker needs no month change (a task in the past shows under "Late")
+        val monthStart = today.withDayOfMonth(1)
+        val first = mara.createTask(project, "Live task A $tag", monthStart.toString(), monthStart.plusDays(2).toString(), listOf(aliResource to 4.0))
+        val second = mara.createTask(project, "Live task B $tag", monthStart.plusDays(4).toString(), monthStart.plusDays(5).toString(), listOf(aliResource to 2.0))
         mara.link(second, first)
-        val target = today.plusDays(3)
+        val target = monthStart.plusDays(3)
         open {
             openRow("Live task A $tag")
             tap("agenda_edit")
             waitForTag("edit_end_date")
-            pickDay("edit_end_date", today.plusDays(2), target)
+            pickDay("edit_end_date", monthStart.plusDays(2), target)
             tap("edit_save")
             waitGoneTag("agenda_detail")
             // NoGantt took the new date; the screen says so and offers Undo for a few seconds
@@ -275,7 +277,7 @@ class AgendaEditLiveIT {
             eventually("the new end date") { mara.task(project, first).get("end_date").asString.startsWith(target.toString()) }
             compose.onNode(hasText("Undo") and hasClickAction()).performClick()
             waitForText("Change undone.")
-            eventually("the old end date again") { mara.task(project, first).get("end_date").asString.startsWith(today.plusDays(2).toString()) }
+            eventually("the old end date again") { mara.task(project, first).get("end_date").asString.startsWith(monthStart.plusDays(2).toString()) }
         }
     }
 
