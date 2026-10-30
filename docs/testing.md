@@ -32,7 +32,7 @@
 - **NoAgenda (read only) is proven in CI** twice: an `agenda-server` job runs the auth proof, the API contract and the reads of four people
   against a throwaway Nextcloud 35.0.2 with nc_gantt 2.4.1, Deck 1.19.1, Calendar 6.6.4 and Tasks 0.18.1 (never drive.nourax.org), and an
   `agenda-device` job runs the screens on canned data in light and dark, the real app against the same server, the side-menu entry and the
-  offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4). The first NoAgenda run with the final code is [run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428); the `agenda-*.png` images are from it.
+  offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4). NoAgenda editing, the offline queue and edit conflicts are proven the same way (final code: [run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522), 1173 unit tests, 12 server phases, 57 screens); owner tests 45 to 57. The first NoAgenda run with the final code is [run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428); the `agenda-*.png` images are from it.
 - **The DAVx5 entry is gone** from Settings > More (CI: the screen sweep finds no DAVx5 or DAVdroid
   text on 78 screens).
 
@@ -180,6 +180,11 @@ NoAgenda editing and conflicts (`feature/noagenda-edit`):
 | Clash, possible clash, deadline on a day off, workload bar, agents never take the person's time, an agent's own overbooking | CI | pass | `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`; screen `agenda-day-clash-overbooked` |
 | The agent id survives an edit in the Calendar and Tasks pages of the server | CI | pass (both marks survive in both) | `tools/ci/agenda-webedit.py` in the `agenda-server` job |
 | Writes only where design section 9 allows them; only an event or a to-do is ever removed | CI | pass | `AgendaSafetyTest`, `WritePolicy` |
+| Final code of the branch after the third review (approved): all 7 jobs green | CI | pass | [Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522) (`953ec0b3bc`): Branding gate, Lint, Server login proof, NoAgenda API checks, NoAgenda on the emulator, Emulator tests and screenshots, APK and unit tests. 1173 unit tests passed, 0 failed; 57 `agenda-*.png`, 0 with the wrong brightness; `dns-check: drive.nourax.org -> blocked` |
+| "Apply my change again" on a card that somebody moved to another list keeps it in the new list; a card on another board is not written | CI | pass | [Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522): `EditPhasesTest.conflictACardMovedToAnotherListStaysThereWhenMyChangeIsAppliedAgain` (12 of 12 `EditPhasesTest` passed against Deck 1.19.1); unit tests in `EditServiceTest` |
+| A server in maintenance mode (502, 503, 504, `Retry-After`) never turns a queued edit into "Not sent"; a server error offers **Send again** with the version check; a write that the rules refuse is a conflict, not a lost network | CI | pass | [Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522): `EditServiceTest` (four kinds of "not ready" answer, ten runs each; 500 five times then Send again; a 403 offers no Send again), `AgendaSafetyTest` |
+| A saved change shows at once with its waiting mark, even while a long refresh runs | CI | pass | [Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522): `AgendaViewModelEditTest.aSavedChangeShowsAtOnceWithItsWaitingMarkWhileALongRefreshStillRuns` |
+| Not covered by a test yet (review 3, nit 3): the NoBoard `board_unavailable` guard result, the single NoGantt read per refresh, the **Send again** button on a screen | CI | open | See the to-dos for NoAgenda editing |
 
 ## 2. What CI does not cover
 
@@ -492,7 +497,7 @@ after test 2. If you have no NoGantt project or NoBoard board, tests 40 and 41 o
 | 43 | Open in ... | Tap a row, then **Open in NoCalendar** / **NoTasks** / **NoGantt** / **NoBoard** | Does the page of the Drive open inside the app, already signed in? |
 | 44 | Dark mode | Switch the phone to dark mode and look at NoAgenda | Is every screen readable, with the Nourax blue as the accent? |
 
-### Tests 45 to 54: NoAgenda (editing and conflicts)
+### Tests 45 to 57: NoAgenda (editing and conflicts)
 
 Use a test event, to-do and task, not real ones that matter. Everything you change is on your real Drive.
 
@@ -508,10 +513,14 @@ Use a test event, to-do and task, not real ones that matter. Everything you chan
 | 52 | Clash and busy days | Make two events at the same time; plan more hours of tasks than free hours on a day | Both events show **Clash**; the day shows "N h planned / M h free" in red. The **Conflicts** chip keeps only the rows with a warning |
 | 53 | What can't be changed | Open a repeating event, an invitation from someone else, a task of a project you only look at | Each says why ("This repeats. Change it in NoCalendar.", "You were invited...", "You can view this project only...") and there is no Edit button; **Open in ...** works |
 | 54 | Delete | Open an event, **Delete** | It asks "Delete this event? It moves to the calendar's trash bin." Only after **Delete** is it gone from the day; it is in the NoCalendar trash bin. A task or a card has no Delete button |
+| 55 | A card moved meanwhile | In airplane mode, change the due date of a NoBoard card in NoAgenda. On another device (or the NoBoard page) move that card to another list of the same board. Switch the phone back on | **Not sent** says it changed somewhere else. **Apply my change again** puts your new due date on the card, and the card **stays in the list it was moved to** |
+| 56 | A saved change shows at once | Change a task or an event while NoAgenda is still refreshing (pull down to refresh, then edit and **Save** straight away) | The change shows at once with **Waiting to send**; it does not wait for the refresh to end |
+| 57 | Agent known only by name | Open a task, **Edit**, and look at an agent whose planning person is in the project but on none of your tasks | It is greyed with **Ask your project manager to add ...** and cannot be chosen. (This is the rule of the design; it goes away when the server's sync step lists the agents' planning people.) |
 
 ### NoAgenda: what the owner should know
 
-- **Read only.** This step changes nothing on the Drive or on the phone. Editing, the Timeline and the phone's own Calendar and Contacts sync are the next steps.
+- **Tests 35 to 44 only look.** They change nothing. Tests 45 to 57 edit real items on your Drive, so use a test event, to-do, task and card. NoAgenda never deletes a task or a card, and deletes an event or a to-do only after the question (the event goes to the calendar's trash bin). The Timeline and the phone's own Calendar and Contacts sync are the next steps.
+- **Editing.** A change you make is shown at once and sent in the background; offline it waits and is sent in order. If somebody changed the same item meanwhile, their change stays and you choose **Apply my change again** or **Keep the other change**; after a server error you can choose **Send again**. While the Drive is being updated (maintenance), your changes wait and are sent afterwards.
 - **The agent list is a file.** NoAgenda reads `NoAgenda/agent-registry.json` in your own NoDrive (the format of `plans/agent-registry.placeholder.json`). Without it everything shows as **Self**; **Sources** says so. The Nourax agents app will replace the file later.
 - **Only your own work.** An agent of another organisation is never named. An invitation to a meeting is always **Self**. Someone else's personal calendar is never read.
 - **Background refresh** runs about every 15 minutes, and only for accounts where NoAgenda was opened at least once.
@@ -661,4 +670,6 @@ From the independent reviews (review 2 approved, `plans/round3-android-agenda-co
 - **N14:** NoGantt tasks have dates, not times, so only events and cards with real start and due times can clash.
 - **N15:** My team rows and milestones are only opened in their own app, not edited.
 - **N16:** translations of `app/src/main/res/values/nodrive_agenda_edit.xml`.
+- **Review 3 nits, not fixed (none blocks the owner):** (1) a 408 or 429 on NoGantt's fresh read should wait, as in every other writer (`GanttWriter.stopFor`); (2) offer **Send again** for the NoBoard conflicts `board_unavailable` and `version_guard`; (3) add tests for `board_unavailable`, the single NoGantt read per refresh (`ganttReadByGuard`), `resendConflict` and a screen test of **Send again**; (5) the commit trailers say `Claude Sonnet 5.5` (the model that wrote the code), the workflow rule says `Opus 5.5`. Details in `docs/noagenda.md`.
+- **Rule 4.5 (b):** an agent known only by name and not next to you cannot be chosen yet (test 57); the server's sync step (S12) lifts it.
 - **Next steps:** the Timeline (`feature/noagenda-timeline`), then the phone's own Calendar and Contacts sync (`feature/device-calendar-sync`).

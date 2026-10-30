@@ -261,7 +261,7 @@ could not see), `EditQueueTest` (on screen at once and marked, sent in order whe
 tap, one send at a time, the overlay), `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`, `AgendaViewModelEditTest`, `EditRound2Test` (to-do dates, the cut description, "+" calendars, Gantt clash times),
 `AgendaSendWorkerNameTest`, and `AgendaSafetyTest` (writes only through the three writers and `WritePolicy`; a DELETE only for a calendar object; no Drive file).
 
-**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 14 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
+**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 12 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
 (create with an agent, edit title, time and agent, agent on and off, to-do done and not done, delete: the object is gone and the trash bin answers),
 `edit-gantt` (end date with the tasks NoGantt moved, Undo, percent done, done, Self to Writer-Bot to Self with the rows and their work unchanged, the three
 refusals: too many people, the work would change, an agent whose planning person is not visible), `edit-deck` (due date, done, label on and off, a label made on
@@ -290,7 +290,7 @@ as the user, whether it holds what the screens sent.
 | Lint (warnings are errors) | pass |
 | Unit tests (`testNodriveDebugUnitTest`) | 1123 tests passed, 0 failed |
 | Room schemas of both NoAgenda databases are committed | pass (`AgendaDatabase` unchanged, `EditDatabase` version 1 new) |
-| `agenda-server`: the 12 edit phases against Nextcloud 35.0.2 + nc_gantt 2.4.1 + Deck 1.19.1 + Calendar 6.6.4 + Tasks 0.18.1 | pass: create, edit, agent on and off, done and not done and delete of events and to-dos; NoGantt dates (NoGantt moved 1 dependent task, Undo took it back), percent done, done, the agent row with my own row and its work unchanged, the three refusals send nothing; Deck due date, done, label on and off, label made on a managed board, refused on an edit-only board, description, start date unchanged; the three conflicts keep the other change and "apply again" keeps both |
+| `agenda-server`: the edit phases against Nextcloud 35.0.2 + nc_gantt 2.4.1 + Deck 1.19.1 + Calendar 6.6.4 + Tasks 0.18.1 | pass: create, edit, agent on and off, done and not done and delete of events and to-dos; NoGantt dates (NoGantt moved 1 dependent task, Undo took it back), percent done, done, the agent row with my own row and its work unchanged, the three refusals send nothing; Deck due date, done, label on and off, label made on a managed board, refused on an edit-only board, description, start date unchanged; the three conflicts keep the other change and "apply again" keeps both |
 | `agenda-server`: the agent id after an edit in the web pages | **Calendar: property survived, category survived. Tasks: property survived, category survived.** Both marks are kept, so the category copy is not even needed there (it stays as the fallback for programs that drop unknown properties) |
 | `agenda-device` (emulator, API 35): edit screens on canned data, light and dark | pass: `AgendaEditUiIT` 13 tests in each look |
 | `agenda-device`: offline queue in a real Room file | pass: `AgendaEditDatabaseIT` 3 tests |
@@ -307,7 +307,7 @@ as the user, whether it holds what the screens sent.
 |---|---|
 | Branding gate, Lint, Server login proof | pass |
 | Unit tests (`testNodriveDebugUnitTest`) | 1160 passed, 0 failed (24 server tests skipped there, they run in `agenda-server`) |
-| `agenda-server`: the 13 edit phases (new: `editCalendarTimedTodoKeepsItsTimesWhenTheStartMoves`, a to-do the way the Tasks page makes it, against Nextcloud 35.0.2 + Tasks 0.18.1) | pass: the start moved a day, `DTSTART` kept its time, `DUE` unchanged, no `VALUE=DATE` mix; the server accepted it (no 415) |
+| `agenda-server`: the edit phases (new: `editCalendarTimedTodoKeepsItsTimesWhenTheStartMoves`, a to-do the way the Tasks page makes it, against Nextcloud 35.0.2 + Tasks 0.18.1) | pass: the start moved a day, `DTSTART` kept its time, `DUE` unchanged, no `VALUE=DATE` mix; the server accepted it (no 415) |
 | `agenda-device`: `AgendaUiIT` 13, `AgendaEditUiIT` 13, `AgendaEditLiveIT` 4, `AgendaEditOfflineIT` a1 to a4, database, worker, drawer (light and dark where they run so) | pass |
 | Emulator tests and screenshots | pass |
 
@@ -356,6 +356,23 @@ The second review found 2 should-fix findings and 8 nits (`plans/round3-android-
 | 8. Fully qualified names; `serverErrors` said "in a row" | imports; the comment now says what is counted (5xx other than 502, 503, 504) | none |
 | 9. Commit trailers | unchanged: `Claude Sonnet 5.5` names the model that wrote this code; the new commits keep it | none |
 
+## Review 3 (approved) and the CI run of the final code
+
+The third independent review (`plans/round3-android-agenda-edit-review-3.md`) approved the branch at head `953ec0b3bc` with no blocking and no should-fix finding, and 5 nits (listed under "Left for later").
+
+[Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522) is the CI run of the final code (`953ec0b3bc`). All 7 jobs green.
+
+| Check | Result |
+|---|---|
+| Branding gate, Lint, Server login proof | pass |
+| Unit tests (`testNodriveDebugUnitTest`) | 1173 passed, 0 failed (13 more than round 2; they cover the moved card, the "not ready" answers, Send again, a refused write, the saved change shown at once, the name-only planning person, the to-do times and the delete without a version) |
+| `agenda-server`: the 12 `EditPhasesTest` phases against Nextcloud 35.0.2 + nc_gantt 2.4.1 + Deck 1.19.1 + Calendar 6.6.4 + Tasks 0.18.1 | pass, including the new `conflictACardMovedToAnotherListStaysThereWhenMyChangeIsAppliedAgain` |
+| `agenda-server`: the agent id after an edit in the web pages | Calendar: property and category survived. Tasks: property and category survived |
+| `agenda-device` (emulator, API 35) | pass: every group (screens, edit screens, live, edit live, offline, edit offline a1 to a4, databases, worker, drawer); 57 screenshots, 0 with the wrong brightness |
+| Network check | `dns-check: drive.nourax.org -> blocked`; never a connection to drive.nourax.org |
+
+The run before it (41017069710) failed on one unit test, `AgendaViewModelEditTest > theNewItemSheetOpensAndCloses`: the view model's state is a `stateIn` of a `combine`, so a value read right after `startCreate` could still be the old one. The test now waits for the state; no app code changed.
+
 ## Server-side items found here (for the Workspace session; this step changes no server)
 
 See also section 5 of `docs/testing.md` (S18 to S22) and section 6 of `plans/noagenda-android-plan.md`.
@@ -375,3 +392,8 @@ See also section 5 of `docs/testing.md` (S18 to S22) and section 6 of `plans/noa
   for that one write); the window is a single failed read.
 - Other people's rows (My team) and milestones are not editable here, only opened in their own app.
 - Translations of `nodrive_agenda_edit.xml`.
+- **Review 3, nit 1:** in `GanttWriter.stopFor`, a 408 or 429 on NoGantt's fresh read moves the change to "Not sent" (detail `http429`); every other writer treats them as "wait". Make `stopFor` return `Offline` for both and add a test.
+- **Review 3, nit 2:** `board_unavailable` and `version_guard` conflicts (NoBoard) offer only "Open in NoBoard" and "Drop my change". Offer **Send again** for them too (the version check stays), and let `EditRunner.sendAgain` check `canSendAgain` itself.
+- **Review 3, nit 3:** missing tests: the `board_unavailable` result (no Deck in the capabilities, no write), the NoGantt reads of one refresh while a NoGantt change waits (`ganttReadByGuard`), `AccountAgenda.resendConflict` / `AgendaViewModel.resend`, and a canned-data screen test that taps **Send again** (`agenda_conflict_resend`), with a screenshot.
+- **Review 3, nit 5:** the commit trailers say `Claude Sonnet 5.5` (the model that wrote the code), not the `Opus 5.5` of the workflow rule. No rewrite (it would need a force-push of a feature branch); the owner may change the rule text.
+- **Rule 4.5 (b):** a planning person known only by its name and not next to me cannot be chosen ("Ask your project manager to add ..."). The server's sync step (design 11, item 2) lifts this by recording `links.nogantt_resource_ids`.
