@@ -191,12 +191,13 @@ class AgendaViewModel(
         creating.value = null
         selected.value = null
         viewModelScope.launch {
-            repository.store(commands)
             try {
+                repository.store(commands)
                 repository.sendPending(manual = true)
                 rememberCalendars(commands)
             } finally {
-                // Cancelled or not sent: it stays in the queue and goes out in the background.
+                // Cancelled (the screen is gone) or not sent: it stays in the queue and goes out in the background.
+                // hasPending() cannot be cancelled, so this also runs when the screen was closed.
                 if (repository.hasPending()) onQueued()
             }
         }

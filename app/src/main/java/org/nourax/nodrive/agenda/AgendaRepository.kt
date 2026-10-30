@@ -61,11 +61,13 @@ class AgendaRepository(private val agenda: AgendaEngine) {
      * a closed screen cannot cancel it, so a change that the person saved is stored whatever happens to the screen next.
      */
     suspend fun store(commands: List<EditCommand>) {
-        withContext(NonCancellable + Dispatchers.IO) { agenda.enqueue(commands) }
+        // The outer NonCancellable matters: a withContext that switches to another thread would, on its way back, throw the
+        // cancellation of a caller that was cancelled meanwhile; this one returns normally even then.
+        withContext(NonCancellable) { withContext(Dispatchers.IO) { agenda.enqueue(commands) } }
     }
 
     /** Whether a change waits in the queue. Like [store] it takes no lock and a closed screen cannot cancel it. */
-    suspend fun hasPending(): Boolean = withContext(NonCancellable + Dispatchers.IO) { agenda.hasPending() }
+    suspend fun hasPending(): Boolean = withContext(NonCancellable) { withContext(Dispatchers.IO) { agenda.hasPending() } }
 
     /** Queues a change and sends it at once when there is a network. The screen shows it from the first moment (design 9). */
     suspend fun submit(command: EditCommand) {
