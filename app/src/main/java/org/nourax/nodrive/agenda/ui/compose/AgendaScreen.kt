@@ -501,7 +501,10 @@ private fun Header(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaTexts, f
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = state.chipMe, onClick = vm::toggleMe, label = { Text(stringResource(R.string.nodrive_agenda_chip_me)) }, modifier = Modifier.testTag("agenda_chip_me"))
             FilterChip(selected = state.chipAgents, onClick = vm::toggleAgents, label = { Text(stringResource(R.string.nodrive_agenda_chip_agents)) }, modifier = Modifier.testTag("agenda_chip_agents"))
-            FilterChip(selected = state.chipTeam, onClick = vm::toggleTeam, label = { Text(stringResource(R.string.nodrive_agenda_chip_team)) }, modifier = Modifier.testTag("agenda_chip_team"))
+            // The Timeline never draws team rows, so the team chip would do nothing there.
+            if (state.view != AgendaView.TIMELINE) {
+                FilterChip(selected = state.chipTeam, onClick = vm::toggleTeam, label = { Text(stringResource(R.string.nodrive_agenda_chip_team)) }, modifier = Modifier.testTag("agenda_chip_team"))
+            }
         }
         if (state.view == AgendaView.DAY) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

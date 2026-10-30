@@ -54,16 +54,19 @@ fun TimelineDateEditor(item: AgendaItem, snapshot: AgendaSnapshot, texts: Agenda
     val span = TimelineEdit.spanOf(item)
     val caps = EditRules.of(item)
     var picking by remember(item.key) { mutableStateOf(false) }
+    var notSaved by remember(item.key) { mutableStateOf(false) }
     val agents = snapshot.build.myAgents
     val zone = snapshot.zone
     Column(Modifier.fillMaxWidth().testTag("timeline_date_editor"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.nodrive_agenda_timeline_dates), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (span == null) {
+            // A row without dates of its own (a milestone, an event) has nothing to edit here: no heading, no empty block.
             if (item.kind == ItemKind.GANTT_TASK) {
+                DatesHeading()
                 Text(stringResource(R.string.nodrive_agenda_timeline_no_dates), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("timeline_no_dates"))
             }
             return@Column
         }
+        DatesHeading()
         Text(texts.dateRange(span.start, span.end), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("timeline_dates"))
         if (!caps.canEdit) return@Column
         fun move(days: Int) {
@@ -77,8 +80,22 @@ fun TimelineDateEditor(item: AgendaItem, snapshot: AgendaSnapshot, texts: Agenda
                 Text(stringResource(R.string.nodrive_agenda_timeline_later))
             }
         }
-        TextButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth().testTag("timeline_change_dates")) {
+        TextButton(
+            onClick = {
+                picking = true
+                notSaved = false
+            },
+            modifier = Modifier.fillMaxWidth().testTag("timeline_change_dates")
+        ) {
             Text(stringResource(R.string.nodrive_agenda_timeline_change_dates))
+        }
+        if (notSaved) {
+            Text(
+                stringResource(R.string.nodrive_agenda_timeline_dates_not_saved),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("timeline_dates_not_saved")
+            )
         }
     }
     if (picking && span != null) {
@@ -87,10 +104,23 @@ fun TimelineDateEditor(item: AgendaItem, snapshot: AgendaSnapshot, texts: Agenda
             onDismiss = { picking = false },
             onPick = { start, end ->
                 picking = false
-                TimelineEdit.command(item, start, end, zone, agents)?.let { onSubmit(listOf(it)) }
+                val command = TimelineEdit.command(item, start, end, zone, agents)
+                if (command != null) {
+                    notSaved = false
+                    onSubmit(listOf(command))
+                } else {
+                    // Same dates as now: nothing to say. Other dates that can not be written (a timed to-do): tell the person.
+                    val newStart = if (span.single) end else start
+                    notSaved = !(newStart == span.start && end == span.end)
+                }
             }
         )
     }
+}
+
+@Composable
+private fun DatesHeading() {
+    Text(stringResource(R.string.nodrive_agenda_timeline_dates), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 private fun toMillis(day: LocalDate): Long = day.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -121,7 +151,8 @@ private fun DatesPicker(span: TimelineEdit.Span, onDismiss: () -> Unit, onPick: 
             TextButton(
                 onClick = {
                     val start = state.selectedStartDateMillis
-                    val end = state.selectedEndDateMillis ?: start
+                    // Only a start day tapped: the task keeps its length (a move), it does not shrink to one day.
+                    val end = state.selectedEndDateMillis ?: start?.let { it + (toMillis(span.end) - toMillis(span.start)) }
                     if (start != null && end != null) onPick(toDay(start), toDay(end)) else onDismiss()
                 },
                 modifier = Modifier.testTag("timeline_pick_ok")

@@ -208,7 +208,7 @@ for name in day week month my-team sources registry-missing personal-question de
     done
 done
 for name in day-clash-overbooked edit-agent-gantt edit-agent-not-in-project new-event edit-conflict pending-offline delete-confirm \
-            repeating-locked viewer-locked timeline timeline-date-editor timeline-date-picker timeline-undo timeline-readonly timeline-waiting             timeline-empty; do
+            repeating-locked viewer-locked timeline timeline-date-editor timeline-date-picker timeline-undo timeline-readonly timeline-waiting timeline-empty; do
     for look in light dark; do
         f="agenda-$name-$look.png"
         if [ -s "$SHOTS/$f" ]; then echo "agenda screenshot: $f"; else echo "agenda screenshot MISSING: $f"; status=1; fi

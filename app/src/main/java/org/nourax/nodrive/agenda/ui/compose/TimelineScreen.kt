@@ -9,6 +9,7 @@
 package org.nourax.nodrive.agenda.ui.compose
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -167,7 +168,10 @@ private fun NamesColumn(layout: TimelineResult, texts: AgendaTexts, onOpen: (Str
                 }
             } else {
                 val item = entry.item
-                Row(Modifier.fillMaxWidth().height(rowHeight).padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().height(rowHeight).then(if (item != null) Modifier.clickable { onOpen(item.key) } else Modifier).padding(start = 8.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (item != null) {
                         Text(
                             texts.title(item),

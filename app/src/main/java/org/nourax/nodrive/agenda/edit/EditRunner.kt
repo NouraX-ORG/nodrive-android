@@ -123,8 +123,10 @@ class EditRunner(
         } else if (stamped.kind != CommandKind.CAL_CREATE) {
             val same = waiting.firstOrNull { it.itemKey == stamped.itemKey && group(it.kind) == group(stamped.kind) && it.state == CommandState.WAITING }
             if (same != null) {
-                // The "move" mark belongs to the newer change only: an older move must not decide how a later edit is sent.
-                val change = (same.change + stamped.change).let { if (EditKeys.MOVE in stamped.change) it else it - EditKeys.MOVE }
+                // A newer date change decides how the dates are sent (its own "move" mark, or none). A newer change without any date
+                // keeps the older move's mark, so the move still goes out with its dates as the person asked.
+                val newerHasDates = stamped.change.keys.any { it == EditKeys.START || it == EditKeys.END || it == EditKeys.DUE }
+                val change = (same.change + stamped.change).let { if (EditKeys.MOVE in stamped.change || !newerHasDates) it else it - EditKeys.MOVE }
                 val merged = same.copy(change = change, attempts = 0)
                 store.update(merged)
                 return@synchronized merged

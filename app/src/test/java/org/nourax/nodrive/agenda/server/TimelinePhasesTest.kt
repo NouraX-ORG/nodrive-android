@@ -146,7 +146,9 @@ class TimelinePhasesTest {
         // the dependent task moved (NoGantt says which)
         val savedB = mara.task(project, b)
         val bStart = LocalDate.parse(savedB.get("start_date").asString.take(10))
-        assertTrue("B starts after A ends, got $bStart", bStart.isAfter(start.plusDays(3)) || bStart == start.plusDays(3))
+        // B started on start+3; A now ends on start+4, so B must have moved to a later day, and NoGantt must say so
+        assertTrue("B starts after A's new end (${start.plusDays(4)}), got $bStart", bStart.isAfter(start.plusDays(4)))
+        assertTrue("NoGantt names B as also moved, got ${notice.alsoMoved}", notice.alsoMoved.contains("Timeline task B $tag"))
         row("timeline move", true, "A moved +2 days; B now starts $bStart; also moved ${notice.alsoMoved}")
 
         // Undo gives the original dates back, for both
