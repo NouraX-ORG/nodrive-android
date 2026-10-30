@@ -2,7 +2,7 @@
   ~ SPDX-FileCopyrightText: 2026 Nourax
   ~ SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-# NoAgenda (Android): the core step (read only)
+# NoAgenda (Android): the core step (read only), then editing (step 2 below)
 
 Binding spec: `plans/noagenda-decisions.md` (approved 2026-10-28). Platform plan: `plans/noagenda-android-plan.md`, section 1
 ("agenda-core"). This page describes what is built in the first step, how it is tested and what the next steps will add. The edit
@@ -138,3 +138,155 @@ See section 6 of `plans/noagenda-android-plan.md`: the Nourax agents app and its
 people, board labels), the Workspace AI tools (person first, then agent), a readable NoGantt version for normal users (NoGantt 2.4.1 has
 no capability, so the guard is a contract check), NoGantt viewers cannot change their own tasks, NoGantt's default project colour is a
 Nextcloud blue, running these API checks before updating NoGantt or Deck, and keeping the calendar trash bin on.
+
+---
+
+# NoAgenda (Android): editing, the offline queue and edit conflicts (step 2, `feature/noagenda-edit`)
+
+Binding spec: `plans/noagenda-decisions.md` sections 7 and 9. Platform plan: `plans/noagenda-android-plan.md`, section 2 ("agenda-edit").
+Everything above describes the read-only core; this part adds what the person can change. Nothing in this step touches a file of the
+Drive, and no server is changed.
+
+## What the user gets
+
+- **Edit from the detail sheet.** A row opens its sheet; **Edit** shows the fields of that kind of row:
+  an event (title, all day, start and end, description, agent), a to-do (title, start, due, description, agent), a NoGantt task
+  (start and end date, percent done, status, agent), a NoBoard card (due date, agent). **Mark done** ticks a to-do, a task or a card.
+  **Delete** exists for events and to-dos only, asks first ("Delete this event? It moves to the calendar's trash bin."), and the server keeps
+  the object in the calendar's trash bin. A NoGantt task or a card is never deleted here.
+- **"+"** (bottom right) makes a **new event** or a **new to-do**: the calendar or list (only ones the person may write to; the server's
+  default first), the title, the dates and **who does it: Self (preselected) or one of the person's active agents**.
+- **Who does it, person first, then agent.** Choosing the agent of a NoGantt task adds or takes off only the person's own agent
+  planning person and never touches anyone else's row. An agent whose planning person is not visible in that project is greyed with
+  "Ask your project manager to add Writer-Bot to this project". Paused agents are greyed, retired ones are not listed.
+  An invitation is always Self and can't be changed; a repeating event or to-do says "This repeats. Change it in NoCalendar / NoTasks."
+  next to **Open in ...**, which opens the signed-in page. A NoGantt viewer sees "You can view this project only. Ask the project manager
+  for editor rights."; a task whose progress comes from the board has its percent done read only.
+- **Offline queue.** A change is on screen at once, marked **Waiting to send**, the banner counts them ("Waiting to send 3 changes"),
+  and they are sent oldest first when the phone is online, also when NoAgenda is closed (WorkManager) and at the start of every refresh.
+  The queue lives in its own database and survives a restart.
+- **Edit conflicts.** If the item changed somewhere else meanwhile (ETag, `updated_at` or `lastModified` differs, or a 412), the other
+  change wins and the list **Not sent** at the top says "This changed somewhere else while you were editing. NoAgenda kept the other
+  change." with **Apply my change again** (one fresh read, the same change on top of the new version, one write) and **Keep the other
+  change**. A refusal by the server (not allowed, too many people, a project that allows roles only, the work estimate would change,
+  a label that needs board manager rights, a bad date) is said in plain words with **Open in ...** and **Drop my change**. Nothing is
+  dropped without a tap.
+- **After a NoGantt date change** the message says what NoGantt moved ("Also moved: ...") and offers **Undo** for 10 seconds
+  (NoGantt's own revert). If a linked card did not follow: "The linked card wasn't moved. Open in NoGantt to confirm."
+- **The four conflict kinds and the workload bar** (design 7), computed on the phone: a **Clash** (two timed items of mine overlap;
+  a tentative overlap is a **Possible clash**), **Overbooked** (the day's bar says "6 h planned / 4 h free" with a warning when planned
+  is more than free; thin bars in the Week view), a **Deadline on a day off** (a due or end date on a holiday, an all-day busy event or a
+  day the working pattern does not include) and **Blocked** (as before). The **Conflicts** chip of the Day view keeps only the rows with
+  such a badge or that are late. **Agent items never take the person's time**: they never clash with the person's own items, never reduce
+  free time, and only the person's own share of work counts for the person. An agent's own overbooking is shown in my day
+  ("Writer-Bot is overbooked on Thursday") and, for agents of people I run, in My team.
+
+## Where the code is
+
+All new or NoDrive-owned; **no new hook in a file upstream owns** (the activity, the side-menu entry and the cleanup on account removal
+of step 1 are reused).
+
+| File or folder | Job |
+|---|---|
+| `net/WritePolicy.kt`, `net/AccountAgendaHttp.kt` | the transport still stays on the account's own origin, and now sends only the writes of this step: PUT and DELETE of a calendar object (`.../calendars/<user>/<calendar>/<name>.ics`), PUT of a NoGantt task, POST of a NoGantt `changes/<op>/revert`, PUT of a Deck card (and `assignLabel` / `removeLabel`), POST of a Deck label. Never `dav/files`, never a DELETE anywhere but a calendar object, never a NoGantt or Deck delete or create. `AgendaSafetyTest` guards this in the sources and in the policy |
+| `ical/ICalPatch.kt`, `edit/CalendarEdit.kt` | changes only the named properties of one event or to-do in the raw text; every other line (alarms, attendees, unknown `X-` properties, time zones, even the way a line is folded) stays byte for byte; times are written in UTC; the agent is `X-NOURAX-AGENT-ID` plus the registry's calendar tag in `CATEGORIES`; `DTSTAMP`, `LAST-MODIFIED`, `SEQUENCE` are bumped |
+| `edit/EditCommand.kt`, `EditStore.kt`, `EditDatabase.kt` | a command holds the SEMANTIC change ("end = 2026-11-04", "agent = AG-0002") and the version the person saw; the queue and the conflicts are two Room tables in **their own database file** `nodrive_agenda_edit.db` (schema 1 committed in `app/schemas/org.nourax.nodrive.agenda.edit.EditDatabase/1.json`; the cache of step 1 needs no migration) |
+| `edit/CalDavWriter.kt`, `GanttWriter.kt`, `GanttAgentChange.kt`, `DeckWriter.kt` | the writes of design section 9 (plan 2.4, 2.5) with a fresh read right before each write |
+| `edit/EditRunner.kt` | sends the queue one command at a time, oldest first; folds two waiting changes of the same thing; a change that was sent first gives the next one of the same item its new version; conflicts are kept |
+| `edit/PendingOverlay.kt`, `EditRules.kt`, `EditCommands.kt`, `AgentOptions.kt` | the waiting changes drawn on the saved data; who may change what and why not; the forms turned into commands (only what changed); the agent choices |
+| `logic/Conflicts.kt`, `Workload.kt`, `AgentLoad.kt`, `Analysis.kt` | clash and possible clash, deadline on a day off, planned against free, the agents' overbooking, the choices of agents per Gantt row |
+| `android/AgendaSendWorker.kt` | one unique send job per account (network constraint, `APPEND_OR_REPLACE`), queued when a change could not be sent |
+| `ui/compose/EditUi.kt`, `AgendaDetail.kt`, `AgendaRows.kt`, `AgendaScreen.kt` | the editors, the new-item sheet, the delete question, the "+" button, the Waiting banner, the Not sent list, the Snackbar with Undo, the workload bar, the badges, the Conflicts chip |
+| `app/src/main/res/values/nodrive_agenda_edit.xml` | the new texts (English; translations are a to-do) |
+
+## Choices where the design is silent (builder's calls)
+
+- **The queue is its own Room database** (the plan said a migration of the cache to version 2): no migration to break, and a problem in
+  one file never touches the other.
+- A new event or to-do is written with a random UUID as its name and UID; if the answer to the first try is lost, the second try finds the
+  same UID on the server and counts as done (no duplicate, no conflict).
+- A command that was being sent when the app stopped is applied on the newest version (all values are absolute, so applying them twice
+  is harmless); it is not reported as a conflict.
+- A to-do's due date is written as a date; the time of day is kept only when the to-do already has a due time (then there is a time field).
+- A Gantt "done" sets `status: done` and, when the progress is manual, `manual_progress: 100`. Percent done of a task whose progress comes
+  from the board is read only. NoGantt dates keep the time of day the task had.
+- The Deck update is a full replace on the server: the request is always built from the fresh card, always carries `done` (a time, or null),
+  never sends the colour. The due date is written in the person's time zone with the time of day the card had.
+- A missing label is created with the colour `2563EB` only when the person may manage the board; otherwise "You need to manage this board
+  to add the label ...".
+- Team rows (other people's work), milestones and rows that only report a problem are not editable here.
+- Tentative events count as busy in the free time (the warning errs on the safe side). Holidays are the NoGantt holidays of the person's
+  planning person's work calendar, and the ones that have no calendar (for everybody).
+- The form says "Percent done" (a bare "%" in a resource string is a format character).
+- The Day view's workload bar shows only on days that have planned work; days with nothing planned have no bar.
+
+## Tests
+
+**Unit tests (JVM)** in `app/src/test/java/org/nourax/nodrive/agenda/`: `ICalPatchTest` (every other line stays byte for byte; folding; the agent in two places and
+taken off again; done and not done; a new object reads back), `EditServiceTest` (every row of design section 9 sends exactly the expected request on a small
+server in memory: verbs, paths, `If-Match`, `If-None-Match`, `OCS-APIRequest`, bodies; 412 is a conflict; "Apply my change again" is one fresh read and one
+write with the new version; Deck's update always carries `done`, the description and the start date; the refusals send nothing; the version guard writes
+nothing), `GanttAgentChangeTest` (others' rows unchanged, order kept, the primary row, four rows, roles only, work in hours and person days, a row the server
+could not see), `EditQueueTest` (on screen at once and marked, sent in order when the network is back, a refresh sends the queue first, conflicts kept until a
+tap, one send at a time, the overlay), `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`, `AgendaViewModelEditTest`,
+`AgendaSendWorkerNameTest`, and `AgendaSafetyTest` (writes only through the three writers and `WritePolicy`; a DELETE only for a calendar object; no Drive file).
+
+**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 12 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
+(create with an agent, edit title, time and agent, agent on and off, to-do done and not done, delete: the object is gone and the trash bin answers),
+`edit-gantt` (end date with the tasks NoGantt moved, Undo, percent done, done, Self to Writer-Bot to Self with the rows and their work unchanged, the three
+refusals: too many people, the work would change, an agent whose planning person is not visible), `edit-deck` (due date, done, label on and off, a label made on
+a board the person manages, refused on an edit-only board; description, start date and colour unchanged), `conflict` (the object, the NoGantt task and the card
+are changed by somebody else between the read and the write: the other change stays, "apply again" keeps both). What the server holds is read back as the
+same user with plain HTTP, not through the app's readers.
+
+**The agent id in the server's own pages** (`tools/ci/agenda-webedit.py`, Playwright for Python 1.55.0, Chromium, in the `agenda-server` job): the title of a tagged event is
+edited in Calendar 6.6.4 and the title of a tagged to-do in Tasks 0.18.1, saved, and the raw text is read over CalDAV. Result: **in both pages both the
+property `X-NOURAX-AGENT-ID` and the category `agent:AG-0001` survive**. The raw texts are in the artifact with every value replaced by a hash, except the two agent properties.
+
+**Emulator tests** (`agenda-device` job, `tools/ci/agenda-device.sh`): `AgendaEditUiIT` (13 tests, light and dark, canned data), `AgendaEditDatabaseIT` (3 tests: the
+queue in a real Room file keeps its order, survives a restart, keeps conflicts), `AgendaEditLiveIT` (4 tests, Ali's account through the screens: new event with
+Writer-Bot, a changed event, a deleted event, a ticked to-do, a moved end date with Undo, the agent of a Gantt task and of a card), `AgendaEditOfflineIT` (airplane mode:
+three changes are made and marked, data goes on, a new start of the app sends them in order). Afterwards `tools/ci/agenda-server-check.py` asks the server itself,
+as the user, whether it holds what the screens sent.
+
+## Results (CI)
+
+[Run 40989747248](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40989747248) on branch `feature/noagenda-edit` (code commit `cfc2740d4a`; later commits only change docs and screenshots).
+
+| Check | Result |
+|---|---|
+| Branding gate | pass |
+| Lint (warnings are errors) | pass |
+| Unit tests (`testNodriveDebugUnitTest`) | 1123 tests passed, 0 failed |
+| Room schemas of both NoAgenda databases are committed | pass (`AgendaDatabase` unchanged, `EditDatabase` version 1 new) |
+| `agenda-server`: the 12 edit phases against Nextcloud 35.0.2 + nc_gantt 2.4.1 + Deck 1.19.1 + Calendar 6.6.4 + Tasks 0.18.1 | pass: create, edit, agent on and off, done and not done and delete of events and to-dos; NoGantt dates (NoGantt moved 1 dependent task, Undo took it back), percent done, done, the agent row with my own row and its work unchanged, the three refusals send nothing; Deck due date, done, label on and off, label made on a managed board, refused on an edit-only board, description, start date unchanged; the three conflicts keep the other change and "apply again" keeps both |
+| `agenda-server`: the agent id after an edit in the web pages | **Calendar: property survived, category survived. Tasks: property survived, category survived.** Both marks are kept, so the category copy is not even needed there (it stays as the fallback for programs that drop unknown properties) |
+| `agenda-device` (emulator, API 35): edit screens on canned data, light and dark | pass: `AgendaEditUiIT` 13 tests in each look |
+| `agenda-device`: offline queue in a real Room file | pass: `AgendaEditDatabaseIT` 3 tests |
+| `agenda-device`: through the screens against the throwaway server | pass: `AgendaEditLiveIT` 4 tests |
+| `agenda-device`: airplane mode | pass: `AgendaEditOfflineIT` a1 to a4 (three changes marked "Waiting to send", sent in order after a new start of the app) |
+| `agenda-device`: the server holds what the screens sent | pass (`tools/ci/agenda-server-check.py`: event deleted, to-do completed, end date undone, agent row and label, the three offline changes) |
+| `agenda-device`: the step-1 tests still pass | pass: `AgendaUiIT` 13, `AgendaDatabaseIT` 3, `AgendaLiveIT` 4 (light and dark), drawer, worker, offline |
+| Screenshots | 57 `agenda-*.png` in light and dark, brightness check passed; the new ones are named in `docs/testing.md` |
+| Network check | never a connection to drive.nourax.org; no throwaway password in any uploaded file |
+
+On the way: the first device run found, and this step fixed, real problems: a command read once for the whole queue used an old version after the command before it had
+changed the item (the queue now reads each command again when its turn comes); the Conflicts chip and the workload bar took room, so two older tests that looked for text
+that had scrolled away now look at the top of the list. The emulator image's own `googlesdksetup` app still sometimes shows an "isn't responding" dialog; the watchdog of step 1 closes it.
+
+
+## Server-side items found here (for the Workspace session; this step changes no server)
+
+See also section 5 of `docs/testing.md` (S18 to S20) and section 6 of `plans/noagenda-android-plan.md`.
+
+- NoGantt's task update has no version precondition (no ETag, no `If-Match`), and Deck's card update is a full replace without one either. The app reads the item right
+  before the write and compares `updated_at` / `lastModified`; a short race remains. A precondition (or a 409) on both would close it.
+- Calendar and Tasks keep both agent marks when a person edits an event or a to-do in their pages. Re-run `agenda-server` (it includes this check) before updating Calendar or Tasks.
+- The Workspace AI tools must write the agent of an event or a to-do exactly as NoAgenda does: `X-NOURAX-AGENT-ID` plus the registry's `calendar_tag` in `CATEGORIES`.
+
+## Left for later (to-dos)
+
+- The date picker and the time picker dialogs are standard Material 3 dialogs; CI changes a date with the "one day earlier / later" buttons next to the date, not through the dialog.
+- NoGantt tasks have dates, not times, so only events and cards with real start and due times can clash (design 7 says "Gantt tasks and cards with set times").
+- Other people's rows (My team) and milestones are not editable here, only opened in their own app.
+- Translations of `nodrive_agenda_edit.xml`.

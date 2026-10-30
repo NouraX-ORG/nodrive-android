@@ -170,6 +170,17 @@ The emulator job sometimes fails for reasons outside the app. Re-running the fai
   waits for it and closes it. It also retries up to 5 failed instrumented methods once, and shows
   both results in the report.
 
+NoAgenda editing and conflicts (`feature/noagenda-edit`):
+
+| Feature | Who | Result | Evidence |
+|---|---|---|---|
+| Every edit of design section 9 reaches the server: events and to-dos (create, edit, agent, done, delete), NoGantt task dates, percent done, done, my agent, card due date, done, my agent label | CI | pass | [Run 40989747248](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40989747248): `EditPhasesTest` (12 tests against the throwaway Nextcloud 35.0.2) and the `agenda-server-check.py` step; details in `docs/noagenda.md` |
+| An item changed meanwhile is a conflict, the other change stays, "Apply my change again" keeps both (calendar, NoGantt, Deck) | CI | pass | `EditPhasesTest` conflict tests; unit tests `EditServiceTest`, `EditQueueTest`; screen `agenda-edit-conflict` |
+| The offline queue: shown at once as "Waiting to send", sent in order after a restart, kept in its own Room database | CI | pass | `AgendaEditOfflineIT` (airplane mode), `AgendaEditDatabaseIT`, `EditQueueTest` |
+| Clash, possible clash, deadline on a day off, workload bar, agents never take the person's time, an agent's own overbooking | CI | pass | `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`; screen `agenda-day-clash-overbooked` |
+| The agent id survives an edit in the Calendar and Tasks pages of the server | CI | pass (both marks survive in both) | `tools/ci/agenda-webedit.py` in the `agenda-server` job |
+| Writes only where design section 9 allows them; only an event or a to-do is ever removed | CI | pass | `AgendaSafetyTest`, `WritePolicy` |
+
 ## 2. What CI does not cover
 
 These screens need a signed-in server: share dialog, file details, notifications list, activities,
@@ -299,6 +310,23 @@ offline with the real server's data: [agenda-offline-live-light.png](screenshots
 | Against the throwaway server: the manager's My team | [agenda-live-my-team-light.png](screenshots/android/agenda-live-my-team-light.png) | [agenda-live-my-team-dark.png](screenshots/android/agenda-live-my-team-dark.png) |
 | Against the throwaway server: Sara's invalid agent list | [agenda-live-sources-invalid-registry-light.png](screenshots/android/agenda-live-sources-invalid-registry-light.png) | [agenda-live-sources-invalid-registry-dark.png](screenshots/android/agenda-live-sources-invalid-registry-dark.png) |
 | Against the throwaway server: Olaf (another organisation) | [agenda-live-olaf-light.png](screenshots/android/agenda-live-olaf-light.png) | [agenda-live-olaf-dark.png](screenshots/android/agenda-live-olaf-dark.png) |
+
+### NoAgenda editing screens
+
+Fifty-seven `agenda-*.png` in all from the edit run; these are the new ones (`AgendaEditUiIT`, `AgendaEditLiveIT`, `AgendaEditOfflineIT`).
+
+| Screen | Light | Dark |
+|---|---|---|
+| Day with a clash, an overbooked day and the Conflicts chip | [light](screenshots/android/agenda-day-clash-overbooked-light.png) | [dark](screenshots/android/agenda-day-clash-overbooked-dark.png) |
+| Editing a task: who does it (Self, an agent, a paused agent) | [light](screenshots/android/agenda-edit-agent-gantt-light.png) | [dark](screenshots/android/agenda-edit-agent-gantt-dark.png) |
+| An agent that is not in the project | [light](screenshots/android/agenda-edit-agent-not-in-project-light.png) | [dark](screenshots/android/agenda-edit-agent-not-in-project-dark.png) |
+| New event (Self preselected) | [light](screenshots/android/agenda-new-event-light.png) | [dark](screenshots/android/agenda-new-event-dark.png) |
+| Edit conflict: Not sent, Apply my change again | [light](screenshots/android/agenda-edit-conflict-light.png) | [dark](screenshots/android/agenda-edit-conflict-dark.png) |
+| A change waiting offline | [light](screenshots/android/agenda-pending-offline-light.png) | [dark](screenshots/android/agenda-pending-offline-dark.png) |
+| Delete question | [light](screenshots/android/agenda-delete-confirm-light.png) | [dark](screenshots/android/agenda-delete-confirm-dark.png) |
+| A repeating event is not changed here | [light](screenshots/android/agenda-repeating-locked-light.png) | [dark](screenshots/android/agenda-repeating-locked-dark.png) |
+| A task of a project that is only viewed | [light](screenshots/android/agenda-viewer-locked-light.png) | [dark](screenshots/android/agenda-viewer-locked-dark.png) |
+| Against the throwaway server (light): [new event](screenshots/android/agenda-edit-live-new-event-light.png), [delete](screenshots/android/agenda-edit-live-delete-light.png), [to-do](screenshots/android/agenda-edit-live-todo-light.png), [moved end date with Undo](screenshots/android/agenda-edit-live-gantt-date-light.png), [agent of a task](screenshots/android/agenda-edit-live-agent-task-light.png), [offline: waiting](screenshots/android/agenda-edit-offline-waiting-light.png), [offline: sent](screenshots/android/agenda-edit-offline-sent-light.png) | | |
 
 ## 4. Owner tests (at home, on the owner's Android phone)
 
@@ -464,6 +492,23 @@ after test 2. If you have no NoGantt project or NoBoard board, tests 40 and 41 o
 | 43 | Open in ... | Tap a row, then **Open in NoCalendar** / **NoTasks** / **NoGantt** / **NoBoard** | Does the page of the Drive open inside the app, already signed in? |
 | 44 | Dark mode | Switch the phone to dark mode and look at NoAgenda | Is every screen readable, with the Nourax blue as the accent? |
 
+### Tests 45 to 54: NoAgenda (editing and conflicts)
+
+Use a test event, to-do and task, not real ones that matter. Everything you change is on your real Drive.
+
+| # | What | Do this | Pass when |
+|---|---|---|---|
+| 45 | New event | Tap **+**, **New event**, type a title, pick **Self** (preselected) or an agent, **Save** | The event shows at once; after a moment it is in your NoCalendar page, in the calendar you chose, with the agent if you chose one |
+| 46 | Change an event | Open it, **Edit**, change the title and the time, **Save** | The change shows in the NoCalendar page. Alarms and guests that the event had are still there |
+| 47 | Tick a to-do | Open a to-do, **Mark done** | It leaves the list and is done in NoTasks |
+| 48 | Move a task | Open one of your NoGantt tasks, **Edit**, move the end date with the **+** / **-** next to it or the date picker, **Save** | A message says **Saved.** (and **Also moved: ...** if NoGantt moved other tasks) with **Undo** for 10 seconds. **Undo** puts the date back |
+| 49 | Who does it | Open a NoGantt task or a card, **Edit**, choose one of your agents, **Save** | The row shows the agent. In NoGantt the agent is added next to you and your own row is unchanged. An agent that is not in the project is greyed with "Ask your project manager to add ..." |
+| 50 | Airplane mode | Switch on airplane mode, make two changes, switch it off | Each change is marked **Waiting to send** and the top says **Waiting to send 2 changes**. A short time after the network is back they are on the Drive and the marks are gone |
+| 51 | Changed meanwhile | Change an event in NoAgenda in airplane mode; change the same event in the NoCalendar page; switch the phone back on | **Not sent** says "This changed somewhere else while you were editing. NoAgenda kept the other change." **Apply my change again** puts yours on top of theirs; **Keep the other change** drops yours |
+| 52 | Clash and busy days | Make two events at the same time; plan more hours of tasks than free hours on a day | Both events show **Clash**; the day shows "N h planned / M h free" in red. The **Conflicts** chip keeps only the rows with a warning |
+| 53 | What can't be changed | Open a repeating event, an invitation from someone else, a task of a project you only look at | Each says why ("This repeats. Change it in NoCalendar.", "You were invited...", "You can view this project only...") and there is no Edit button; **Open in ...** works |
+| 54 | Delete | Open an event, **Delete** | It asks "Delete this event? It moves to the calendar's trash bin." Only after **Delete** is it gone from the day; it is in the NoCalendar trash bin. A task or a card has no Delete button |
+
 ### NoAgenda: what the owner should know
 
 - **Read only.** This step changes nothing on the Drive or on the phone. Editing, the Timeline and the phone's own Calendar and Contacts sync are the next steps.
@@ -506,6 +551,9 @@ NoAgenda (design section 11; the Workspace session does these, the app changes n
 | S15 | Before updating NoGantt or Deck on the Drive, run NoAgenda's API checks (the `agenda-server` CI job) against the new version | They are the only guard against a changed API |
 | S16 | NoGantt viewers cannot change their own tasks; NoGantt's and Deck's default colour is the server's blue; Deck's welcome board names the server software; keep the calendar trash bin on | Found while testing |
 | S17 | A daily repeating event is about 400 rows in the 14-month window (the server expands it) | Only a size note |
+| S18 | NoGantt's task update has no version precondition (no ETag or `If-Match`); NoAgenda reads `updated_at` right before the write, so a short race remains | A precondition or a 409 on `PUT tasks/{id}` would close it |
+| S19 | Deck's card update is a full replace without a precondition either (it also clears `done` when it is not sent) | NoAgenda always builds the update from the fresh card and sends `done`; a precondition on the card update would close the race |
+| S20 | The Workspace AI tools must write the agent of an event or a to-do the way NoAgenda does | `X-NOURAX-AGENT-ID` plus the registry's `calendar_tag` in `CATEGORIES`. CI proves both marks survive an edit in the Calendar and Tasks pages; re-run it before updating those apps |
 
 ## 6. To-dos for later
 
@@ -604,3 +652,11 @@ From the independent reviews (review 2 approved, `plans/round3-android-agenda-co
 - **Translations:** the new texts are English only (`app/src/main/res/values/nodrive_agenda.xml`). German, Arabic and the other
   languages are still to do.
 - **Owner:** C: on the build PC is below the 40 GB the run rules ask for (see the Problem reports to-dos).
+
+### To-dos for NoAgenda editing
+
+- **N13:** the date and time pickers are standard Material 3 dialogs; CI moves a date with the buttons next to it, not through the dialog. Check the pickers on the phone (owner tests 48 and 46).
+- **N14:** NoGantt tasks have dates, not times, so only events and cards with real start and due times can clash.
+- **N15:** My team rows and milestones are only opened in their own app, not edited.
+- **N16:** translations of `app/src/main/res/values/nodrive_agenda_edit.xml`.
+- **Next steps:** the Timeline (`feature/noagenda-timeline`), then the phone's own Calendar and Contacts sync (`feature/device-calendar-sync`).
