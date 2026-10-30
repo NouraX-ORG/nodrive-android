@@ -256,10 +256,10 @@ server in memory: verbs, paths, `If-Match`, `If-None-Match`, `OCS-APIRequest`, b
 write with the new version; Deck's update always carries `done`, the description and the start date; the refusals send nothing; the version guard writes
 nothing), `GanttAgentChangeTest` (others' rows unchanged, order kept, the primary row, four rows, roles only, work in hours and person days, a row the server
 could not see), `EditQueueTest` (on screen at once and marked, sent in order when the network is back, a refresh sends the queue first, conflicts kept until a
-tap, one send at a time, the overlay), `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`, `AgendaViewModelEditTest`,
+tap, one send at a time, the overlay), `ConflictsTest`, `WorkloadTest`, `AgentLoadTest`, `AnalysisTest`, `AgendaViewModelEditTest`, `EditRound2Test` (to-do dates, the cut description, "+" calendars, Gantt clash times),
 `AgendaSendWorkerNameTest`, and `AgendaSafetyTest` (writes only through the three writers and `WritePolicy`; a DELETE only for a calendar object; no Drive file).
 
-**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 12 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
+**Server phases** (`agenda-server` job, `org.nourax.nodrive.agenda.server.EditPhasesTest`, 13 tests, against the throwaway Nextcloud 35.0.2): `edit-calendar`
 (create with an agent, edit title, time and agent, agent on and off, to-do done and not done, delete: the object is gone and the trash bin answers),
 `edit-gantt` (end date with the tasks NoGantt moved, Undo, percent done, done, Self to Writer-Bot to Self with the rows and their work unchanged, the three
 refusals: too many people, the work would change, an agent whose planning person is not visible), `edit-deck` (due date, done, label on and off, a label made on
@@ -297,6 +297,19 @@ as the user, whether it holds what the screens sent.
 | `agenda-device`: the step-1 tests still pass | pass: `AgendaUiIT` 13, `AgendaDatabaseIT` 3, `AgendaLiveIT` 4 (light and dark), drawer, worker, offline |
 | Screenshots | 57 `agenda-*.png` in light and dark, brightness check passed; the new ones are named in `docs/testing.md` |
 | Network check | never a connection to drive.nourax.org; no throwaway password in any uploaded file |
+
+**Round 2 of the review (the fixes above):** [run 41004354730](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41004354730) on the code commit of the fixes (later commits only change docs). All 7 jobs green.
+
+| Check | Result |
+|---|---|
+| Branding gate, Lint, Server login proof | pass |
+| Unit tests (`testNodriveDebugUnitTest`) | 1160 passed, 0 failed (24 server tests skipped there, they run in `agenda-server`) |
+| `agenda-server`: the 13 edit phases (new: `editCalendarTimedTodoKeepsItsTimesWhenTheStartMoves`, a to-do the way the Tasks page makes it, against Nextcloud 35.0.2 + Tasks 0.18.1) | pass: the start moved a day, `DTSTART` kept its time, `DUE` unchanged, no `VALUE=DATE` mix; the server accepted it (no 415) |
+| `agenda-device`: `AgendaUiIT` 13, `AgendaEditUiIT` 13, `AgendaEditLiveIT` 4, `AgendaEditOfflineIT` a1 to a4, database, worker, drawer (light and dark where they run so) | pass |
+| Emulator tests and screenshots | pass |
+
+The first CI run of the fixes found a real bug in the first version of the "Back at once" fix, through its own new test: a `withContext` that changes the thread throws the
+cancellation of its caller on the way back, so the call that asks for the background send never ran. `store` and `hasPending` are now wrapped in `NonCancellable`.
 
 On the way: the first device run found, and this step fixed, real problems: a command read once for the whole queue used an old version after the command before it had
 changed the item (the queue now reads each command again when its turn comes); the Conflicts chip and the workload bar took room, so two older tests that looked for text
