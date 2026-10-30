@@ -33,6 +33,7 @@
   against a throwaway Nextcloud 35.0.2 with nc_gantt 2.4.1, Deck 1.19.1, Calendar 6.6.4 and Tasks 0.18.1 (never drive.nourax.org), and an
   `agenda-device` job runs the screens on canned data in light and dark, the real app against the same server, the side-menu entry and the
   offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4). NoAgenda editing, the offline queue and edit conflicts are proven the same way (final code: [run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522), 1173 unit tests, 12 server phases, 57 screens); owner tests 45 to 57. The first NoAgenda run with the final code is [run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428); the `agenda-*.png` images are from it.
+  The Timeline (bars, arrows, diamonds, busy time, date changes from the detail sheet) is proven the same way ([run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057), 1232 unit tests, 3 Timeline server phases, 73 screens); owner tests 58 to 66.
 - **The DAVx5 entry is gone** from Settings > More (CI: the screen sweep finds no DAVx5 or DAVdroid
   text on 78 screens).
 
@@ -185,6 +186,12 @@ NoAgenda editing and conflicts (`feature/noagenda-edit`):
 | A server in maintenance mode (502, 503, 504, `Retry-After`) never turns a queued edit into "Not sent"; a server error offers **Send again** with the version check; a write that the rules refuse is a conflict, not a lost network | CI | pass | [Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522): `EditServiceTest` (four kinds of "not ready" answer, ten runs each; 500 five times then Send again; a 403 offers no Send again), `AgendaSafetyTest` |
 | A saved change shows at once with its waiting mark, even while a long refresh runs | CI | pass | [Run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522): `AgendaViewModelEditTest.aSavedChangeShowsAtOnceWithItsWaitingMarkWhileALongRefreshStillRuns` |
 | Not covered by a test yet (review 3, nit 3): the NoBoard `board_unavailable` guard result, the single NoGantt read per refresh, the **Send again** button on a screen | CI | open | See the to-dos for NoAgenda editing |
+| NoAgenda Timeline: the layout (date to position at both zooms, groups project > phase, order, the four arrow kinds, a stub for a predecessor that is not on the screen, busy shading, days off, locked rows give no command) and the date commands | CI | pass | [Run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057) (`f9d818428a`, attempt 2): `TimelineLayoutTest` 20, `TimelineEditTest` 10 (including: a later edit without dates keeps the waiting move as a move, a later date edit does not); 1232 unit tests in all, 0 failed, 28 skipped (3 upstream `@Ignore`, 25 server tests that run in `agenda-server`) |
+| NoAgenda Timeline against Nextcloud 35.0.2 + nc_gantt 2.4.1: moving a task by 2 days moves the dependent task and NoAgenda names it; Undo gives both back; a move onto a weekend is snapped by NoGantt and says so | CI | pass | [Run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057), `agenda-server` job: `TimelinePhasesTest` 3 of 3. `report.md`: "timeline move PASS: B now starts 2026-11-09; also moved [Timeline task B f88944]"; "timeline undo PASS: both tasks have their first dates again"; "timeline weekend PASS: sent 2026-11-07 - 2026-11-08, NoGantt saved 2026-11-09 - 2026-11-10, adjusted=true" |
+| NoAgenda Timeline on the emulator (API 35), light and dark: bars with the done part, arrows, diamonds, agent after each bar, busy shading, the date sheet and the range picker, locked rows, Undo, "Waiting to send", the empty state; and against the throwaway server | CI | pass | [Run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057), job "NoAgenda on the emulator": `timeline (light/dark): OK (10 tests)`, `timeline-live (light/dark): OK (1 test)`; all older agenda groups still OK (edit-offline a1 to a4 included); 16 new `agenda-*timeline*.png`, 73 `agenda-*.png` in all, 0 with the wrong brightness |
+| Final code of the Timeline branch after the second review (approved): all 7 jobs green | CI | pass | [Run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057): Branding gate (UNCLASSIFIED 0), Lint, Server login proof, NoAgenda API checks, NoAgenda on the emulator, Emulator tests and screenshots, APK and unit tests. Attempt 1 failed only in the older `AgendaEditOfflineIT` a2 and a3 (a known flake, see the to-dos); attempt 2 passed everything |
+| The Timeline adds no request of its own, no delete, no upstream file change, no new "Nextcloud" text | CI | pass | Every date change is an ordinary edit command (same queue, same version checks). `git diff --name-only origin/main...HEAD` shows only `org/nourax`, `nodrive_agenda` and `tools/ci` paths; the branding gate passed |
+| Not covered by a test yet (Timeline review 2, nit 2): the range picker keeping the length, no "Dates" heading for a milestone, no "My team" chip on the Timeline, opening a bar by its name, the refused-dates message | CI | open | See the to-dos for the NoAgenda Timeline |
 
 ## 2. What CI does not cover
 
@@ -332,6 +339,21 @@ Fifty-seven `agenda-*.png` in all from the edit run; these are the new ones (`Ag
 | A repeating event is not changed here | [light](screenshots/android/agenda-repeating-locked-light.png) | [dark](screenshots/android/agenda-repeating-locked-dark.png) |
 | A task of a project that is only viewed | [light](screenshots/android/agenda-viewer-locked-light.png) | [dark](screenshots/android/agenda-viewer-locked-dark.png) |
 | Against the throwaway server (light): [new event](screenshots/android/agenda-edit-live-new-event-light.png), [delete](screenshots/android/agenda-edit-live-delete-light.png), [to-do](screenshots/android/agenda-edit-live-todo-light.png), [moved end date with Undo](screenshots/android/agenda-edit-live-gantt-date-light.png), [agent of a task](screenshots/android/agenda-edit-live-agent-task-light.png), [offline: waiting](screenshots/android/agenda-edit-offline-waiting-light.png), [offline: sent](screenshots/android/agenda-edit-offline-sent-light.png) | | |
+
+### NoAgenda Timeline screens
+
+Sixteen new `agenda-*.png` from the Timeline run ([run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057); `AgendaTimelineIT`, `AgendaTimelineLiveIT`), 73 `agenda-*.png` in all.
+
+| Screen | Light | Dark |
+|---|---|---|
+| Timeline: groups (project, phase, NoTasks, NoBoard), done part, arrows, diamonds, agent labels, busy time, days off, today line | [light](screenshots/android/agenda-timeline-light.png) | [dark](screenshots/android/agenda-timeline-dark.png) |
+| A bar's sheet with the Dates part (1 day earlier / later, Change dates) | [light](screenshots/android/agenda-timeline-date-editor-light.png) | [dark](screenshots/android/agenda-timeline-date-editor-dark.png) |
+| The date range picker | [light](screenshots/android/agenda-timeline-date-picker-light.png) | [dark](screenshots/android/agenda-timeline-date-picker-dark.png) |
+| Moved, with Also moved and Undo | [light](screenshots/android/agenda-timeline-undo-light.png) | [dark](screenshots/android/agenda-timeline-undo-dark.png) |
+| A locked row (only viewed project, repeating item) | [light](screenshots/android/agenda-timeline-readonly-light.png) | [dark](screenshots/android/agenda-timeline-readonly-dark.png) |
+| A change waiting offline | [light](screenshots/android/agenda-timeline-waiting-light.png) | [dark](screenshots/android/agenda-timeline-waiting-dark.png) |
+| Nothing dated in the range | [light](screenshots/android/agenda-timeline-empty-light.png) | [dark](screenshots/android/agenda-timeline-empty-dark.png) |
+| Against the throwaway server | [light](screenshots/android/agenda-live-timeline-light.png) | [dark](screenshots/android/agenda-live-timeline-dark.png) |
 
 ## 4. Owner tests (at home, on the owner's Android phone)
 
@@ -517,10 +539,27 @@ Use a test event, to-do and task, not real ones that matter. Everything you chan
 | 56 | A saved change shows at once | Change a task or an event while NoAgenda is still refreshing (pull down to refresh, then edit and **Save** straight away) | The change shows at once with **Waiting to send**; it does not wait for the refresh to end |
 | 57 | Agent known only by name | Open a task, **Edit**, and look at an agent whose planning person is in the project but on none of your tasks | It is greyed with **Ask your project manager to add ...** and cannot be chosen. (This is the rule of the design; it goes away when the server's sync step lists the agents' planning people.) |
 
+### Tests 58 to 66: NoAgenda Timeline
+
+Use a test task in a test project. Changing dates changes the real task in NoGantt (and can move the tasks that come after it).
+
+| # | What | Do this | Pass when |
+|---|---|---|---|
+| 58 | The Timeline | Open NoAgenda and tap **Timeline** (next to Day, Week and Month) | Your NoGantt tasks are bars, grouped under their project and phase, with the done part filled in. To-dos with a start and a due date are bars; milestones and cards with a due date are diamonds. The name of the agent (or **Self**) is after every bar. A line marks today; days off are hatched; the grey behind the bars is your busy time |
+| 59 | Zoom and range | Tap **Days** and **Weeks**; use the arrows next to the dates; tap **Today** | The bars get wider or narrower. Each arrow moves four weeks. **Today** brings today back. The Timeline scrolls sideways and down |
+| 60 | Arrows | Look at tasks that depend on each other, and compare with the Gantt chart in NoGantt | The arrows run the same way as in NoGantt (finish to start and so on). An arrow from a task that is not yours ends in a short dash, and its sheet says **After: ...** |
+| 61 | Move a task | Tap a bar (or its name), find **Dates**, tap **1 day later** (or **Change dates** and pick a range), then look in NoGantt | A message says **Moved to ...** (and **Also moved: ...** if NoGantt moved the tasks after it) with **Undo**. NoGantt shows the new dates. The task keeps its length |
+| 62 | Undo | Right after test 61, tap **Undo** within 10 seconds | The task and the ones that moved with it have their old dates again |
+| 63 | A weekend | Move a task so that it starts on a Saturday | NoGantt puts it on working days, and NoAgenda says **NoGantt adjusted the dates** |
+| 64 | What can't be moved | Tap a milestone, a task of a project you only view, a repeating event | The sheet has no dates to change and says why (or shows no **Dates** part for a milestone). **Open in ...** works |
+| 65 | Offline | Switch on airplane mode and move a task, then switch it off | The bar shows **Waiting to send**; it can't be moved again until it is sent; a short time after the network is back NoGantt has the new dates |
+| 66 | Side menu and dark mode | On the Timeline, swipe from the left edge; then tap the menu button; switch the phone to dark mode | The edge swipe scrolls the chart and does not open the menu (so sideways scrolling is not fought); the menu button opens it; the other tabs still open it with the swipe. Every Timeline screen is readable in dark mode |
+
 ### NoAgenda: what the owner should know
 
-- **Tests 35 to 44 only look.** They change nothing. Tests 45 to 57 edit real items on your Drive, so use a test event, to-do, task and card. NoAgenda never deletes a task or a card, and deletes an event or a to-do only after the question (the event goes to the calendar's trash bin). The Timeline and the phone's own Calendar and Contacts sync are the next steps.
+- **Tests 35 to 44 only look.** They change nothing. Tests 45 to 57 edit real items on your Drive, so use a test event, to-do, task and card. NoAgenda never deletes a task or a card, and deletes an event or a to-do only after the question (the event goes to the calendar's trash bin). The Timeline (tests 58 to 66) changes dates the same way as editing does. The phone's own Calendar and Contacts sync is the next step.
 - **Editing.** A change you make is shown at once and sent in the background; offline it waits and is sent in order. If somebody changed the same item meanwhile, their change stays and you choose **Apply my change again** or **Keep the other change**; after a server error you can choose **Send again**. While the Drive is being updated (maintenance), your changes wait and are sent afterwards.
+- **The Timeline has no dragging on a phone.** A tap on a bar or its name opens the sheet, and the dates are changed there. A task moved by whole days is sent with NoGantt's own move (`adjust_lag`), so the tasks that come after it move too, and the message names them. Milestones, finished items and repeating to-dos can not be moved there; there are no team rows on the Timeline (use My team on the other tabs).
 - **The agent list is a file.** NoAgenda reads `NoAgenda/agent-registry.json` in your own NoDrive (the format of `plans/agent-registry.placeholder.json`). Without it everything shows as **Self**; **Sources** says so. The Nourax agents app will replace the file later.
 - **Only your own work.** An agent of another organisation is never named. An invitation to a meeting is always **Self**. Someone else's personal calendar is never read.
 - **Background refresh** runs about every 15 minutes, and only for accounts where NoAgenda was opened at least once.
@@ -565,6 +604,7 @@ NoAgenda (design section 11; the Workspace session does these, the app changes n
 | S20 | The Workspace AI tools must write the agent of an event or a to-do the way NoAgenda does | `X-NOURAX-AGENT-ID` plus the registry's `calendar_tag` in `CATEGORIES`. CI proves both marks survive an edit in the Calendar and Tasks pages; re-run it before updating those apps |
 | S21 | Deck's card update (`PUT .../stacks/{stackId}/cards/{id}`) sets the card's list from the `stackId` in the address (`CardService::update`, `setStackId`), whatever list the card is in | NoAgenda always writes to the stack of the card it has just read, and refuses a card that is on another board. A Deck that ignored the address' stack, or answered 409 when it differs from the card's own, would make every client safer |
 | S22 | Nextcloud answers 503 in maintenance mode (every upgrade) | Nothing to change. NoAgenda treats 502, 503, 504 and `Retry-After` as "wait" and does not count them, so queued edits are sent after the window; announcing upgrade windows helps people who edit offline |
+| S23 | NoGantt's task update with `adjust_lag` both snaps a whole-day move to working days and changes the lags of dependencies when they are not sent in the same call (`TaskService.php`) | The Timeline sends `adjust_lag` only for a move by whole days, and shows "Also moved" and Undo. Whoever documents NoGantt's API for clients should say this. CI proves the move, the dependent task and the weekend snap |
 
 ## 6. To-dos for later
 
@@ -672,4 +712,16 @@ From the independent reviews (review 2 approved, `plans/round3-android-agenda-co
 - **N16:** translations of `app/src/main/res/values/nodrive_agenda_edit.xml`.
 - **Review 3 nits, not fixed (none blocks the owner):** (1) a 408 or 429 on NoGantt's fresh read should wait, as in every other writer (`GanttWriter.stopFor`); (2) offer **Send again** for the NoBoard conflicts `board_unavailable` and `version_guard`; (3) add tests for `board_unavailable`, the single NoGantt read per refresh (`ganttReadByGuard`), `resendConflict` and a screen test of **Send again**; (5) the commit trailers say `Claude Sonnet 5.5` (the model that wrote the code), the workflow rule says `Opus 5.5`. Details in `docs/noagenda.md`.
 - **Rule 4.5 (b):** an agent known only by name and not next to you cannot be chosen yet (test 57); the server's sync step (S12) lifts it.
-- **Next steps:** the Timeline (`feature/noagenda-timeline`), then the phone's own Calendar and Contacts sync (`feature/device-calendar-sync`).
+- **Next step:** the phone's own Calendar and Contacts sync (`feature/device-calendar-sync`).
+
+### To-dos for the NoAgenda Timeline
+
+From the independent reviews (`plans/round3-android-agenda-timeline-review-2.md`, approved). None of them blocks the owner:
+
+- **Flaky offline edit test (not this branch):** `AgendaEditOfflineIT` a2 and a3 failed in attempt 1 of the Timeline run, and `main`'s own run needed 4 attempts. The offline queue is a data-safety feature: wait on the queue state, not on the screen.
+- **Tests for the review fixes:** a one-day pick in the range picker keeps the length (one `GANTT_UPDATE` with `move=move`), a milestone's sheet has no Dates part, no `agenda_chip_team` on the Timeline, a bar opens by tapping its name, the refused-dates message.
+- **TalkBack:** the blocked, late and lock badges in the names column have no description; add them to `AgendaTexts.barDescription`.
+- **Done items** are not drawn (`TimelineLayout`); say so in the app or add a switch.
+- **Translations** of `app/src/main/res/values/nodrive_agenda_timeline.xml`.
+- **Phone check of the pickers and of the sideways scroll** (owner tests 61 and 66).
+- **Commit trailers:** 7 of the 9 commits say `Claude Sonnet 5.5`; no rewrite (same as the edit branch).
