@@ -107,13 +107,9 @@ class DeviceSyncTwoWayIT {
         // the daily stand-up of 09:30 UTC, three days ago: the occurrence of today
         val today = Instant.now().truncatedTo(ChronoUnit.DAYS).plus(9, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES).toEpochMilli()
         val values = ContentValues().apply {
-            put(CalendarContract.Events.CALENDAR_ID, master.calendarId)
             put(CalendarContract.Events.ORIGINAL_INSTANCE_TIME, today)
             put(CalendarContract.Events.TITLE, "Stand-up (moved by the phone)")
             put(CalendarContract.Events.DTSTART, today + 3_600_000L)
-            put(CalendarContract.Events.DURATION, "PT15M")
-            put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
-            put(CalendarContract.Events.STATUS, CalendarContract.Events.STATUS_CONFIRMED)
         }
         support.context.contentResolver.insert(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_EXCEPTION_URI, master.id), values)
         assertTrue(support.sync(setOf("calendar")).ok)

@@ -114,7 +114,8 @@ run_it() {
         -e NODRIVE_BK_LOOK "$1" "$RUNNER" 2>&1 | tr -d '\r' > "$log"
     if grep -q "^OK ($4 test" "$log"; then echo "devicesync IT $3 ($1): $(grep '^OK (' "$log")"; else
         echo "devicesync IT $3 ($1): FAIL (expected OK ($4 tests))"; grep -v "^INSTRUMENTATION_" "$log" | tail -n 70 | cut -c1-400
-        "$ADB" logcat -d -b crash 2> /dev/null | tail -n 30 | cut -c1-300; status=1; fi
+        "$ADB" logcat -d -b crash 2> /dev/null | tail -n 30 | cut -c1-300
+        "$ADB" logcat -d 2> /dev/null | grep -E "DeviceSync|ContactsBackup|CalendarBackup|SaveCalendar|FileUploadWorker" | tail -n 60 | cut -c1-300; status=1; fi
 }
 
 # ---- 1. no server needed

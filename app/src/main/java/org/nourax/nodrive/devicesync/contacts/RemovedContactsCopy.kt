@@ -21,6 +21,11 @@ import java.time.format.DateTimeFormatter
 class RemovedContactsCopy(private val http: AgendaHttp, private val davUser: String) {
     private val stamp = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
 
+    /** The status of the last request of [save] (for the reason in the sync result). */
+    @Volatile
+    var lastStatus: Int = 0
+        private set
+
     private fun folder() = "remote.php/dav/files/${DavSync.encodeSegment(davUser)}/.Contacts-Backup/"
 
     /** True when the cards are saved on the Drive. */
@@ -32,12 +37,13 @@ class RemovedContactsCopy(private val http: AgendaHttp, private val davUser: Str
         for (attempt in 0 until MAX_ATTEMPTS) {
             val name = if (attempt == 0) "$base.vcf" else "$base-${attempt + 1}.vcf"
             val reply = http.send("PUT", folder() + name, mapOf("If-None-Match" to "*"), body, "text/vcard; charset=utf-8")
+            lastStatus = reply.status
             when {
                 reply.ok -> return true
                 reply.status == 412 -> continue // the name is taken: never replace, try the next one
                 reply.status == 409 && !made -> {
                     // the folder is not there yet (the backup makes it, but it may not have run): make it, once
-                    http.send("MKCOL", folder())
+                    lastStatus = http.send("MKCOL", folder()).status
                     made = true
                 }
                 else -> return false

@@ -191,9 +191,10 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
         return if (e.allDay) "P${(ms / DAY_MS).coerceAtLeast(1)}D" else "PT${ms / 1000}S"
     }
 
-    private fun valuesOf(calendarId: Long, e: PhoneEvent, href: String?, etag: String?): ContentValues {
+    /** The columns of a row. The calendar is only named when the row is added: the provider refuses a changed calendar on an update. */
+    private fun valuesOf(calendarId: Long?, e: PhoneEvent, href: String?, etag: String?): ContentValues {
         val v = ContentValues()
-        v.put(CalendarContract.Events.CALENDAR_ID, calendarId)
+        if (calendarId != null) v.put(CalendarContract.Events.CALENDAR_ID, calendarId)
         v.put(CalendarContract.Events.TITLE, e.title)
         v.put(CalendarContract.Events.EVENT_LOCATION, e.location)
         v.put(CalendarContract.Events.DESCRIPTION, e.description)
@@ -289,7 +290,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
 
     /** Puts the server's version into the existing rows: the event is updated, its occurrences are written again. */
     fun replaceObject(masterId: Long, calendarId: Long, href: String, etag: String, parsed: ParsedObject) {
-        resolver.update(ContentUris.withAppendedId(scope.events, masterId), valuesOf(calendarId, parsed.master, href, etag), null, null)
+        resolver.update(ContentUris.withAppendedId(scope.events, masterId), valuesOf(null, parsed.master, href, etag), null, null)
         clearChildren(masterId)
         addChildren(masterId, parsed.master)
         deleteExceptions(masterId, calendarId, href)

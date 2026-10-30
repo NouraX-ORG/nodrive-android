@@ -6,7 +6,9 @@
  */
 package org.nourax.nodrive.devicesync.ui
 
+import android.app.Application
 import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -73,11 +75,13 @@ data class DeviceSyncUi(
  * status. Everything that talks to the server or to the phone's providers runs off the main thread.
  */
 class DeviceSyncModel(
-    private val context: Context,
+    app: Application,
     private val account: String,
     private val jobs: BackgroundJobManager,
     private val user: User
-) : ViewModel() {
+) : AndroidViewModel(app) {
+    private val context: Context get() = getApplication()
+
     private val mutable = MutableStateFlow(DeviceSyncUi())
     val state: StateFlow<DeviceSyncUi> = mutable
 
@@ -292,7 +296,7 @@ class DeviceSyncModel(
         private val user: User
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = DeviceSyncModel(context.applicationContext, account, jobs, user) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = DeviceSyncModel(context.applicationContext as Application, account, jobs, user) as T
     }
 
     private companion object {

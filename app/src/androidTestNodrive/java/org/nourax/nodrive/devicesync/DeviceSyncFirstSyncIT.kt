@@ -239,7 +239,7 @@ class DeviceSyncFirstSyncIT {
         const val DAY_MS = 86_400_000L
         const val HOUR_MS = 3_600_000L
         const val UI_MILLIS = 60_000L
-        const val BACKUP_MILLIS = 8 * 60_000L
+        const val BACKUP_MILLIS = 4 * 60_000L
         const val FIRST_SYNC_MILLIS = 5 * 60_000L
     }
 }

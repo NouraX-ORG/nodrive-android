@@ -348,7 +348,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         // The safety copy first: if it is not saved, nothing is deleted on the server (the rows stay deleted on the phone and are retried).
         if (!safety.save(deletions.map { it.obj.original }, env.clock())) {
             p.waiting += deletions.size
-            p.fail("safety_copy_not_saved")
+            p.fail("safety_copy_not_saved_${safety.lastStatus}")
             AgendaLog.w(TAG, "the copy of the removed contacts was not saved: ${deletions.size} deletes wait")
             return
         }

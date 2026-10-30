@@ -111,14 +111,19 @@ class BackupGate(
         val calendarPath = filesPath(R.string.calendar_backup_folder)
         val beforeContacts = if (wantContacts) names(contactsPath) ?: return Result.Failed("offline") else emptySet()
         val beforeCalendars = if (wantCalendars) names(calendarPath) ?: return Result.Failed("offline") else emptySet()
+        AgendaLog.i(TAG, "backup gate starts: contacts=$wantContacts calendars=$wantCalendars before=${beforeContacts.size}/${beforeCalendars.size}")
         progress(R.string.nodrive_device_sync_backup_running)
         if (wantContacts && !awaitJob { jobs.startImmediateContactsBackup(user) }) return Result.Failed("contacts_job")
+        AgendaLog.i(TAG, "backup gate: the contacts job ended")
         if (wantCalendars && !awaitJob { jobs.startImmediateCalendarBackup(user) }) return Result.Failed("calendar_job")
+        AgendaLog.i(TAG, "backup gate: the calendar job ended")
         // The jobs only queue the uploads: wait until each folder holds a new file.
         val deadline = System.currentTimeMillis() + timeoutMs
         var contactsDone = !wantContacts
         var calendarsDone = !wantCalendars
+        var polls = 0
         while (System.currentTimeMillis() < deadline) {
+            if (polls++ % LOG_EVERY == 0) AgendaLog.i(TAG, "backup gate waits for the uploads: contacts=$contactsDone calendars=$calendarsDone")
             if (!contactsDone) contactsDone = names(contactsPath)?.let { (it - beforeContacts).isNotEmpty() } ?: false
             if (!calendarsDone) calendarsDone = names(calendarPath)?.let { (it - beforeCalendars).isNotEmpty() } ?: false
             if (contactsDone && calendarsDone) return Result.Done
@@ -131,5 +136,6 @@ class BackupGate(
         const val TAG = "DeviceSyncBackup"
         const val FIFTEEN_MINUTES = 15L * 60L * 1000L
         const val POLL_MS = 2000L
+        const val LOG_EVERY = 15
     }
 }
