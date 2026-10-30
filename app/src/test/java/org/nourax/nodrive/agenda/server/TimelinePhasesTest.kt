@@ -122,6 +122,17 @@ class TimelinePhasesTest {
         val command = TimelineEdit.moveBy(item, 2, UTC, snapshot.build.myAgents)
         assertNotNull(command)
         snapshot = ali.agenda.submit(command!!)
+        if (snapshot.edit.pending.isNotEmpty()) {
+            // what did the server say? (the same body as the app sends, as plain HTTP)
+            val body = JsonObject()
+            body.addProperty("start_date", "${start.plusDays(2)} 00:00:00")
+            body.addProperty("end_date", "${start.plusDays(4)} 00:00:00")
+            body.addProperty("adjust_lag", true)
+            body.addProperty("deck_confirmed", false)
+            val reply = RawServer("ali").json("PUT", "${gantt}tasks/$a?format=json", body)
+            row("timeline move diagnosis", false, "status ${reply.status}: ${reply.body.take(300).replace("|", "/").replace("
+", " ")}")
+        }
         assertTrue("nothing waits: ${snapshot.edit.pending}", snapshot.edit.pending.isEmpty())
         assertTrue("no conflict: ${snapshot.edit.conflicts.map { it.reason.name + ":" + it.detail }}", snapshot.edit.conflicts.isEmpty())
         val notice = snapshot.edit.notice!!
