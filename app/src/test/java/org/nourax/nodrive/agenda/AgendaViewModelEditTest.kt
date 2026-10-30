@@ -53,6 +53,14 @@ class AgendaViewModelEditTest {
 
     private fun waitFor(vm: AgendaViewModel, what: (AgendaUiState) -> Boolean): AgendaUiState = runBlocking { withTimeout(WAIT_MS) { vm.state.first(what) } }
 
+    private fun waitUntil(what: String, detail: () -> String, condition: () -> Boolean) {
+        val end = System.currentTimeMillis() + WAIT_MS
+        while (!condition()) {
+            if (System.currentTimeMillis() > end) org.junit.Assert.fail("waited too long: $what (${detail()})")
+            Thread.sleep(POLL_MS)
+        }
+    }
+
     private class Fixture(val vm: AgendaViewModel, val http: FakeHttp, val store: InMemoryEditStore, val queued: AtomicInteger)
 
     private fun fixture(): Fixture {
@@ -101,6 +109,13 @@ class AgendaViewModelEditTest {
                 gate.await()
                 return real.snapshot()
             }
+
+            // spelled out: the methods with a default body of the interface are not forwarded by "by" on every compiler
+            override fun enqueue(commands: List<EditCommand>) = real.enqueue(commands)
+
+            override fun hasPending(): Boolean = real.hasPending()
+
+            override fun sendPending(manual: Boolean): AgendaSnapshot = real.sendPending(manual)
         }
         val queued = AtomicInteger()
         val vm = AgendaViewModel(AgendaRepository(engine), clock, onQueued = { queued.incrementAndGet() })
@@ -109,9 +124,9 @@ class AgendaViewModelEditTest {
         val second = EditCommand(kind = CommandKind.CAL_PATCH, itemKey = "cal:b", home = Home.CALENDAR, title = "B", change = mapOf(EditKeys.SUMMARY to "B2"))
         // one Save that makes two commands, then Back at once
         vm.submit(listOf(first, second))
-        runBlocking { withTimeout(WAIT_MS) { while (store.commands(account).size < 2) kotlinx.coroutines.delay(10) } }
+        waitUntil("both commands are stored while the refresh holds the lock", { "stored: ${store.commands(account).size}" }) { store.commands(account).size >= 2 }
         vm.viewModelScope.cancel()
-        runBlocking { withTimeout(WAIT_MS) { while (queued.get() == 0) kotlinx.coroutines.delay(10) } }
+        waitUntil("the background send is asked for after the screen is gone", { "asked: ${queued.get()}" }) { queued.get() > 0 }
         gate.countDown()
         // both commands are in the queue, and the background send was asked for
         assertEquals(listOf("A", "B"), store.commands(account).map { it.title })
@@ -164,5 +179,6 @@ class AgendaViewModelEditTest {
 
     private companion object {
         const val WAIT_MS = 20_000L
+        const val POLL_MS = 10L
     }
 }
