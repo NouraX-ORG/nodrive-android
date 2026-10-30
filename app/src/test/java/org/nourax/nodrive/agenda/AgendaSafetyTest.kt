@@ -119,7 +119,8 @@ class AgendaSafetyTest {
         )) {
             val result = http.send(verb, path, emptyMap(), null, null)
             assertEquals("$verb $path", 0, result.status)
-            assertTrue("$verb $path", result.networkError)
+            assertTrue("$verb $path", result.refused)
+            assertFalse("$verb $path: a refused write is not a lost network", result.networkError)
         }
     }
 
