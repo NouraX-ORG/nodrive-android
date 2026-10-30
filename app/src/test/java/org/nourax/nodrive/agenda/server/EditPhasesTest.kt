@@ -459,6 +459,8 @@ class EditPhasesTest {
         var snapshot = ali.refresh()
         val agents = snapshot.build.myAgents
         val stale = snapshot.mine("Edit race $tag")
+        // NoGantt's updated_at has a resolution of one second: a rename in the same second would look like "no change"
+        Thread.sleep(1_200)
         val rename = JsonObject()
         rename.addProperty("title", "Edit race $tag (theirs)")
         assertEquals(200, mara.json("PUT", "${gantt}tasks/$id?format=json", rename).status)
