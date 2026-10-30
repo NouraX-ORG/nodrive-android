@@ -140,28 +140,45 @@ def main():
         page = context.new_page()
         page.set_default_timeout(20000)
 
+        def debug(name):
+            """What the page showed when it could not be driven (a picture and the visible words, never a credential)."""
+            try:
+                page.screenshot(path=str(OUT / ("webedit-%s-debug.png" % name)))
+                (OUT / ("webedit-%s-debug.txt" % name)).write_text(page.inner_text("body")[:3000], encoding="utf-8")
+            except Exception:  # noqa: BLE001
+                pass
+
         def calendar():
             day = datetime.now(timezone.utc).date().isoformat()
             page.goto("%s/index.php/apps/calendar/timeGridDay/%s" % (BASE, day))
-            page.wait_for_selector(".fc-event", timeout=30000)
-            page.locator(".fc-event", has_text="Web edit event").first.click()
-            # the editor of Calendar 6: a popover with the title field and a Save button
-            title = page.locator("input[placeholder*='title' i]").first
-            title.wait_for(timeout=15000)
-            title.fill("Web edit event edited")
-            page.get_by_role("button", name=re.compile("^Save$", re.I)).first.click()
-            page.wait_for_timeout(3000)
+            try:
+                page.wait_for_selector(".fc-event", timeout=30000)
+                page.locator(".fc-event", has_text="Web edit event").first.click()
+                # the editor of Calendar 6: a popover (or the sidebar) with the title field and an Update (or Save) button
+                title = page.locator("input[placeholder='Title']").first
+                title.wait_for(timeout=15000)
+                title.fill("Web edit event edited")
+                page.get_by_role("button", name=re.compile("^(Update|Save)$", re.I)).first.click()
+                page.wait_for_timeout(3000)
+            except Exception:
+                debug("calendar")
+                raise
             return None
 
         def tasks():
             page.goto("%s/index.php/apps/tasks/" % BASE)
-            page.wait_for_selector("text=Web edit todo", timeout=30000)
-            page.locator("text=Web edit todo").first.click()
-            field = page.locator("input[type='text'][value='Web edit todo'], textarea").first
-            field.wait_for(timeout=15000)
-            field.fill("Web edit todo edited")
-            field.press("Enter")
-            page.wait_for_timeout(3000)
+            try:
+                page.wait_for_selector("text=Web edit todo", timeout=30000)
+                # a double click on the task opens the sidebar with its title ready to be edited
+                page.locator(".task-body__info", has_text="Web edit todo").first.dblclick()
+                field = page.locator("input.app-sidebar-header__mainname-input, .app-sidebar-header input[type='text'], aside input[type='text']").first
+                field.wait_for(timeout=15000)
+                field.fill("Web edit todo edited")
+                field.press("Enter")
+                page.wait_for_timeout(3000)
+            except Exception:
+                debug("tasks")
+                raise
             return None
 
         check("Calendar", event_path, "Web edit event", "event", calendar)

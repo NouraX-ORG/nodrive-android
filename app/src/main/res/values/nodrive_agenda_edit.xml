@@ -21,16 +21,13 @@
     <string name="nodrive_agenda_edit_end">End</string>
     <string name="nodrive_agenda_edit_due">Due</string>
     <string name="nodrive_agenda_edit_description">Description</string>
-    <string name="nodrive_agenda_edit_agent">Agent</string>
     <string name="nodrive_agenda_edit_percent">Percent done</string>
     <string name="nodrive_agenda_edit_status">Status</string>
     <string name="nodrive_agenda_edit_delete">Delete</string>
     <string name="nodrive_agenda_edit_clear">Clear</string>
     <string name="nodrive_agenda_edit_no_date">No date</string>
-    <string name="nodrive_agenda_edit_set_date">Set date</string>
     <string name="nodrive_agenda_edit_time">Time</string>
     <string name="nodrive_agenda_edit_mark_done">Mark done</string>
-    <string name="nodrive_agenda_edit_mark_not_done">Mark not done</string>
     <string name="nodrive_agenda_edit_status_not_started">Not started</string>
     <string name="nodrive_agenda_edit_status_in_progress">In progress</string>
     <string name="nodrive_agenda_edit_status_blocked">Blocked</string>
@@ -47,7 +44,6 @@
     <string name="nodrive_agenda_edit_viewer">You can view this project only. Ask the project manager for editor rights.</string>
     <string name="nodrive_agenda_edit_percent_from_board">Percent done comes from NoBoard</string>
     <string name="nodrive_agenda_edit_waiting_item">Waiting to send. You can change it again when it is sent.</string>
-    <string name="nodrive_agenda_edit_not_mine">This is not your own work, so it can only be changed in its own app.</string>
 
     <!-- Choosing the agent (person first, then agent) -->
     <string name="nodrive_agenda_edit_agent_self_note">Done by you</string>
@@ -102,7 +98,5 @@
     <string name="nodrive_agenda_edit_day_off">Deadline on a day off</string>
     <string name="nodrive_agenda_edit_agent_overbooked">%1$s is overbooked on %2$s</string>
     <string name="nodrive_agenda_edit_conflicts_filter">Conflicts</string>
-    <string name="nodrive_agenda_edit_clash_cd">Clash</string>
     <string name="nodrive_agenda_edit_pending_cd">Waiting to send</string>
-    <string name="nodrive_agenda_edit_day_off_cd">Deadline on a day off</string>
 </resources>

@@ -113,11 +113,12 @@ class AgendaLiveIT {
             answerTheQuestion(save = true)
             // events of the two calendars, NoGantt tasks with their agent or Self, a card with its agent label
             for (text in listOf("Dentist", "Client call")) see(text)
+            // at the top of the day: Writer-Bot's review and Self (the list is scrolled further down below)
+            waitForText("Writer-Bot")
+            waitForText("Self")
             see("Write homepage copy")
             see("Prepare client demo")
             see("Pay invoice")
-            waitForText("Writer-Bot")
-            waitForText("Self")
             // tomorrow: the card with the agent label
             compose.onNodeWithTag("agenda_next").performClick()
             see("Call supplier")

@@ -273,8 +273,8 @@ private fun PendingBanner(count: Int, texts: AgendaTexts) {
 /** A change that was not sent (design 9): what happened, and the person decides. Nothing is dropped without a tap. */
 @Composable
 private fun ConflictCard(conflict: EditConflict, texts: AgendaTexts, baseUrl: String, openUrl: OpenUrl, vm: AgendaViewModel) {
-    val context = LocalContext.current
     val changedElsewhere = conflict.reason == ConflictReason.CHANGED_ELSEWHERE
+    val openText = stringResource(openLabelRes(conflict.command.home))
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().testTag("agenda_conflict_card")) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.nodrive_agenda_edit_not_sent), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -293,9 +293,9 @@ private fun ConflictCard(conflict: EditConflict, texts: AgendaTexts, baseUrl: St
                 } else {
                     val home = conflict.command.home
                     TextButton(
-                        onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), context.getString(openLabelRes(home))) },
+                        onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), openText) },
                         modifier = Modifier.testTag("agenda_conflict_open")
-                    ) { Text(stringResource(openLabelRes(home))) }
+                    ) { Text(openText) }
                     TextButton(onClick = { vm.resolve(conflict.id, false) }, modifier = Modifier.testTag("agenda_conflict_drop")) {
                         Text(stringResource(R.string.nodrive_agenda_edit_drop))
                     }

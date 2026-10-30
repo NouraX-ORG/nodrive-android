@@ -76,8 +76,12 @@ class AgendaOfflineIT {
         support.useClock(Instant.now())
         support.addServerAccount("ali")
         ActivityScenario.launch(AgendaActivity::class.java).use {
-            compose.waitUntil(OFFLINE_MILLIS) {
-                compose.onAllNodes(hasText("You're offline. Showing what was saved at", substring = true)).fetchSemanticsNodes().isNotEmpty()
+            try {
+                compose.waitUntil(OFFLINE_MILLIS) {
+                    compose.onAllNodes(hasText("You're offline. Showing what was saved at", substring = true)).fetchSemanticsNodes().isNotEmpty()
+                }
+            } catch (e: Throwable) {
+                throw AssertionError("no offline banner; on screen: ${support.allTexts(compose)}", e)
             }
             see("Dentist")
             see("Client call")

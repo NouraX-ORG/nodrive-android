@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -72,6 +73,13 @@ class AgendaEditLiveIT {
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------------------------
+    /** Scrolls the sheet to the control and taps it (the sheet is longer than the screen). */
+    private fun tap(tag: String) {
+        if (tag == "edit_save") runCatching { androidx.test.espresso.Espresso.closeSoftKeyboard() }
+        compose.onNodeWithTag(tag).performScrollTo()
+        compose.onNodeWithTag(tag).performClick()
+    }
+
     private fun waitForText(text: String, millis: Long = LOAD_MILLIS) {
         compose.waitUntil(millis) { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
     }
@@ -126,6 +134,17 @@ class AgendaEditLiveIT {
         waitForTag("agenda_detail")
     }
 
+
+    /** The change is sent in the background: waits until the server holds it (the screen has no banner when the network is fine). */
+    private fun eventually(what: String, millis: Long = LOAD_MILLIS, condition: () -> Boolean) {
+        val end = System.currentTimeMillis() + millis
+        while (System.currentTimeMillis() < end) {
+            if (runCatching { condition() }.getOrDefault(false)) return
+            Thread.sleep(POLL_MILLIS)
+        }
+        throw AssertionError("the server never held: $what")
+    }
+
     /** Waits until nothing waits to be sent any more. */
     private fun sent() {
         waitGoneTag("agenda_pending_banner")
@@ -134,7 +153,7 @@ class AgendaEditLiveIT {
 
     /** Picks [target] in the date picker that the field [fieldTag] opens (the picker opens at the month of [current]). */
     private fun pickDay(fieldTag: String, current: LocalDate, target: LocalDate) {
-        compose.onNodeWithTag(fieldTag).performClick()
+        tap(fieldTag)
         waitForTag("${fieldTag}_ok")
         if (YearMonth.from(current) != YearMonth.from(target)) {
             compose.onNode(hasContentDescription("next month", substring = true, ignoreCase = true)).performClick()
@@ -142,8 +161,12 @@ class AgendaEditLiveIT {
         }
         val byDescription = hasContentDescription(" ${target.dayOfMonth}, ${target.year}", substring = true) and hasClickAction()
         val byText = hasText(target.dayOfMonth.toString()) and hasClickAction()
-        compose.waitUntil(LOAD_MILLIS) {
-            compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty() || compose.onAllNodes(byText).fetchSemanticsNodes().isNotEmpty()
+        try {
+            compose.waitUntil(DIALOG_MILLIS * 2) {
+                compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty() || compose.onAllNodes(byText).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (e: Throwable) {
+            throw AssertionError("day ${target.dayOfMonth} not found in the picker; on screen: ${support.allTexts(compose)}", e)
         }
         if (compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty()) {
             compose.onAllNodes(byDescription)[0].performClick()
@@ -163,13 +186,14 @@ class AgendaEditLiveIT {
             compose.onNodeWithTag("agenda_new_event").performClick()
             waitForTag("agenda_new_sheet")
             compose.onNodeWithTag("edit_title").performTextInput(title)
-            compose.onNodeWithTag("edit_agent_AG-0001").performClick()
+            tap("edit_agent_AG-0001")
             shot("edit-live-new-event")
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_save")
             waitGoneTag("agenda_new_sheet")
             sent()
             see(title)
             // the server holds the event with the agent id twice (property and category)
+            eventually("the new event") { ali.block("work", title) != null }
             val created = ali.block("work", title)
             assertNotNull("the event is in the work calendar", created)
             assertTrue(created, created!!.contains("X-NOURAX-AGENT-ID:AG-0001"))
@@ -177,14 +201,15 @@ class AgendaEditLiveIT {
 
             // change it: a new title, and all day
             openRow(title)
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("edit_title")
             compose.onNodeWithTag("edit_title").performTextReplacement("$title edited")
-            compose.onNodeWithTag("edit_all_day").performClick()
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_all_day")
+            tap("edit_save")
             waitGoneTag("agenda_detail")
             sent()
             see("$title edited")
+            eventually("the changed event") { ali.block("work", "$title edited") != null }
             val edited = ali.block("work", "$title edited")
             assertNotNull(edited)
             assertTrue(edited, edited!!.contains("DTSTART;VALUE=DATE:"))
@@ -192,14 +217,14 @@ class AgendaEditLiveIT {
 
             // delete it: it asks first, and the server no longer has it
             openRow("$title edited")
-            compose.onNodeWithTag("agenda_delete").performClick()
+            tap("agenda_delete")
             waitForTag("agenda_delete_question")
             shot("edit-live-delete")
             compose.onNodeWithTag("agenda_delete_confirm").performClick()
             waitGoneTag("agenda_delete_question")
             sent()
             compose.waitUntil(LOAD_MILLIS) { compose.onAllNodes(hasText("$title edited")).fetchSemanticsNodes().isEmpty() }
-            assertFalse(ali.export("work").contains("$title edited"))
+            eventually("the event is deleted") { !ali.export("work").contains("$title edited") }
         }
     }
 
@@ -216,10 +241,11 @@ class AgendaEditLiveIT {
         open {
             openRow(title)
             shot("edit-live-todo")
-            compose.onNodeWithTag("agenda_mark_done").performClick()
+            tap("agenda_mark_done")
             waitGoneTag("agenda_detail")
             sent()
             compose.waitUntil(LOAD_MILLIS) { compose.onAllNodes(hasText(title)).fetchSemanticsNodes().isEmpty() }
+            eventually("the to-do is done") { ali.block("personal", title)?.contains("STATUS:COMPLETED") == true }
             val block = ali.block("personal", title)
             assertNotNull(block)
             assertTrue(block, block!!.contains("STATUS:COMPLETED"))
@@ -237,19 +263,19 @@ class AgendaEditLiveIT {
         val target = today.plusDays(3)
         open {
             openRow("Live task A $tag")
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("edit_end_date")
             pickDay("edit_end_date", today.plusDays(2), target)
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_save")
             waitGoneTag("agenda_detail")
             // NoGantt took the new date; the screen says so and offers Undo for a few seconds
             waitForText("Saved.")
             waitForText("Undo")
             shot("edit-live-gantt-date")
-            assertTrue(mara.task(project, first).get("end_date").asString, mara.task(project, first).get("end_date").asString.startsWith(target.toString()))
+            eventually("the new end date") { mara.task(project, first).get("end_date").asString.startsWith(target.toString()) }
             compose.onNode(hasText("Undo") and hasClickAction()).performClick()
             waitForText("Change undone.")
-            assertTrue(mara.task(project, first).get("end_date").asString, mara.task(project, first).get("end_date").asString.startsWith(today.plusDays(2).toString()))
+            eventually("the old end date again") { mara.task(project, first).get("end_date").asString.startsWith(today.plusDays(2).toString()) }
         }
     }
 
@@ -265,33 +291,32 @@ class AgendaEditLiveIT {
         open {
             // the task: Self to Writer-Bot, person first
             openRow("Live agent task $tag")
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("edit_agent")
             waitForText("Done by you")
             shot("edit-live-agent-task")
-            compose.onNodeWithTag("edit_agent_AG-0001").performClick()
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_agent_AG-0001")
+            tap("edit_save")
             waitGoneTag("agenda_detail")
             sent()
-            val rows = mara.task(project, task).getAsJsonArray("resources").map { it.asJsonObject.get("resource_id").asInt }
-            assertEquals(listOf(aliResource, writerBot), rows)
+            eventually("the agent row") { mara.task(project, task).getAsJsonArray("resources").map { it.asJsonObject.get("resource_id").asInt } == listOf(aliResource, writerBot) }
             see("Live agent task $tag")
 
             // the card: Self to Writer-Bot (the label of the board)
             openRow("Live agent card $tag")
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("edit_agent")
-            compose.onNodeWithTag("edit_agent_AG-0001").performClick()
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_agent_AG-0001")
+            tap("edit_save")
             waitGoneTag("agenda_detail")
             sent()
-            val labels = mara.card(board, stack, card).getAsJsonArray("labels").map { it.asJsonObject.get("title").asString }
-            assertEquals(listOf("$robot Writer-Bot"), labels)
+            eventually("the agent label") { mara.card(board, stack, card).getAsJsonArray("labels").map { it.asJsonObject.get("title").asString } == listOf("$robot Writer-Bot") }
         }
     }
 
     private companion object {
         const val LOAD_MILLIS = 90_000L
         const val DIALOG_MILLIS = 8_000L
+        const val POLL_MILLIS = 700L
     }
 }

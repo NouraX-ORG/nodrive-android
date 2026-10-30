@@ -170,6 +170,7 @@ private fun DetailFacts(item: AgendaItem, snapshot: AgendaSnapshot, texts: Agend
     if (!item.info && !item.agent.none && !(item.workKind == WorkKind.TEAM && item.title.isEmpty())) {
         Text(stringResource(R.string.nodrive_agenda_detail_agent), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         AgentLabelLarge(item, texts)
+        if (item.invitation) Text(stringResource(R.string.nodrive_agenda_edit_invited_self), style = MaterialTheme.typography.bodySmall)
     }
     if (item.workKind == WorkKind.TEAM && item.personName.isNotEmpty()) {
         Text(stringResource(R.string.nodrive_agenda_detail_person, item.personName), style = MaterialTheme.typography.bodyMedium)

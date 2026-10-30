@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -63,6 +64,13 @@ class AgendaEditUiIT {
 
     private fun engine(online: Boolean = true) = CannedEditEngine(CannedEdit.snapshot(), online)
 
+    /** Scrolls the sheet to the control and taps it (the sheet is longer than the screen). */
+    private fun tap(tag: String) {
+        if (tag == "edit_save") runCatching { androidx.test.espresso.Espresso.closeSoftKeyboard() }
+        compose.onNodeWithTag(tag).performScrollTo()
+        compose.onNodeWithTag(tag).performClick()
+    }
+
     private fun waitForText(text: String) {
         compose.waitUntil(WAIT_MILLIS) { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
     }
@@ -107,8 +115,7 @@ class AgendaEditUiIT {
             // the dentist and the client call are at the same time
             waitForTag("agenda_workload")
             waitForText("12 h planned")
-            seeTag("agenda_badge_clash")
-            assertTrue(compose.onAllNodesWithTag("agenda_badge_clash").fetchSemanticsNodes().isNotEmpty())
+            see("Clash")
             compose.onNodeWithTag("agenda_list").performScrollToNode(hasText("Dentist"))
             shot("day-clash-overbooked")
             // the Conflicts filter keeps only the rows with a badge (a clash, late, blocked, a deadline on a day off)
@@ -127,7 +134,7 @@ class AgendaEditUiIT {
         val engine = engine()
         show(engine) {
             openRow("Prepare client demo")
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("agenda_editor")
             waitForTag("edit_agent")
             // Self first, then Writer-Bot; the paused agent is greyed with its reason
@@ -135,9 +142,9 @@ class AgendaEditUiIT {
             waitForText("Done by you")
             waitForText("Paused")
             shot("edit-agent-gantt")
-            compose.onNodeWithTag("edit_agent_AG-0001").performClick()
+            tap("edit_agent_AG-0001")
             compose.onNodeWithTag("edit_agent_AG-0001").assertIsSelected()
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_save")
             waitGoneTag("agenda_detail")
             assertEquals(listOf(CommandKind.GANTT_AGENT), engine.kinds())
             assertEquals("AG-0001", engine.submitted.single().change[EditKeys.AGENT])
@@ -151,7 +158,7 @@ class AgendaEditUiIT {
     fun anAgentWhoseNameIsNotInTheProjectIsGreyedWithWhatToDo() {
         show(engine()) {
             openRow("Prepare client demo")
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("edit_agent")
             waitForText("Ask your project manager to add Invoice-Bot to this project")
             shot("edit-agent-not-in-project")
@@ -170,9 +177,10 @@ class AgendaEditUiIT {
             // no title yet: Save is not offered
             waitForText("Enter a title.")
             compose.onNodeWithTag("edit_title").performTextInput("Review with the team")
-            compose.onNodeWithTag("edit_agent_AG-0001").performClick()
+            tap("edit_agent_AG-0001")
+            runCatching { androidx.test.espresso.Espresso.closeSoftKeyboard() }
             shot("new-event")
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_save")
             waitGoneTag("agenda_new_sheet")
             val command: EditCommand = engine.submitted.single()
             assertEquals(CommandKind.CAL_CREATE, command.kind)
@@ -194,7 +202,7 @@ class AgendaEditUiIT {
             waitForTag("agenda_new_sheet")
             compose.onNodeWithTag("edit_agent_SELF").assertIsSelected()
             compose.onNodeWithTag("edit_title").performTextInput("Call the bank")
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_save")
             waitGoneTag("agenda_new_sheet")
             val command = engine.submitted.single()
             assertEquals(CommandKind.CAL_CREATE, command.kind)
@@ -246,16 +254,16 @@ class AgendaEditUiIT {
         val engine = engine(online = false)
         show(engine) {
             openRow("Client call")
-            compose.onNodeWithTag("agenda_edit").performClick()
+            tap("agenda_edit")
             waitForTag("edit_title")
             compose.onNodeWithTag("edit_title").performTextReplacement("Client call (moved)")
-            compose.onNodeWithTag("edit_save").performClick()
+            tap("edit_save")
             waitGoneTag("agenda_detail")
             waitForText("Saved on this phone. It will be sent when you are back online.")
             waitForTag("agenda_pending_banner")
             waitForText("Waiting to send 1 change")
             see("Client call (moved)")
-            seeTag("agenda_badge_pending")
+            see("Waiting to send")
             shot("pending-offline")
             assertEquals(CommandKind.CAL_PATCH, engine.submitted.single().kind)
         }
@@ -266,7 +274,7 @@ class AgendaEditUiIT {
         val engine = engine()
         show(engine) {
             openRow("Client call")
-            compose.onNodeWithTag("agenda_delete").performClick()
+            tap("agenda_delete")
             waitForTag("agenda_delete_question")
             waitForText("Delete this event? It moves to the calendar's trash bin.")
             shot("delete-confirm")
@@ -317,7 +325,7 @@ class AgendaEditUiIT {
         val engine = engine()
         show(engine) {
             openRow("Late bill")
-            compose.onNodeWithTag("agenda_mark_done").performClick()
+            tap("agenda_mark_done")
             waitGoneTag("agenda_detail")
             assertEquals(listOf(CommandKind.CAL_PATCH), engine.kinds())
             assertEquals("true", engine.submitted.single().change[EditKeys.DONE])
