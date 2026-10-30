@@ -60,13 +60,12 @@ def main():
     row("removed contact saved before the delete", len(removed) >= 1 and saved, "%d removed-contacts file(s), card inside: %s" % (len(removed), saved))
     status, work = call("GET", "remote.php/dav/calendars/ali/work/?export", headers={"Accept": "text/calendar"})
     row("phone-only event added to the server", status == 200 and "SUMMARY:Phone only event" in work, "export status %d" % status)
-    # The trash bin does not list its objects with a plain PROPFIND (501); the Calendar app asks with a REPORT.
-    flt = (b'<?xml version="1.0" encoding="utf-8"?><x1:trashbin-filter xmlns:x1="http://nextcloud.com/ns">'
-           b'<x2:prop xmlns:x2="DAV:"><x1:calendar-uri/><x1:deleted-at/></x2:prop></x1:trashbin-filter>')
-    trash = []
-    for method, body in (("REPORT", flt), ("PROPFIND", b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>')):
-        status, text = call(method, "remote.php/dav/calendars/ali/trashbin/", body, {"Depth": "1", "Content-Type": "application/xml"})
-        trash += re.findall(r"<d:href>([^<]*)</d:href>", text, re.I) if status == 207 else []
+    # The trash bin does not list its objects with a plain PROPFIND (501); its objects are found with a CalDAV calendar-query.
+    query = (b'<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" '
+             b'xmlns:nc="http://nextcloud.com/ns"><d:prop><d:getetag/><nc:deleted-at/></d:prop>'
+             b'<c:filter><c:comp-filter name="VCALENDAR"/></c:filter></c:calendar-query>')
+    status, text = call("REPORT", "remote.php/dav/calendars/ali/trashbin/objects/", query, {"Depth": "1", "Content-Type": "application/xml"})
+    trash = re.findall(r"<d:href>([^<]*)</d:href>", text, re.I) if status == 207 else []
     row("a phone delete is in the calendar trash bin", any("ds-delete-" in h for h in trash), "%d object(s) in the trash bin" % len(trash))
     cards = {h.rsplit("/", 1)[-1]: call("GET", h.lstrip("/"))[1] for h in listing("remote.php/dav/addressbooks/users/ali/contacts/")}
     unknown = cards.get("ds-unknown.vcf", "")

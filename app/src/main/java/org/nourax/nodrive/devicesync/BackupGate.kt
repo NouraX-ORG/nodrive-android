@@ -92,6 +92,8 @@ class BackupGate(
         return DavXml.parseMultistatus(reply.body).responses.map { it.href }.filter { !it.endsWith("/") }.toSet()
     }
 
+    private suspend fun namesOffMain(path: String): Set<String>? = withContext(Dispatchers.IO) { names(path) }
+
     private suspend fun awaitJob(start: () -> LiveData<JobInfo?>): Boolean = withContext(Dispatchers.Main) {
         val live = start()
         val finished = CompletableDeferred<Boolean>()
@@ -112,13 +114,14 @@ class BackupGate(
 
     /** Runs the backup; [progress] is told what is going on (a string resource). */
     suspend fun run(progress: (Int) -> Unit = {}): Result {
-        val wantContacts = phoneHasContacts()
-        val wantCalendars = phoneHasCalendars()
+        // everything that reads the phone or the server runs off the main thread
+        val wantContacts = withContext(Dispatchers.IO) { phoneHasContacts() }
+        val wantCalendars = withContext(Dispatchers.IO) { phoneHasCalendars() }
         if (!wantContacts && !wantCalendars) return Result.Done
         val contactsPath = filesPath(R.string.contacts_backup_folder)
         val calendarPath = filesPath(R.string.calendar_backup_folder)
-        val beforeContacts = if (wantContacts) names(contactsPath) ?: return Result.Failed("offline_$lastStatus") else emptySet()
-        val beforeCalendars = if (wantCalendars) names(calendarPath) ?: return Result.Failed("offline_$lastStatus") else emptySet()
+        val beforeContacts = if (wantContacts) namesOffMain(contactsPath) ?: return Result.Failed("offline_$lastStatus") else emptySet()
+        val beforeCalendars = if (wantCalendars) namesOffMain(calendarPath) ?: return Result.Failed("offline_$lastStatus") else emptySet()
         AgendaLog.i(TAG, "backup gate starts: contacts=$wantContacts calendars=$wantCalendars before=${beforeContacts.size}/${beforeCalendars.size}")
         progress(R.string.nodrive_device_sync_backup_running)
         if (wantContacts && !awaitJob { jobs.startImmediateContactsBackup(user) }) return Result.Failed("contacts_job")
@@ -132,8 +135,8 @@ class BackupGate(
         var polls = 0
         while (System.currentTimeMillis() < deadline) {
             if (polls++ % LOG_EVERY == 0) AgendaLog.i(TAG, "backup gate waits for the uploads: contacts=$contactsDone calendars=$calendarsDone")
-            if (!contactsDone) contactsDone = names(contactsPath)?.let { (it - beforeContacts).isNotEmpty() } ?: false
-            if (!calendarsDone) calendarsDone = names(calendarPath)?.let { (it - beforeCalendars).isNotEmpty() } ?: false
+            if (!contactsDone) contactsDone = namesOffMain(contactsPath)?.let { (it - beforeContacts).isNotEmpty() } ?: false
+            if (!calendarsDone) calendarsDone = namesOffMain(calendarPath)?.let { (it - beforeCalendars).isNotEmpty() } ?: false
             if (contactsDone && calendarsDone) return Result.Done
             delay(POLL_MS)
         }

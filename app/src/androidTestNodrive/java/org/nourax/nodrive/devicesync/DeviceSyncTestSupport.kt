@@ -170,25 +170,20 @@ class DeviceSyncTestSupport {
     }
 
     /**
-     * The deleted objects in the server's calendar trash bin (names). The trash bin lists nothing for a plain listing of its objects (that
-     * answers 501), so this asks the way the Calendar app does (a REPORT with the trash bin filter) and, as a second chance, lists the
-     * trash bin itself; [lastListing] keeps what each answered.
+     * The deleted objects in the server's calendar trash bin (names). The trash bin does not list its objects with a plain PROPFIND (that
+     * answers 501); its objects are found with a CalDAV `calendar-query` REPORT on `trashbin/objects/`. [lastListing] keeps the answer.
      */
     fun trashed(): List<String> {
         val http = AccountAgendaHttp(
             checkNotNull(agenda.serverUrl), "Basic " + Base64.getEncoder().encodeToString("ali:${agenda.token("ali")}".toByteArray()), OkHttpClient()
         )
-        val notes = StringBuilder()
-        val found = ArrayList<String>()
-        val filter = ("<?xml version=\"1.0\" encoding=\"utf-8\"?><x1:trashbin-filter xmlns:x1=\"http://nextcloud.com/ns\">" +
-            "<x2:prop xmlns:x2=\"DAV:\"><x1:calendar-uri/><x1:deleted-at/></x2:prop></x1:trashbin-filter>").toByteArray()
-        for ((method, body) in listOf("REPORT" to filter, "PROPFIND" to DavXml.propfindBody(listOf(Dav.NS_DAV to "displayname")))) {
-            val reply = http.send(method, "remote.php/dav/calendars/ali/trashbin/", mapOf("Depth" to "1"), body, "application/xml; charset=utf-8")
-            notes.append("$method answered ${reply.status}: ").append(reply.text().take(LISTING_SAMPLE)).append(" | ")
-            if (reply.multistatus) found += DavXml.parseMultistatus(reply.body).responses.map { it.href }
-        }
-        lastListing = notes.toString()
-        return found
+        val query = ("<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" " +
+            "xmlns:nc=\"http://nextcloud.com/ns\"><d:prop><d:getetag/><nc:deleted-at/></d:prop>" +
+            "<c:filter><c:comp-filter name=\"VCALENDAR\"/></c:filter></c:calendar-query>").toByteArray()
+        val reply = http.send("REPORT", "remote.php/dav/calendars/ali/trashbin/objects/", mapOf("Depth" to "1"), query, "application/xml; charset=utf-8")
+        lastListing = "REPORT answered ${reply.status}: " + reply.text().take(LISTING_SAMPLE)
+        if (!reply.multistatus) return emptyList()
+        return DavXml.parseMultistatus(reply.body).responses.map { it.href }
     }
 
     /** The names in a folder of Ali's Drive or a collection (PROPFIND, depth 1, with the app's own HTTP code); empty when it is not there. */
