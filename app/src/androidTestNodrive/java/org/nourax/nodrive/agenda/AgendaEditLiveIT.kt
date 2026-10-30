@@ -168,9 +168,7 @@ class AgendaEditLiveIT {
                     compose.onAllNodes(byText, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Throwable) {
-            throw AssertionError("day $day not found in the picker; on screen:
-" + support.allTexts(compose).joinToString("
-"), e)
+            throw AssertionError("day $day not found in the picker; on screen: " + support.allTexts(compose).joinToString(" | "), e)
         }
         // the dialog is the topmost window, so its day is the last match
         val byDesc = compose.onAllNodes(byDescription).fetchSemanticsNodes()

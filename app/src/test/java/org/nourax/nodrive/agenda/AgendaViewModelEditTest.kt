@@ -63,7 +63,7 @@ class AgendaViewModelEditTest {
         val item = ready.snapshot!!.build.items.byTitle("Client call")!!
         f.vm.select(item.key)
         f.vm.startEdit()
-        assertTrue(f.vm.state.value.editing)
+        waitFor(f.vm) { it.editing }
         f.http.offline = true
         val command = EditCommands.event(item, EventForm.of(item, UTC).copy(title = "Moved"), UTC, ready.snapshot!!.build.myAgents)!!
         f.vm.submit(listOf(command))
