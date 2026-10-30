@@ -105,8 +105,8 @@ class CardDavClient(private val http: AgendaHttp, val davUser: String) {
         )
         if (!reply.ok) return ""
         val text = reply.text()
-        if (!Regex("\"enabled\"\s*:\s*(true|1)").containsMatchIn(text)) return ""
-        return Regex("\"calendar_uri\"\s*:\s*\"([^\"]*)\"").find(text)?.groupValues?.get(1).orEmpty()
+        if (!Regex("\"enabled\"\\s*:\\s*(true|1)").containsMatchIn(text)) return ""
+        return Regex("\"calendar_uri\"\\s*:\\s*\"([^\"]*)\"").find(text)?.groupValues?.get(1).orEmpty()
     }
 
     private fun isAddressBook(response: DavResponse): Boolean = response.prop(Dav.NS_DAV, "resourcetype").has("addressbook")
