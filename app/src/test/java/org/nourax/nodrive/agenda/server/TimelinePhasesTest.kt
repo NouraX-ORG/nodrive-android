@@ -130,8 +130,8 @@ class TimelinePhasesTest {
             body.addProperty("adjust_lag", true)
             body.addProperty("deck_confirmed", false)
             val reply = RawServer("ali").json("PUT", "${gantt}tasks/$a?format=json", body)
-            row("timeline move diagnosis", false, "status ${reply.status}: ${reply.body.take(300).replace("|", "/").replace("
-", " ")}")
+            row("timeline move diagnosis", false, "status ${reply.status}: ${reply.body.take(300).replace("|", "/").filter { it != '
+' }}")
         }
         assertTrue("nothing waits: ${snapshot.edit.pending}", snapshot.edit.pending.isEmpty())
         assertTrue("no conflict: ${snapshot.edit.conflicts.map { it.reason.name + ":" + it.detail }}", snapshot.edit.conflicts.isEmpty())
