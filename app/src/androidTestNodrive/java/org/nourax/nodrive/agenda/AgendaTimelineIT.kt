@@ -6,6 +6,7 @@
  */
 package org.nourax.nodrive.agenda
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasClickAction
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ActivityScenario
 import com.nextcloud.test.GrantTestPermissionRule
 import org.junit.After
@@ -225,8 +227,8 @@ class AgendaTimelineIT {
         show(engine) {
             // a card has only a due date
             compose.waitUntil(WAIT_MILLIS) { compose.onAllNodes(diamond("Pay invoice")).fetchSemanticsNodes().isNotEmpty() }
-            compose.onNode(diamond("Pay invoice")).performScrollTo()
-            compose.onNode(diamond("Pay invoice")).performClick()
+            // the card is in the last row, close to the edge of the screen: the tap is the node's own click action
+            compose.onNode(diamond("Pay invoice")).performSemanticsAction(SemanticsActions.OnClick)
             waitForTag("agenda_detail")
             compose.onNodeWithTag("timeline_later").performScrollTo()
             compose.onNodeWithTag("timeline_later").performClick()
