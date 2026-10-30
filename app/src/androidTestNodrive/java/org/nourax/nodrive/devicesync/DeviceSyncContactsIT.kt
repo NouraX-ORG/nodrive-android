@@ -132,7 +132,7 @@ class DeviceSyncContactsIT {
         val backupBefore = support.listing("remote.php/dav/files/ali/.Contacts-Backup/").filter { it.contains("removed-contacts-") }
         support.context.contentResolver.delete(ContentUris.withAppendedId(ContactsContract.RawContacts.CONTENT_URI, rawId), null, null)
         val outcome = support.sync(setOf("contacts"))
-        assertTrue(outcome.ok)
+        assertTrue(outcome.message, outcome.ok)
         assertEquals("the server card is gone", null, cardOf(name))
         val saved = support.listing("remote.php/dav/files/ali/.Contacts-Backup/").filter { it.contains("removed-contacts-") }
         assertTrue("a removed-contacts file was saved: $saved", saved.size > backupBefore.size)

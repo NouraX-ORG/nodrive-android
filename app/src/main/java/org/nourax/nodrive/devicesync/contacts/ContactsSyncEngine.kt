@@ -41,6 +41,14 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         var waiting = 0
         var tooMany = false
         var complete = true
+
+        /** The first thing that went wrong (a code, never any content). */
+        var message = ""
+
+        fun fail(why: String) {
+            complete = false
+            if (message.isEmpty()) message = why
+        }
     }
 
     fun sync(collection: CollectionEntity): SyncOutcome {
@@ -58,7 +66,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
             upload(pass)
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "contacts sync stopped: ${e.javaClass.simpleName}")
-            pass.complete = false
+            pass.fail("exception_${e.javaClass.simpleName}: ${e.message.orEmpty().take(MESSAGE_LIMIT)}")
         }
         val done = pass.complete && !pass.tooMany
         dao.putCollection(
@@ -70,7 +78,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         )
         return SyncOutcome(
             ok = pass.complete, added = pass.added, changed = pass.changed, sentToServer = pass.sent, removed = pass.removed,
-            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting
+            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting, message = pass.message
         )
     }
 
@@ -96,7 +104,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         val byHref = rows.filter { it.syncId != null }.associateBy { it.syncId!! }
         if (toFetch.isNotEmpty()) {
             val got = DavSync.multiget(env.http, p.col.href, toFetch.map { it.href }, calendar = false)
-            if (!got.ok) p.complete = false
+            if (!got.ok) p.fail("multiget_${got.status}")
             for (entry in toFetch) {
                 val obj = got.objects[entry.href] ?: continue
                 applyServerObject(p, obj.href, obj.etag, obj.data, known[entry.href], byHref[entry.href], rows)
@@ -247,7 +255,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
 
     private fun failed(p: Pass, result: WriteResult) {
         p.waiting++
-        p.complete = false
+        p.fail("not_sent_${(result as? WriteResult.Failed)?.status ?: result.javaClass.simpleName}")
         AgendaLog.w(TAG, "a phone change was not sent: ${(result as? WriteResult.Failed)?.status ?: result.javaClass.simpleName}")
     }
 
@@ -340,7 +348,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         // The safety copy first: if it is not saved, nothing is deleted on the server (the rows stay deleted on the phone and are retried).
         if (!safety.save(deletions.map { it.obj.original }, env.clock())) {
             p.waiting += deletions.size
-            p.complete = false
+            p.fail("safety_copy_not_saved")
             AgendaLog.w(TAG, "the copy of the removed contacts was not saved: ${deletions.size} deletes wait")
             return
         }
@@ -392,5 +400,6 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
     private companion object {
         const val TAG = "DeviceSyncContacts"
         const val VCF_TYPE = "text/vcard; charset=utf-8"
+        const val MESSAGE_LIMIT = 100
     }
 }

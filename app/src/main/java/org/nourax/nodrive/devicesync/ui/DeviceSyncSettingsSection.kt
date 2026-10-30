@@ -47,9 +47,12 @@ object DeviceSyncSettingsSection {
         if (!state.enabled) return activity.getString(R.string.nodrive_device_sync_off)
         // Settings reads a few rows from the app's own small database, like the other rows read their values.
         val rows = DeviceSyncDatabase.get(activity).dao().collections(user.accountName).filter { it.chosen }
+        val calendars = rows.count { it.kind == RemoteCollection.CALENDAR }
+        val books = rows.count { it.kind == RemoteCollection.CONTACTS }
         return activity.getString(
             R.string.nodrive_device_sync_on_summary,
-            rows.count { it.kind == RemoteCollection.CALENDAR }, rows.count { it.kind == RemoteCollection.CONTACTS }
+            activity.resources.getQuantityString(R.plurals.nodrive_device_sync_n_calendars, calendars, calendars),
+            activity.resources.getQuantityString(R.plurals.nodrive_device_sync_n_books, books, books)
         )
     }
 

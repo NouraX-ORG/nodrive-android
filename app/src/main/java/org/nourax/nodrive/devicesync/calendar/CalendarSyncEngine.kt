@@ -42,6 +42,14 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         var waiting = 0
         var tooMany = false
         var complete = true
+
+        /** The first thing that went wrong (a code, never any content). */
+        var message = ""
+
+        fun fail(why: String) {
+            complete = false
+            if (message.isEmpty()) message = why
+        }
     }
 
     fun sync(collection: CollectionEntity): SyncOutcome {
@@ -61,7 +69,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
             upload(pass)
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "calendar sync stopped: ${e.javaClass.simpleName}")
-            pass.complete = false
+            pass.fail("exception_${e.javaClass.simpleName}: ${e.message.orEmpty().take(MESSAGE_LIMIT)}")
         }
         val done = pass.complete && !pass.tooMany
         dao.putCollection(
@@ -73,7 +81,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         )
         return SyncOutcome(
             ok = pass.complete, added = pass.added, changed = pass.changed, sentToServer = pass.sent, removed = pass.removed,
-            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting
+            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting, message = pass.message
         )
     }
 
@@ -103,7 +111,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         val masterByHref = rows.filter { !it.isException && it.syncId != null }.associateBy { it.syncId!! }
         if (toFetch.isNotEmpty()) {
             val got = DavSync.multiget(env.http, p.col.href, toFetch.map { it.href }, calendar = true)
-            if (!got.ok) p.complete = false
+            if (!got.ok) p.fail("multiget_${got.status}")
             for (entry in toFetch) {
                 val obj = got.objects[entry.href] ?: continue
                 applyServerObject(p, obj.href, obj.etag, obj.data, known[entry.href], masterByHref[entry.href], rows)
@@ -276,7 +284,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
 
     private fun failed(p: Pass, result: WriteResult) {
         p.waiting++
-        p.complete = false
+        p.fail("not_sent_${(result as? WriteResult.Failed)?.status ?: result.javaClass.simpleName}")
         AgendaLog.w(TAG, "a phone change was not sent: ${(result as? WriteResult.Failed)?.status ?: result.javaClass.simpleName}")
     }
 
@@ -411,5 +419,6 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
     private companion object {
         const val TAG = "DeviceSyncCalendar"
         const val ICS_TYPE = "text/calendar; charset=utf-8"
+        const val MESSAGE_LIMIT = 100
     }
 }

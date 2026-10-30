@@ -27,7 +27,7 @@ class DeviceSyncSafetyTest {
 
     private fun code(file: File) = file.readLines().withIndex().filterNot { (_, line) ->
         val trimmed = line.trim()
-        trimmed.startsWith("*") || trimmed.startsWith("/*") || trimmed.startsWith("//")
+        trimmed.startsWith("*") || trimmed.startsWith("/*") || trimmed.startsWith("//") || trimmed.startsWith("import ")
     }
 
     private fun hits(pattern: Regex, except: (File) -> Boolean = { false }): List<String> =

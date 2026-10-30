@@ -104,6 +104,12 @@ fun DeviceSyncScreen(model: DeviceSyncModel, actions: DeviceSyncActions) {
 }
 
 @Composable
+private fun calendarCount(n: Int): String = pluralStringResource(R.plurals.nodrive_device_sync_n_calendars, n, n)
+
+@Composable
+private fun bookCount(n: Int): String = pluralStringResource(R.plurals.nodrive_device_sync_n_books, n, n)
+
+@Composable
 private fun Title(text: String) {
     Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 12.dp))
 }
@@ -253,7 +259,7 @@ private fun FirstSync(ui: DeviceSyncUi, actions: DeviceSyncActions) {
         }
         else -> {
             Body(
-                stringResource(R.string.nodrive_device_sync_first_sync_done, ui.calendarsOnPhone, ui.addressBooksOnPhone),
+                stringResource(R.string.nodrive_device_sync_first_sync_done, calendarCount(ui.calendarsOnPhone), bookCount(ui.addressBooksOnPhone)),
                 "ds_first_sync_done"
             )
             Button(onClick = actions.finishFirstSync, modifier = Modifier.testTag("ds_first_sync_continue")) {
@@ -273,7 +279,7 @@ private fun Status(ui: DeviceSyncUi, actions: DeviceSyncActions) {
         stringResource(R.string.nodrive_device_sync_never)
     }
     Body(if (ui.syncing) stringResource(R.string.nodrive_device_sync_syncing) else lastText, "ds_last_sync")
-    Body(stringResource(R.string.nodrive_device_sync_on_summary, ui.calendarsOnPhone, ui.addressBooksOnPhone), "ds_counts")
+    Body(stringResource(R.string.nodrive_device_sync_on_summary, calendarCount(ui.calendarsOnPhone), bookCount(ui.addressBooksOnPhone)), "ds_counts")
     if (ui.autoSyncOff) Body(stringResource(R.string.nodrive_device_sync_auto_sync_off), "ds_auto_sync_off")
     if (ui.waiting > 0) Body(pluralStringResource(R.plurals.nodrive_device_sync_waiting, ui.waiting, ui.waiting), "ds_waiting")
     if (ui.noCalendarStorage) Body(stringResource(R.string.nodrive_device_sync_no_calendar_storage), "ds_no_storage")

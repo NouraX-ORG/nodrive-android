@@ -12,6 +12,9 @@ import android.provider.CalendarContract
 import android.provider.ContactsContract
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -183,8 +186,8 @@ class DeviceSyncFirstSyncIT {
             // choose: the calendars and address books with their defaults
             waitForTag("ds_choose_continue")
             waitForTag("ds_item_work")
-            compose.onNodeWithTag("ds_item_work").assertIsOn()
-            compose.onNodeWithTag("ds_item_holidays").assertIsOff()
+            compose.onNode(isToggleable().and(hasAnyAncestor(hasTestTag("ds_item_work")))).assertIsOn()
+            compose.onNode(isToggleable().and(hasAnyAncestor(hasTestTag("ds_item_holidays")))).assertIsOff()
             shot("choose")
             compose.onNodeWithTag("ds_choose_continue").performClick()
 

@@ -12,7 +12,15 @@
     <!-- The Settings row -->
     <string name="nodrive_device_sync_title">Calendar and contacts on this phone</string>
     <string name="nodrive_device_sync_off">Off</string>
-    <string name="nodrive_device_sync_on_summary">On · %1$d calendars, %2$d address books</string>
+    <string name="nodrive_device_sync_on_summary">On · %1$s, %2$s</string>
+    <plurals name="nodrive_device_sync_n_calendars">
+        <item quantity="one">%d calendar</item>
+        <item quantity="other">%d calendars</item>
+    </plurals>
+    <plurals name="nodrive_device_sync_n_books">
+        <item quantity="one">%d address book</item>
+        <item quantity="other">%d address books</item>
+    </plurals>
 
     <!-- The steps -->
     <string name="nodrive_device_sync_intro">Show your NoDrive calendars and contacts in this phone\'s Calendar and Contacts apps. Changes go both ways. Tasks stay in NoAgenda.</string>
@@ -42,7 +50,7 @@
     <string name="nodrive_device_sync_try_again">Try again</string>
 
     <string name="nodrive_device_sync_first_sync_text">Adding your NoDrive calendars and contacts to this phone… Nothing is deleted.</string>
-    <string name="nodrive_device_sync_first_sync_done">Done. %1$d calendars and %2$d address books are on this phone.</string>
+    <string name="nodrive_device_sync_first_sync_done">Done. %1$s and %2$s are on this phone.</string>
     <string name="nodrive_device_sync_first_sync_failed">The first sync did not finish. It carries on at the next sync.</string>
 
     <!-- The status screen -->
@@ -62,7 +70,6 @@
         <item quantity="other">%d changes waiting to be sent</item>
     </plurals>
     <string name="nodrive_device_sync_on_phone">On this phone</string>
-    <string name="nodrive_device_sync_collection_count">%1$d items</string>
 
     <!-- "Not saved" -->
     <string name="nodrive_device_sync_not_saved">Not saved</string>
