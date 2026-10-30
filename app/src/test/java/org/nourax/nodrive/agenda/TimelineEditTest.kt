@@ -131,7 +131,7 @@ class TimelineEditTest {
     }
 
     @Test
-    fun aLaterEditOfTheSameTaskDoesNotKeepTheOldMoveMark() {
+    fun aLaterEditWithoutDatesKeepsTheWaitingMoveAsAMove() {
         val server = ganttServer()
         val r = runner(server)
         r.enqueue(TimelineEdit.moveBy(taskItem(), 1, UTC, emptyList())!!)
@@ -139,7 +139,20 @@ class TimelineEditTest {
         r.run()
         val body = put(server)
         assertEquals(50, body.get("manual_progress").asInt)
-        assertFalse("the percent edit is not a move", body.has("adjust_lag") && body.get("adjust_lag").asBoolean)
+        assertTrue("the move still goes out with its dates", body.has("start_date") && body.has("end_date"))
+        assertTrue("and as NoGantt's own move", body.has("adjust_lag") && body.get("adjust_lag").asBoolean)
+    }
+
+    @Test
+    fun aLaterDateEditOfTheSameTaskDoesNotKeepTheOldMoveMark() {
+        val server = ganttServer()
+        val r = runner(server)
+        r.enqueue(TimelineEdit.moveBy(taskItem(), 1, UTC, emptyList())!!)
+        r.enqueue(EditCommands.task(taskItem(), TaskForm.of(taskItem()).copy(start = LocalDate.of(2026, 10, 27)), emptyList()).single())
+        r.run()
+        val body = put(server)
+        assertTrue(body.get("start_date").asString, body.get("start_date").asString.startsWith("2026-10-27"))
+        assertFalse("a date edit of the form is not a move", body.has("adjust_lag") && body.get("adjust_lag").asBoolean)
     }
 
     @Test
