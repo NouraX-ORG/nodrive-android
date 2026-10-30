@@ -19,6 +19,12 @@
 #   AgendaEditDatabaseIT  the offline queue in its own Room database: order, restart, conflicts, removing an account.
 #   AgendaEditLiveIT  against the throwaway server: a new event with Writer-Bot, a changed one, a ticked to-do, a moved end date of a Gantt
 #                     task with Undo, the agent of a Gantt task and of a card, all through the screens.
+#   AgendaTimelineIT  the Timeline on canned data (no server): groups by project and phase, % done, arrows, diamonds, shading, the agent on
+#                     each item; the date editor in the sheet and its range picker; one day later with Undo; a to-do and a card; a viewer
+#                     project's bar and a milestone can not be changed; a change made offline shows "Waiting to send"; the empty state;
+#                     the arrows move the range. Light and dark.
+#   AgendaTimelineLiveIT  against the throwaway server: Ali's seeded work on the Timeline, a bar moved one day through the date editor
+#                     and taken back with Undo (agenda-live-timeline-{light,dark}.png).
 #   AgendaEditOfflineIT  a1 makes the data, this script turns data off, a2 makes three changes (marked "Waiting to send"), data goes on,
 #                     a3 starts the app again: everything is sent in order. Then tools/ci/agenda-server-check.py asks the server itself.
 # Pulls agenda-*.png to build/device/screens/agenda/, fails when an expected one is missing, and checks that the dark screenshots
@@ -40,6 +46,8 @@ EDITUI=org.nourax.nodrive.agenda.AgendaEditUiIT
 EDITDB=org.nourax.nodrive.agenda.AgendaEditDatabaseIT
 EDITLIVE=org.nourax.nodrive.agenda.AgendaEditLiveIT
 EDITOFF=org.nourax.nodrive.agenda.AgendaEditOfflineIT
+TIMELINE=org.nourax.nodrive.agenda.AgendaTimelineIT
+TIMELINELIVE=org.nourax.nodrive.agenda.AgendaTimelineLiveIT
 SHOTS="$OUT/screens/agenda"
 status=0
 
@@ -115,6 +123,7 @@ for look in light dark; do
     run_it "$look" "$UI" ui 13
     run_it "$look" "$DB" database 3
     run_it "$look" "$EDITUI" edit-ui 13
+    run_it "$look" "$TIMELINE" timeline 9
 done
 night no
 run_it light "$EDITDB" edit-database 3
@@ -127,6 +136,7 @@ if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; th
     for look in light dark; do
         if [ "$look" = light ]; then night no; else night yes; fi
         run_it "$look" "$LIVE" live 4
+        run_it "$look" "$TIMELINELIVE" timeline-live 1
     done
     night no
     # offline: the saved copy of Ali's day, with the time it was read
@@ -191,14 +201,14 @@ for f in $("$ADB" shell ls "/sdcard/Android/data/$PKG/files/" 2> /dev/null | tr 
     "$ADB" pull "/sdcard/Android/data/$PKG/files/$f" "$SHOTS/$f" > /dev/null
 done
 for name in day week month my-team sources registry-missing personal-question detail empty-not-linked offline gantt-down \
-            live-day live-my-team live-sources-invalid-registry live-olaf; do
+            live-day live-my-team live-sources-invalid-registry live-olaf live-timeline; do
     for look in light dark; do
         f="agenda-$name-$look.png"
         if [ -s "$SHOTS/$f" ]; then echo "agenda screenshot: $f"; else echo "agenda screenshot MISSING: $f"; status=1; fi
     done
 done
 for name in day-clash-overbooked edit-agent-gantt edit-agent-not-in-project new-event edit-conflict pending-offline delete-confirm \
-            repeating-locked viewer-locked; do
+            repeating-locked viewer-locked timeline timeline-date-editor timeline-date-picker timeline-undo timeline-readonly timeline-waiting             timeline-empty; do
     for look in light dark; do
         f="agenda-$name-$look.png"
         if [ -s "$SHOTS/$f" ]; then echo "agenda screenshot: $f"; else echo "agenda screenshot MISSING: $f"; status=1; fi

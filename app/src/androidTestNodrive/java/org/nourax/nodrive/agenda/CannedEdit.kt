@@ -10,6 +10,7 @@ import org.nourax.nodrive.agenda.edit.CommandKind
 import org.nourax.nodrive.agenda.edit.ConflictReason
 import org.nourax.nodrive.agenda.edit.EditCommand
 import org.nourax.nodrive.agenda.edit.EditConflict
+import org.nourax.nodrive.agenda.edit.EditKeys
 import org.nourax.nodrive.agenda.edit.EditNotice
 import org.nourax.nodrive.agenda.edit.EditState
 import org.nourax.nodrive.agenda.edit.GanttAgentChange
@@ -105,6 +106,9 @@ class CannedEditEngine(private val start: AgendaSnapshot, var online: Boolean = 
     private var sequence = 0L
     private var settings = start.settings
 
+    /** The rows before a date change from the Timeline, by the id of its "Undo". */
+    private val undoStates = HashMap<String, List<AgendaItem>>()
+
     /** A conflict the screen shows in the "Not sent" list. */
     fun injectConflict(command: EditCommand, reason: ConflictReason = ConflictReason.CHANGED_ELSEWHERE) {
         conflicts += EditConflict(++sequence, "ali", command, reason, "", "", 0)
@@ -116,7 +120,7 @@ class CannedEditEngine(private val start: AgendaSnapshot, var online: Boolean = 
         val gantt = shown.filter { it.kind == ItemKind.GANTT_TASK && !it.problemOnly && it.workKind != WorkKind.TEAM }.associate { it.key to CannedEdit.choices }
         val analysis = Analysis(
             badges = Conflicts.badges(shown, build.workingHours, build.holidays),
-            days = Workload.compute(shown, build.workingHours, build.holidays, CannedAgenda.UTC, CannedAgenda.TODAY.minusDays(7), CannedAgenda.TODAY.plusDays(30)),
+            days = Workload.compute(shown, build.workingHours, build.holidays, CannedAgenda.UTC, CannedAgenda.TODAY.minusDays(7), CannedAgenda.TODAY.plusDays(70)),
             ganttChoices = gantt
         )
         return start.copy(build = build, analysis = analysis, settings = settings, edit = EditState(pending.toList(), conflicts.toList(), notice))
@@ -149,8 +153,20 @@ class CannedEditEngine(private val start: AgendaSnapshot, var online: Boolean = 
         submitted += stored
         if (online) {
             // sent: the change is part of the data now
+            val before = items
             items = PendingOverlay.apply(items, listOf(stored), CannedEdit.registry(), CannedAgenda.TODAY, CannedAgenda.UTC).map { it.copy(pending = false) }
-            notice = EditNotice(sequence, stored.title)
+            notice = if (stored.change[EditKeys.MOVE] != null) {
+                // a date change from the Timeline: NoGantt says the dates it saved and gives an id for Undo
+                val op = "op-$sequence"
+                undoStates[op] = before
+                EditNotice(
+                    sequence, stored.title, undoOp = op,
+                    movedStart = stored.change[EditKeys.MOVE_START]?.let { java.time.LocalDate.parse(it) },
+                    movedEnd = stored.change[EditKeys.MOVE_END]?.let { java.time.LocalDate.parse(it) }
+                )
+            } else {
+                EditNotice(sequence, stored.title)
+            }
         } else {
             pending += stored
             notice = EditNotice(sequence, stored.title, queued = true)
@@ -170,6 +186,12 @@ class CannedEditEngine(private val start: AgendaSnapshot, var online: Boolean = 
             for (command in pending) items = PendingOverlay.apply(items, listOf(command), CannedEdit.registry(), CannedAgenda.TODAY, CannedAgenda.UTC).map { it.copy(pending = false) }
             pending.clear()
         }
+        return rebuild()
+    }
+
+    override fun undo(opId: String): AgendaSnapshot {
+        undoStates.remove(opId)?.let { items = it }
+        notice = EditNotice(++sequence, undone = true)
         return rebuild()
     }
 
