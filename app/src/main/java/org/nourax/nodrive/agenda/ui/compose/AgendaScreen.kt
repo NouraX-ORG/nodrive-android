@@ -48,6 +48,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -97,8 +98,14 @@ fun interface OpenUrl {
 
 /** The NoAgenda screen: Day, Week and Month lists, the Sources screen and the one-time question. */
 @Composable
-fun AgendaScreen(vm: AgendaViewModel, baseUrl: String, openUrl: OpenUrl) {
+fun AgendaScreen(vm: AgendaViewModel, baseUrl: String, openUrl: OpenUrl, onTimelineShown: (Boolean) -> Unit = {}) {
     val ui by vm.state.collectAsState()
+    // The Timeline scrolls sideways: the side menu opens from the menu button only while it is shown (plan 3.6, C3).
+    val timelineShown = ui.page == AgendaPage.MAIN && ui.view.view == AgendaView.TIMELINE
+    DisposableEffect(timelineShown) {
+        onTimelineShown(timelineShown)
+        onDispose { onTimelineShown(false) }
+    }
     val context = LocalContext.current
     val texts = remember(context) { AgendaTexts(context) }
     BackHandler(enabled = ui.page == AgendaPage.SOURCES) { vm.back() }
@@ -182,7 +189,10 @@ private fun MainScreen(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaText
     val rows = remember(snapshot, ui.view, firstDay) {
         if (snapshot == null) emptyList() else AgendaFilter.rows(snapshot.build, ui.view, snapshot.today, snapshot.zone, firstDay, snapshot.analysis)
     }
-    val hasItems = AgendaFilter.hasItems(rows)
+    val timeline = remember(snapshot, ui.view, firstDay) {
+        if (snapshot == null || ui.view.view != AgendaView.TIMELINE) null else timelineLayout(snapshot, ui.view, firstDay)
+    }
+    val hasItems = if (timeline != null) timeline.hasWork else AgendaFilter.hasItems(rows)
     val listState = rememberLazyListState()
     val snackbar = remember { SnackbarHostState() }
     if (snapshot != null) NoticeEffect(snapshot, texts, snackbar, vm)
@@ -202,6 +212,8 @@ private fun MainScreen(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaText
         ) {
             if (snapshot == null) {
                 EmptyState(stringResource(R.string.nodrive_agenda_loading))
+            } else if (timeline != null) {
+                TimelineScreen(timeline, ui.view, texts, vm::setZoom, vm::select)
             } else {
                 AgendaList(vm, ui, snapshot, rows, hasItems, texts, listState, firstDay)
             }
@@ -218,7 +230,8 @@ private fun MainScreen(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaText
             onEdit = vm::startEdit,
             onStopEdit = vm::stopEdit,
             onSubmit = vm::submit,
-            onDismiss = { vm.select(null) }
+            onDismiss = { vm.select(null) },
+            timeline = ui.view.view == AgendaView.TIMELINE
         ) { item ->
             vm.select(null)
             openUrl.open(AgendaLinks.itemUrl(item, baseUrl, snapshot.zone), openLabel(context, item))
@@ -463,6 +476,7 @@ private fun Header(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaTexts, f
             AgendaView.DAY -> texts.fullDate(state.date)
             AgendaView.WEEK -> texts.weekTitle(range.first, range.second)
             AgendaView.MONTH -> texts.monthTitle(state.date)
+            AgendaView.TIMELINE -> texts.weekTitle(range.first, range.second)
         }
         val previousText = stringResource(R.string.nodrive_agenda_previous)
         val nextText = stringResource(R.string.nodrive_agenda_next)
@@ -530,6 +544,7 @@ private fun viewLabel(view: AgendaView): Int = when (view) {
     AgendaView.DAY -> R.string.nodrive_agenda_view_day
     AgendaView.WEEK -> R.string.nodrive_agenda_view_week
     AgendaView.MONTH -> R.string.nodrive_agenda_view_month
+    AgendaView.TIMELINE -> R.string.nodrive_agenda_timeline_tab
 }
 
 private fun categoryLabel(category: CategoryFilter): Int = when (category) {

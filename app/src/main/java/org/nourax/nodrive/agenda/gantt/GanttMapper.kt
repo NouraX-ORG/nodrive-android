@@ -17,6 +17,7 @@ import org.nourax.nodrive.agenda.model.AgentRef
 import org.nourax.nodrive.agenda.model.Audience
 import org.nourax.nodrive.agenda.model.Category
 import org.nourax.nodrive.agenda.model.Home
+import org.nourax.nodrive.agenda.model.ItemDependency
 import org.nourax.nodrive.agenda.model.ItemKind
 import org.nourax.nodrive.agenda.model.ProblemFlag
 import org.nourax.nodrive.agenda.model.ProblemKind
@@ -139,6 +140,8 @@ object GanttMapper {
             for (t in data.tasks.objects()) tasksById[intOf(t.get("id"))] = t
             val phaseNames = HashMap<Int, String>()
             for (sp in data.subprojects.objects()) phaseNames[intOf(sp.get("id"))] = sp.str("title")
+            val milestonesById = HashMap<Int, JsonObject>()
+            for (m in data.milestones.objects()) milestonesById[intOf(m.get("id"))] = m
 
             var haveMyTask = false
             val notSharedCounts = LinkedHashMap<String, Int>()
@@ -245,7 +248,9 @@ object GanttMapper {
                 fun cardIsThisRow(uid: String) {
                     if (deckCardId > 0) out.linkedCardRows.getOrPut(deckCardId) { HashSet() } += uid.lowercase()
                 }
-                val phase = phaseNames[intOf(task.get("subproject_id"))].orEmpty()
+                val phaseId = intOf(task.get("subproject_id"))
+                val phase = phaseNames[phaseId].orEmpty()
+                val dependencies = dependenciesOf(task, tasksById, milestonesById, resources)
 
                 val clash = clashTimes(task.str("start_date"), task.str("end_date"), ctx.zone)
 
@@ -271,6 +276,9 @@ object GanttMapper {
                     blockedBy = blockedBy,
                     projectId = projectId,
                     projectName = projectTitle,
+                    phaseId = if (phase.isNotEmpty()) phaseId else 0,
+                    phaseName = phase,
+                    dependencies = dependencies,
                     taskId = taskId,
                     version = task.str("updated_at"),
                     progressMode = task.str("progress_mode"),
@@ -448,6 +456,42 @@ object GanttMapper {
 
 
     /**
+     * The dependencies of a task for the Timeline arrows (design 8). NoGantt writes the predecessor as "t-<task id>" or "m-<milestone id>".
+     * A predecessor that is not found (a task of a project part I can not see) is skipped. The owner of a predecessor task is the
+     * display name of its linked people (an agent's planning person has no account and is never named as the owner).
+     */
+    private fun dependenciesOf(
+        task: JsonObject,
+        tasksById: Map<Int, JsonObject>,
+        milestonesById: Map<Int, JsonObject>,
+        resources: Map<Int, JsonObject>
+    ): List<ItemDependency> {
+        val out = ArrayList<ItemDependency>()
+        for (dep in task.arr("dependencies").objects()) {
+            val text = dep.str("predecessor_id")
+            val id = text.drop(2).toIntOrNull() ?: continue
+            val type = dep.str("dependency_type").uppercase().takeIf { it in DEPENDENCY_TYPES } ?: "EA"
+            val lag = numberOf(dep.get("lag_days"), 0.0)
+            when {
+                text.startsWith("t-") -> {
+                    val pred = tasksById[id] ?: continue
+                    val owners = pred.arr("resources").objects()
+                        .mapNotNull { resources[intOf(it.get("resource_id"))] }
+                        .filter { it.str("type") == "person" && it.str("uid").isNotEmpty() }
+                        .map { personName(it) }
+                        .distinct()
+                    out += ItemDependency("gantt:task:$id", type, lag, pred.str("title"), owners.joinToString(", "))
+                }
+                text.startsWith("m-") -> {
+                    val pred = milestonesById[id] ?: continue
+                    out += ItemDependency("gantt:ms:$id", type, lag, pred.str("title"))
+                }
+            }
+        }
+        return out
+    }
+
+    /**
      * Placeholder phase (design 4.5 b): the exact name "robot agent name (person's display name)" of an agent of the
      * registry. The person's display name is read from the visible planning people. Anything else is not guessed.
      */
@@ -511,6 +555,7 @@ object GanttMapper {
         }
     }
 
+    private val DEPENDENCY_TYPES = setOf("EA", "AA", "EE", "AE")
     private const val DESCRIPTION_LIMIT = 2000
     private const val CLASH_TEXT_LENGTH = 19
 }

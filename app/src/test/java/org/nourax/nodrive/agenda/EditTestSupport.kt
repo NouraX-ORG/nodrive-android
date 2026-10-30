@@ -58,6 +58,9 @@ class EditFakeServer : AgendaHttp {
     var ganttResources = JsonArray()
     var ganttSettings = JsonObject().also { it.addProperty("hours_per_pt", 8) }
     var propagated = JsonArray()
+
+    /** Dates NoGantt saves instead of the ones sent (it snaps a moved task to working days): applied to the task after a PUT. */
+    var snapDates: Map<String, String> = emptyMap()
     var ganttVersion = 0
 
     /** NoGantt drops a row of a resource that is not in this list, without a word (the hazard of plan 2.5). */
@@ -97,6 +100,7 @@ class EditFakeServer : AgendaHttp {
                     }
                     task.add("resources", rows)
                 }
+                for ((key, value) in snapDates) task.addProperty(key, value)
                 ganttVersion++
                 task.addProperty("updated_at", "2026-10-28 12:00:%02d".format(ganttVersion))
                 val data = JsonObject()

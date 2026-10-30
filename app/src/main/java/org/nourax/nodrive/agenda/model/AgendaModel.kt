@@ -81,6 +81,20 @@ data class AgentRef(
     }
 }
 
+/**
+ * One dependency of a NoGantt task (design 8, read only). [type] is NoGantt's `dependency_type`: EA finish to start, AA start to start,
+ * EE finish to finish, AE start to finish. [predecessorKey] is the key of the row the arrow starts at (the predecessor may not be one
+ * of my rows: then the Timeline shows a short stub with [predecessorTitle] and [predecessorOwner]).
+ */
+data class ItemDependency(
+    val predecessorKey: String,
+    val type: String = "EA",
+    val lagDays: Double = 0.0,
+    val predecessorTitle: String = "",
+    /** The person (display name) the predecessor belongs to; empty when it is not known. Never a user id. */
+    val predecessorOwner: String = ""
+)
+
 data class AgendaItem(
     /** cal:<calendarUri>/<objectName>[#<recurrence-id>], gantt:task:<id>, gantt:ms:<id>, deck:card:<id>. */
     val key: String,
@@ -134,6 +148,10 @@ data class AgendaItem(
     val progressMode: String = "",
     val projectId: Int = 0,
     val projectName: String = "",
+    /** A NoGantt task: its phase (subproject); 0 and empty = none. The Timeline groups by project, then phase. */
+    val phaseId: Int = 0,
+    val phaseName: String = "",
+    val dependencies: List<ItemDependency> = emptyList(),
     val taskId: Int = 0,
     val boardId: Int = 0,
     val stackId: Int = 0,

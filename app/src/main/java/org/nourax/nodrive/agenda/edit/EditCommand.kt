@@ -137,6 +137,19 @@ object EditKeys {
     const val AGENT_TAG = "agentTag"
     const val ALL_TAGS = "allTags"
     const val SELF = "SELF"
+
+    /**
+     * Set by the Timeline's date editor on a date change (never sent to a server): [MOVE_PURE] = start and end moved by the same
+     * number of days (a NoGantt task is then sent with `adjust_lag`, NoGantt's own move), [MOVE_SET] = any other change of dates.
+     * It only tells the notice to say "Moved to ...".
+     */
+    const val MOVE = "move"
+    const val MOVE_PURE = "move"
+    const val MOVE_SET = "set"
+
+    /** The days the Timeline's date editor asked for (ISO dates, local to the phone; the notice says them). */
+    const val MOVE_START = "moveStart"
+    const val MOVE_END = "moveEnd"
     const val SEP = "\u001F"
 
     /** New object: `event` or `todo`, and the file name in the calendar. */

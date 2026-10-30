@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- NoAgenda: the Timeline (English; translations are a to-do) -->
+
+    <string name="nodrive_agenda_timeline_tab">Timeline</string>
+    <string name="nodrive_agenda_timeline_zoom_weeks">Weeks</string>
+    <string name="nodrive_agenda_timeline_zoom_days">Days</string>
+    <string name="nodrive_agenda_timeline_empty">No dated work in this range.</string>
+
+    <!-- Group lines -->
+    <string name="nodrive_agenda_timeline_group_list">NoTasks \u203A %1$s</string>
+    <string name="nodrive_agenda_timeline_group_board">NoBoard \u203A %1$s</string>
+
+    <!-- A bar for the screen reader: title, agent, dates, percent -->
+    <string name="nodrive_agenda_timeline_range">%1$s \u2013 %2$s</string>
+    <string name="nodrive_agenda_timeline_bar_description">%1$s, %2$s, %3$s</string>
+    <string name="nodrive_agenda_timeline_bar_percent">%1$s, %2$d%% done</string>
+    <string name="nodrive_agenda_timeline_milestone_description">%1$s, milestone, %2$s</string>
+    <string name="nodrive_agenda_timeline_card_description">%1$s, due %2$s, %3$s</string>
+    <string name="nodrive_agenda_timeline_waiting">Waiting to send</string>
+
+    <!-- The detail sheet -->
+    <string name="nodrive_agenda_timeline_dates">Dates</string>
+    <string name="nodrive_agenda_timeline_change_dates">Change dates</string>
+    <string name="nodrive_agenda_timeline_earlier">1 day earlier</string>
+    <string name="nodrive_agenda_timeline_later">1 day later</string>
+    <string name="nodrive_agenda_timeline_no_dates">This task has no dates to move.</string>
+    <string name="nodrive_agenda_timeline_after">After: %1$s (%2$s)</string>
+    <string name="nodrive_agenda_timeline_after_no_owner">After: %1$s</string>
+    <string name="nodrive_agenda_timeline_lag">%1$s days later</string>
+    <string name="nodrive_agenda_timeline_dep_ea">Finish to start</string>
+    <string name="nodrive_agenda_timeline_dep_aa">Start to start</string>
+    <string name="nodrive_agenda_timeline_dep_ee">Finish to finish</string>
+    <string name="nodrive_agenda_timeline_dep_ae">Start to finish</string>
+    <string name="nodrive_agenda_timeline_another_task">another task</string>
+
+    <!-- The notice after a date change -->
+    <string name="nodrive_agenda_timeline_moved">Moved to %1$s \u2013 %2$s.</string>
+    <string name="nodrive_agenda_timeline_moved_day">Moved to %1$s.</string>
+    <string name="nodrive_agenda_timeline_adjusted">NoGantt adjusted the dates (working days or dependencies).</string>
+
+    <!-- The legend -->
+    <string name="nodrive_agenda_timeline_legend_done">Done part</string>
+    <string name="nodrive_agenda_timeline_legend_milestone">Milestone or card</string>
+    <string name="nodrive_agenda_timeline_legend_busy">Busy time</string>
+</resources>

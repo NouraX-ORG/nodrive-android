@@ -170,7 +170,7 @@ class WorkloadTest {
             ViewState(date = monday), monday, UTC, DayOfWeek.MONDAY, analysis
         )
         val bar = rows.filterIsInstance<AgendaRow.Workload>().single()
-        assertEquals(DayLoad(monday, true, 6.0, 4.0, 0), bar.load)
+        assertEquals(DayLoad(monday, true, 6.0, 4.0, 0, busyHours = 4.0), bar.load)
         assertFalse(bar.thin)
         // the bar is the first row of the day
         assertTrue(rows.first() is AgendaRow.Workload)

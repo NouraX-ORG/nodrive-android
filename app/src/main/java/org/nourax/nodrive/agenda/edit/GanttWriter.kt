@@ -123,6 +123,10 @@ class GanttWriter(
         }
         if (body.size() == 0) return SendResult.Done(task.str("updated_at"))
         body.addProperty("deck_confirmed", false)
+        // The Timeline's date editor moves a task by whole days: NoGantt's own move behaviour (working days, dependency lags) applies.
+        if (command.change[EditKeys.MOVE] == EditKeys.MOVE_PURE && body.has("start_date") && body.has("end_date")) {
+            body.addProperty("adjust_lag", true)
+        }
         return put(command, body)
     }
 
@@ -186,9 +190,15 @@ class GanttWriter(
             alsoMoved = moved,
             undoOp = op,
             cardNotMoved = cardNotMoved,
-            answer = task
+            answer = task,
+            savedStart = dayOf(task.str("start_date")),
+            savedEnd = dayOf(task.str("end_date"))
         )
     }
+
+    /** "2026-11-04 00:00:00" -> the day; null when there is no date. */
+    private fun dayOf(text: String): java.time.LocalDate? =
+        if (text.length < DATE_LENGTH) null else runCatching { java.time.LocalDate.parse(text.substring(0, DATE_LENGTH)) }.getOrNull()
 
     /** A 400 from NoGantt names its reason (`invalid_date`, `too_many_resources`, ...). Only the code is kept. */
     private fun mapBad(status: Int, body: String): SendResult {

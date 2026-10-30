@@ -86,6 +86,8 @@ fun DetailSheet(
     onStopEdit: () -> Unit,
     onSubmit: (List<EditCommand>) -> Unit,
     onDismiss: () -> Unit,
+    /** Opened from the Timeline: the sheet has the date editor (design 8). */
+    timeline: Boolean = false,
     onOpen: (AgendaItem) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -105,6 +107,7 @@ fun DetailSheet(
                 Spacer(Modifier.height(24.dp))
             } else {
                 DetailFacts(item, snapshot, texts, caps, time, day)
+                if (timeline) TimelineDateEditor(item, snapshot, texts, onSubmit)
                 Spacer(Modifier.height(8.dp))
                 if (caps.canEdit) {
                     Button(onClick = onEdit, modifier = Modifier.fillMaxWidth().testTag("agenda_edit")) {
@@ -205,6 +208,10 @@ private fun DetailFacts(item: AgendaItem, snapshot: AgendaSnapshot, texts: Agend
     val blockText = texts.editBlock(caps.block, "", "")
     if (blockText.isNotEmpty() && caps.block != EditBlock.READ_ONLY && caps.block != EditBlock.VERSION_GUARD) {
         Text(blockText, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("agenda_detail_blocked"))
+    }
+    // The tasks this one follows (design 8: the Timeline's arrows, in words).
+    for (dep in item.dependencies) {
+        Text(texts.dependency(dep), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("agenda_detail_dependency"))
     }
     if (item.description.isNotEmpty()) Text(item.description, style = MaterialTheme.typography.bodyMedium)
 }

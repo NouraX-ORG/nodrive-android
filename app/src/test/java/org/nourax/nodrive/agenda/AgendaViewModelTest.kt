@@ -85,6 +85,26 @@ class AgendaViewModelTest {
     }
 
     @Test
+    fun theTimelineStepsFourWeeksHasTwoZoomsAndComesBackNextTime() {
+        val store = InMemoryAgendaStore()
+        val (vm, _) = model(store)
+        waitFor(vm) { it.snapshot?.settings?.everOpened == true }
+        vm.setView(AgendaView.TIMELINE)
+        vm.shift(1)
+        waitFor(vm) { it.view.view == AgendaView.TIMELINE && it.view.date == TODAY.plusWeeks(4) }
+        vm.shift(-2)
+        waitFor(vm) { it.view.date == TODAY.minusWeeks(4) }
+        vm.today()
+        waitFor(vm) { it.view.date == TODAY }
+        assertEquals(org.nourax.nodrive.agenda.logic.TimelineZoom.WEEKS, vm.state.value.view.timelineZoom)
+        vm.setZoom(org.nourax.nodrive.agenda.logic.TimelineZoom.DAYS)
+        waitFor(vm) { it.view.timelineZoom == org.nourax.nodrive.agenda.logic.TimelineZoom.DAYS }
+        waitFor(vm) { it.snapshot?.settings?.lastView == "timeline" }
+        val (again, _) = model(store)
+        waitFor(again) { it.view.view == AgendaView.TIMELINE }
+    }
+
+    @Test
     fun theChoicesAreSavedAndComeBackNextTime() {
         val store = InMemoryAgendaStore()
         val (vm, _) = model(store)

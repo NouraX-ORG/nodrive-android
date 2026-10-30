@@ -24,6 +24,7 @@ import org.nourax.nodrive.agenda.logic.AgendaView
 import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.CategoryFilter
 import org.nourax.nodrive.agenda.logic.SourceSettings
+import org.nourax.nodrive.agenda.logic.TimelineZoom
 import org.nourax.nodrive.agenda.logic.ViewState
 import org.nourax.nodrive.agenda.logic.WorkMode
 import org.nourax.nodrive.agenda.logic.WorkingHours
@@ -97,6 +98,7 @@ class AgendaViewModel(
                 view = when (settings.lastView) {
                     "week" -> AgendaView.WEEK
                     "month" -> AgendaView.MONTH
+                    "timeline" -> AgendaView.TIMELINE
                     else -> AgendaView.DAY
                 },
                 category = when (settings.lastCategory) {
@@ -141,6 +143,9 @@ class AgendaViewModel(
 
     fun toggleShowAllTeam() = change { it.copy(showAllTeam = !it.showAllTeam) }
 
+    /** The Timeline's zoom (Weeks or Days). */
+    fun setZoom(zoom: TimelineZoom) = viewState.update { it.copy(timelineZoom = zoom) }
+
     fun toggleNoDate() = viewState.update { it.copy(noDateExpanded = !it.noDateExpanded) }
 
     fun setDate(date: LocalDate) = viewState.update { it.copy(date = date) }
@@ -154,6 +159,8 @@ class AgendaViewModel(
                 AgendaView.DAY -> it.date.plusDays(direction.toLong())
                 AgendaView.WEEK -> it.date.plusWeeks(direction.toLong())
                 AgendaView.MONTH -> it.date.plusMonths(direction.toLong())
+                // The Timeline moves by four weeks, half of what it shows.
+                AgendaView.TIMELINE -> it.date.plusWeeks(TIMELINE_STEP_WEEKS * direction)
             }
         )
     }
@@ -275,6 +282,10 @@ class AgendaViewModel(
 
     fun setWorkingHours(hours: WorkingHours) {
         viewModelScope.launch { repository.updateSettings { it.copy(workingHours = hours) } }
+    }
+
+    private companion object {
+        const val TIMELINE_STEP_WEEKS = 4L
     }
 
     class Factory(

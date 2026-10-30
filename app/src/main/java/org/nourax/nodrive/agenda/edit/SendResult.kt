@@ -10,6 +10,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import org.nourax.nodrive.agenda.net.AgendaHttp
 import org.nourax.nodrive.agenda.net.HttpResult
+import java.time.LocalDate
 
 /** What came of sending one command. */
 sealed interface SendResult {
@@ -25,7 +26,10 @@ sealed interface SendResult {
         /** The server's answer did not match what was sent. */
         val checkInHome: Boolean = false,
         /** NoGantt's saved task, to check it against what was sent. */
-        val answer: JsonObject? = null
+        val answer: JsonObject? = null,
+        /** The dates NoGantt really saved (it may snap a moved task to working days); null = not known. */
+        val savedStart: LocalDate? = null,
+        val savedEnd: LocalDate? = null
     ) : SendResult
 
     /**

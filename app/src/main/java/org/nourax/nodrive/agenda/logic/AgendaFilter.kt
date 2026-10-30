@@ -15,7 +15,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 
-enum class AgendaView { DAY, WEEK, MONTH }
+enum class AgendaView { DAY, WEEK, MONTH, TIMELINE }
 
 enum class CategoryFilter { ALL, WORK, PERSONAL }
 
@@ -30,7 +30,9 @@ data class ViewState(
     val showAllTeam: Boolean = false,
     val noDateExpanded: Boolean = false,
     /** The Conflicts filter of the Day view (design 8): only the rows with a clash, a blocked, a late or a day-off badge. */
-    val conflictsOnly: Boolean = false
+    val conflictsOnly: Boolean = false,
+    /** The Timeline's zoom (design 8): Weeks (12 dp a day) or Days (40 dp a day). */
+    val timelineZoom: TimelineZoom = TimelineZoom.WEEKS
 )
 
 enum class GroupKind { LATE, DUE, DUE_TODAY, IN_PROGRESS, AGENT_PROBLEMS, MY_TEAM, NO_DATE }
@@ -96,6 +98,8 @@ object AgendaFilter {
             val start = state.date.withDayOfMonth(1)
             start to start.plusMonths(1).minusDays(1)
         }
+        // The Timeline (plan 3.3): 7 days before the chosen day to 8 weeks after it.
+        AgendaView.TIMELINE -> state.date.minusDays(TimelineLayout.DAYS_BEFORE) to state.date.plusWeeks(TimelineLayout.WEEKS_AFTER)
     }
 
     private fun kindRank(kind: ItemKind) = when (kind) {
@@ -300,6 +304,8 @@ object AgendaFilter {
     ): List<AgendaRow> {
         val (first, last) = range(state, firstDayOfWeek)
         return when (state.view) {
+            // The Timeline draws its own chart from the items (TimelineLayout); it has no list rows.
+            AgendaView.TIMELINE -> emptyList()
             AgendaView.DAY -> dayRows(out, state, today, zone, first, dayView = true, header = false, analysis = analysis)
             AgendaView.WEEK -> generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }
                 .flatMap { dayRows(out, state, today, zone, it, dayView = false, header = true, analysis = analysis) }.toList()

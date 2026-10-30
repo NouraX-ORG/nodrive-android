@@ -11,6 +11,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
 import com.nextcloud.client.account.User
 import com.owncloud.android.R
@@ -71,7 +72,15 @@ class AgendaActivity : DrawerActivity() {
 
         binding.nodriveAgendaCompose.setContent {
             MaterialTheme(colorScheme = viewThemeUtils.getColorScheme(this)) {
-                AgendaScreen(model, base, OpenUrl { url, title -> startActivity(WorkspaceWebActivity.intent(this, user, url, title)) })
+                AgendaScreen(
+                    model,
+                    base,
+                    OpenUrl { url, title -> startActivity(WorkspaceWebActivity.intent(this, user, url, title)) },
+                    // The Timeline scrolls sideways: a swipe from the edge must not open the menu (only its button does).
+                    onTimelineShown = { shown ->
+                        setDrawerLockMode(if (shown) DrawerLayout.LOCK_MODE_LOCKED_CLOSED else DrawerLayout.LOCK_MODE_UNLOCKED)
+                    }
+                )
             }
         }
     }

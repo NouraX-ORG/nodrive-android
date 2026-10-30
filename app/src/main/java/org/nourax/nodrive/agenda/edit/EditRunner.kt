@@ -12,6 +12,7 @@ import org.nourax.nodrive.agenda.model.AgendaClock
 import org.nourax.nodrive.agenda.model.Home
 import org.nourax.nodrive.agenda.net.AgendaHttp
 import org.nourax.nodrive.agenda.registry.AgentRegistry
+import java.time.LocalDate
 
 /** The last result, shown once (a Snackbar). */
 @Keep
@@ -30,7 +31,12 @@ data class EditNotice(
     val conflict: Boolean = false,
     /** The result of a tap on Undo. */
     val undone: Boolean = false,
-    val undoFailed: Boolean = false
+    val undoFailed: Boolean = false,
+    /** A date change from the Timeline: the dates the item has now (a to-do or card: the ones sent; a NoGantt task: the ones saved). */
+    val movedStart: LocalDate? = null,
+    val movedEnd: LocalDate? = null,
+    /** NoGantt saved other dates than the ones sent (working days or dependencies). */
+    val datesAdjusted: Boolean = false
 )
 
 /** The edits of one account as the screen shows them. */
@@ -117,7 +123,9 @@ class EditRunner(
         } else if (stamped.kind != CommandKind.CAL_CREATE) {
             val same = waiting.firstOrNull { it.itemKey == stamped.itemKey && group(it.kind) == group(stamped.kind) && it.state == CommandState.WAITING }
             if (same != null) {
-                val merged = same.copy(change = same.change + stamped.change, attempts = 0)
+                // The "move" mark belongs to the newer change only: an older move must not decide how a later edit is sent.
+                val change = (same.change + stamped.change).let { if (EditKeys.MOVE in stamped.change) it else it - EditKeys.MOVE }
+                val merged = same.copy(change = change, attempts = 0)
                 store.update(merged)
                 return@synchronized merged
             }
@@ -126,6 +134,19 @@ class EditRunner(
     }
 
     private fun nextNotice(base: EditNotice): EditNotice = base.copy(id = ++noticeSeq)
+
+    /** The Timeline's date editor: the notice says the dates the item has now, and whether NoGantt changed what was sent. */
+    private fun movedDates(notice: EditNotice, command: EditCommand, result: SendResult.Done): EditNotice {
+        if (command.change[EditKeys.MOVE] == null) return notice
+        fun day(key: String): LocalDate? = command.change[key]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val end = day(EditKeys.MOVE_END)
+        val start = day(EditKeys.MOVE_START)
+        val savedStart = result.savedStart ?: start
+        val savedEnd = result.savedEnd ?: end
+        val adjusted = (result.savedStart != null && start != null && result.savedStart != start) ||
+            (result.savedEnd != null && end != null && result.savedEnd != end)
+        return notice.copy(movedStart = savedStart, movedEnd = savedEnd, datesAdjusted = adjusted)
+    }
 
     /** Sends what waits. A place that does not answer is skipped for the rest of the run; the other places go on. */
     @Suppress("TooGenericExceptionCaught", "CyclomaticComplexMethod", "LongMethod")
@@ -151,8 +172,10 @@ class EditRunner(
                     homes += command.home
                     rebase(command, result.newVersion)
                     notice = nextNotice(
-                        EditNotice(
-                            0, command.title, result.alsoMoved, result.undoOp, result.cardNotMoved, result.checkInHome
+                        movedDates(
+                            EditNotice(0, command.title, result.alsoMoved, result.undoOp, result.cardNotMoved, result.checkInHome),
+                            command,
+                            result
                         )
                     )
                 }

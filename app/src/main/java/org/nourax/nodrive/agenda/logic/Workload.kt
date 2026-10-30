@@ -22,7 +22,9 @@ data class DayLoad(
     val plannedHours: Double,
     val freeHours: Double,
     /** Active Gantt tasks of the person that have no `work` (they add no hours). */
-    val noEstimate: Int
+    val noEstimate: Int,
+    /** The hours of the working window that my own busy events take (the Timeline shades it). */
+    val busyHours: Double = 0.0
 ) {
     /** Planned more than free: the day is overbooked. */
     val over: Boolean get() = plannedHours > freeHours + LOAD_EPSILON
@@ -117,16 +119,19 @@ object Workload {
         var guard = 0
         while (!day.isAfter(to) && guard++ < MAX_DAYS) {
             val working = isWorkingDay(day, pattern, holidays, daysOff)
+            var busyToday = 0L
             val free = if (!working) {
                 0.0
             } else {
                 val windowStart = day.atTime(pattern.from).atZone(zone).toInstant()
                 val windowEnd = day.atTime(pattern.to).atZone(zone).toInstant()
-                val busy = busyMinutes(busyByDay[day].orEmpty(), windowStart, windowEnd)
-                (workingMinutes - busy).coerceAtLeast(0) / MINUTES_PER_HOUR
+                busyToday = busyMinutes(busyByDay[day].orEmpty(), windowStart, windowEnd)
+                (workingMinutes - busyToday).coerceAtLeast(0) / MINUTES_PER_HOUR
             }
             val plannedToday = planned[day] ?: 0.0
-            if (working || plannedToday > 0.0) out[day] = DayLoad(day, working, plannedToday, free, noEstimate[day] ?: 0)
+            if (working || plannedToday > 0.0) {
+                out[day] = DayLoad(day, working, plannedToday, free, noEstimate[day] ?: 0, busyToday.coerceAtMost(workingMinutes) / MINUTES_PER_HOUR)
+            }
             day = day.plusDays(1)
         }
         return out

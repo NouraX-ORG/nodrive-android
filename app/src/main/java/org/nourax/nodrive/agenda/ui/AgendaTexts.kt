@@ -21,6 +21,7 @@ import org.nourax.nodrive.agenda.logic.WorkMode
 import org.nourax.nodrive.agenda.model.AgendaItem
 import org.nourax.nodrive.agenda.model.AgentRef
 import org.nourax.nodrive.agenda.model.AutoHiddenReason
+import org.nourax.nodrive.agenda.model.ItemDependency
 import org.nourax.nodrive.agenda.model.ItemKind
 import org.nourax.nodrive.agenda.model.ProblemFlag
 import org.nourax.nodrive.agenda.model.ProblemKind
@@ -241,6 +242,16 @@ class AgendaTexts(private val context: Context) {
             notice.queued -> parts += s(R.string.nodrive_agenda_edit_queued)
             else -> parts += s(R.string.nodrive_agenda_edit_saved)
         }
+        val movedEnd = notice.movedEnd
+        if (movedEnd != null && !notice.queued && !notice.conflict && !notice.undone && !notice.undoFailed) {
+            val movedStart = notice.movedStart
+            parts += if (movedStart == null || movedStart == movedEnd) {
+                s(R.string.nodrive_agenda_timeline_moved_day, shortDate(movedEnd))
+            } else {
+                s(R.string.nodrive_agenda_timeline_moved, shortDate(movedStart), shortDate(movedEnd))
+            }
+            if (notice.datesAdjusted) parts += s(R.string.nodrive_agenda_timeline_adjusted)
+        }
         if (notice.alsoMoved.isNotEmpty()) parts += s(R.string.nodrive_agenda_edit_also_moved, notice.alsoMoved.joinToString(", "))
         if (notice.cardNotMoved) parts += s(R.string.nodrive_agenda_edit_card_not_moved)
         if (notice.checkInHome) parts += s(R.string.nodrive_agenda_edit_check_in_gantt)
@@ -260,6 +271,45 @@ class AgendaTexts(private val context: Context) {
     }
 
     fun waiting(count: Int): String = context.resources.getQuantityString(R.plurals.nodrive_agenda_edit_waiting, count, count)
+
+    /** "28 Oct - 30 Oct" for the dates of a bar; one date when it is one day. */
+    fun dateRange(start: LocalDate, end: LocalDate): String =
+        if (start == end) shortDate(start) else s(R.string.nodrive_agenda_timeline_range, shortDate(start), shortDate(end))
+
+    /** "Finish to start" and so on for NoGantt's EA, AA, EE and AE. */
+    fun dependencyType(type: String): String = when (type) {
+        "AA" -> s(R.string.nodrive_agenda_timeline_dep_aa)
+        "EE" -> s(R.string.nodrive_agenda_timeline_dep_ee)
+        "AE" -> s(R.string.nodrive_agenda_timeline_dep_ae)
+        else -> s(R.string.nodrive_agenda_timeline_dep_ea)
+    }
+
+    /** "After: Banner design (Sara)" and the kind of the dependency and its lag, for the detail sheet. */
+    fun dependency(dep: ItemDependency): String {
+        val title = dep.predecessorTitle.ifEmpty { s(R.string.nodrive_agenda_timeline_another_task) }
+        val after = if (dep.predecessorOwner.isEmpty()) {
+            s(R.string.nodrive_agenda_timeline_after_no_owner, title)
+        } else {
+            s(R.string.nodrive_agenda_timeline_after, title, dep.predecessorOwner)
+        }
+        val lag = if (dep.lagDays != 0.0) ", " + s(R.string.nodrive_agenda_timeline_lag, lagText(dep.lagDays)) else ""
+        return after + ", " + dependencyType(dep.type).lowercase(locale) + lag
+    }
+
+    private fun lagText(days: Double): String = if (days == Math.floor(days)) days.toLong().toString() else String.format(locale, "%.1f", days)
+
+    /** What a screen reader says for a bar: title, agent, dates, % done. */
+    fun barDescription(item: AgendaItem, start: LocalDate, end: LocalDate): String {
+        val base = s(R.string.nodrive_agenda_timeline_bar_description, title(item), agent(item.agent), dateRange(start, end))
+        return if (item.percentDone in 0..100) s(R.string.nodrive_agenda_timeline_bar_percent, base, item.percentDone) else base
+    }
+
+    fun diamondDescription(item: AgendaItem, day: LocalDate): String =
+        if (item.kind == ItemKind.MILESTONE) {
+            s(R.string.nodrive_agenda_timeline_milestone_description, title(item), shortDate(day))
+        } else {
+            s(R.string.nodrive_agenda_timeline_card_description, title(item), shortDate(day), agent(item.agent))
+        }
 
     fun statusName(status: String): String = when (status) {
         "in_progress" -> s(R.string.nodrive_agenda_edit_status_in_progress)
