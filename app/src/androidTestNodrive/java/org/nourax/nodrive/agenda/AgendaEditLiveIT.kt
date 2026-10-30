@@ -159,19 +159,26 @@ class AgendaEditLiveIT {
             compose.onNode(hasContentDescription("next month", substring = true, ignoreCase = true)).performClick()
             compose.waitForIdle()
         }
-        val byDescription = hasContentDescription(" ${target.dayOfMonth}, ${target.year}", substring = true) and hasClickAction()
-        val byText = hasText(target.dayOfMonth.toString()) and hasClickAction()
+        val byDescription = hasContentDescription(" ${target.dayOfMonth}, ${target.year}", substring = true)
+        val byText = hasText(target.dayOfMonth.toString())
+        val day = target.dayOfMonth.toString()
         try {
             compose.waitUntil(DIALOG_MILLIS * 2) {
-                compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty() || compose.onAllNodes(byText).fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty() ||
+                    compose.onAllNodes(byText, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Throwable) {
-            throw AssertionError("day ${target.dayOfMonth} not found in the picker; on screen: ${support.allTexts(compose)}", e)
+            throw AssertionError("day $day not found in the picker; on screen:
+" + support.allTexts(compose).joinToString("
+"), e)
         }
-        if (compose.onAllNodes(byDescription).fetchSemanticsNodes().isNotEmpty()) {
-            compose.onAllNodes(byDescription)[0].performClick()
+        // the dialog is the topmost window, so its day is the last match
+        val byDesc = compose.onAllNodes(byDescription).fetchSemanticsNodes()
+        if (byDesc.isNotEmpty()) {
+            compose.onAllNodes(byDescription)[byDesc.size - 1].performClick()
         } else {
-            compose.onAllNodes(byText)[0].performClick()
+            val found = compose.onAllNodes(byText, useUnmergedTree = true).fetchSemanticsNodes()
+            compose.onAllNodes(byText, useUnmergedTree = true)[found.size - 1].performClick()
         }
         compose.onNodeWithTag("${fieldTag}_ok").performClick()
         waitGoneTag("${fieldTag}_ok")

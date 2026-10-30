@@ -171,9 +171,15 @@ class AgendaServerTest {
     // ---- the reads: what each person sees ----------------------------------------------------------------------------------
     private fun read(user: String): AgendaSnapshot {
         val agenda = AccountAgenda("$user@throwaway", ServerSupport.http(user), InMemoryAgendaStore(), ServerSupport.clock)
-        val first = agenda.refresh(manual = true)
-        // a second read finds the same (the sync tokens say nothing changed)
-        val second = agenda.refresh(manual = true)
+        // A second read finds the same (the sync tokens say nothing changed). The edit tests (EditPhasesTest) may run in another test
+        // process at the same time and add their own events, so a pair of reads that differ is tried again a few times.
+        var first = agenda.refresh(manual = true)
+        var second = agenda.refresh(manual = true)
+        var tries = 0
+        while (first.build.items.map { it.key }.sorted() != second.build.items.map { it.key }.sorted() && tries++ < 4) {
+            first = second
+            second = agenda.refresh(manual = true)
+        }
         assertEquals(first.build.items.map { it.key }.sorted(), second.build.items.map { it.key }.sorted())
         return second
     }
