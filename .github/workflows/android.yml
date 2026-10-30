@@ -322,6 +322,16 @@ jobs:
                     NODRIVE_AG_REPORT_DIR: ${{ github.workspace }}/build/agenda-server
                 run: ./gradlew --stacktrace :app:testNodriveDebugUnitTest --tests 'org.nourax.nodrive.agenda.server.*'
 
+            # Does the agent id survive an edit in the server's own Calendar and Tasks pages? (design 4.2). Headless Chromium, the same
+            # Playwright version as the sign-in proof. The job fails only when both marks are dropped for one app.
+            -   name: Install Playwright (the web edit check)
+                run: |
+                    python -m pip install --disable-pip-version-check "playwright==1.55.0"
+                    python -m playwright install --with-deps chromium
+
+            -   name: The agent id after an edit in the Calendar and Tasks pages
+                run: python tools/ci/agenda-webedit.py build/agenda-server
+
             -   name: No throwaway password in what is uploaded
                 if: ${{ always() }}
                 run: bash tools/ci/agenda-server.sh leakcheck build/agenda-server app/build/test-results app/build/reports/tests
@@ -337,6 +347,10 @@ jobs:
                         echo "| Check | Result | Detail |"
                         echo "|---|---|---|"
                         cat build/agenda-server/report.md 2> /dev/null || true
+                        echo
+                        echo "## The agent id after an edit in the Calendar and Tasks pages"
+                        echo
+                        cat build/agenda-server/webedit-report.md 2> /dev/null || true
                     } >> "$GITHUB_STEP_SUMMARY"
 
             -   name: Upload the report

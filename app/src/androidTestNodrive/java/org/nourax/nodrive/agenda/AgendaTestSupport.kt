@@ -20,6 +20,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.owncloud.android.MainApp
 import org.junit.Assert.assertFalse
 import org.nourax.nodrive.agenda.android.AgendaRefreshWorker
+import org.nourax.nodrive.agenda.edit.EditDatabase
 import org.nourax.nodrive.agenda.model.FixedAgendaClock
 import org.nourax.nodrive.agenda.store.AgendaDatabase
 import org.nourax.nodrive.backup.BackupTestSupport
@@ -58,7 +59,11 @@ class AgendaTestSupport {
         runCatching {
             AccountManager.get(context).getAccountsByType(MainApp.getAccountType(context)).forEach { AgendaRefreshWorker.cancel(context, it.name) }
         }
-        if (!keepSavedCopy) AgendaDatabase.get(context).clearAllTables()
+        if (!keepSavedCopy) {
+            AgendaDatabase.get(context).clearAllTables()
+            // the changes that wait to be sent (the offline queue) are cleared with the rest
+            EditDatabase.get(context).clearAllTables()
+        }
         backup.wipeAllAccountsAndRowsCiEmulatorOnly()
     }
 

@@ -13,6 +13,14 @@
 #   AgendaWorkerIT    the background refresh run by the real WorkManager: an account that is gone has its rows forgotten and its work
 #                     cancelled (no server); an account that is there has its saved copy refreshed (throwaway server).
 #   AgendaOfflineIT   a1 reads the day, this script turns mobile data off, a2 shows the saved copy with its time, data goes on, a3 cleans up.
+#   AgendaEditUiIT    the edit screens on canned data (no server): a clash and an overbooked day, the Conflicts filter, the agent of a task, the
+#                     agent that is not in the project, a new event and to-do, the edit conflict, a change that waits offline, the delete
+#                     question, a repeating event, an invitation, a task of a viewer project. Light and dark.
+#   AgendaEditDatabaseIT  the offline queue in its own Room database: order, restart, conflicts, removing an account.
+#   AgendaEditLiveIT  against the throwaway server: a new event with Writer-Bot, a changed one, a ticked to-do, a moved end date of a Gantt
+#                     task with Undo, the agent of a Gantt task and of a card, all through the screens.
+#   AgendaEditOfflineIT  a1 makes the data, this script turns data off, a2 makes three changes (marked "Waiting to send"), data goes on,
+#                     a3 starts the app again: everything is sent in order. Then tools/ci/agenda-server-check.py asks the server itself.
 # Pulls agenda-*.png to build/device/screens/agenda/, fails when an expected one is missing, and checks that the dark screenshots
 # are dark and the light ones are light.
 set -uo pipefail
@@ -28,6 +36,10 @@ DRAWER=org.nourax.nodrive.agenda.AgendaDrawerIT
 LIVE=org.nourax.nodrive.agenda.AgendaLiveIT
 OFFLINE=org.nourax.nodrive.agenda.AgendaOfflineIT
 WORKER=org.nourax.nodrive.agenda.AgendaWorkerIT
+EDITUI=org.nourax.nodrive.agenda.AgendaEditUiIT
+EDITDB=org.nourax.nodrive.agenda.AgendaEditDatabaseIT
+EDITLIVE=org.nourax.nodrive.agenda.AgendaEditLiveIT
+EDITOFF=org.nourax.nodrive.agenda.AgendaEditOfflineIT
 SHOTS="$OUT/screens/agenda"
 status=0
 
@@ -102,8 +114,10 @@ for look in light dark; do
     if [ "$look" = light ]; then night no; else night yes; fi
     run_it "$look" "$UI" ui 13
     run_it "$look" "$DB" database 3
+    run_it "$look" "$EDITUI" edit-ui 13
 done
 night no
+run_it light "$EDITDB" edit-database 3
 run_it light "$WORKER#anAccountThatIsGoneHasItsRowsForgottenAndItsWorkCancelled" worker-gone 1
 
 # ---- 2. against the throwaway server
@@ -136,6 +150,37 @@ if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; th
     done
     [ -n "$online" ] && echo "agenda: network is back" || { echo "agenda: FAIL the network did not come back"; status=1; }
     run_it light "$OFFLINE#a3CleanUp" offline-a3 1
+
+    # the changes through the screens, against the throwaway server
+    run_it light "$EDITLIVE" edit-live 4
+
+    # the changes in airplane mode: made without a network, sent when it is back, in order, by a new start of the app
+    run_it light "$EDITOFF#a1MakeTheDataAndReadTheDay" edit-offline-a1 1
+    "$ADB" shell svc data disable > /dev/null 2>&1
+    offline=""
+    for _ in $(seq 1 30); do
+        if ! has_network; then offline=1; break; fi
+        sleep 2
+    done
+    if [ -n "$offline" ]; then
+        run_it light "$EDITOFF#a2ThreeChangesWithoutANetworkWaitOnTheScreen" edit-offline-a2 1
+    else
+        echo "agenda: FAIL the emulator stayed online after svc data disable (edit offline)"; status=1
+    fi
+    "$ADB" shell svc data enable > /dev/null 2>&1
+    online=""
+    for _ in $(seq 1 60); do
+        if has_network; then online=1; break; fi
+        sleep 2
+    done
+    [ -n "$online" ] && echo "agenda: network is back (edit offline)" || { echo "agenda: FAIL the network did not come back (edit offline)"; status=1; }
+    run_it light "$EDITOFF#a3WhenTheNetworkIsBackEverythingIsSentInOrder" edit-offline-a3 1
+    run_it light "$EDITOFF#a4CleanUp" edit-offline-a4 1
+
+    # what the server really holds, asked as the user with plain HTTP (not through the app)
+    python3 tools/ci/agenda-server-check.py "$OUT/agenda-server-check.md" > "$OUT/agenda-server-check.log" 2>&1 \
+        && echo "agenda: the server holds what the screens sent" \
+        || { echo "agenda: FAIL the server does not hold what the screens sent"; cat "$OUT/agenda-server-check.log"; status=1; }
 else
     echo "agenda: no throwaway server, the live tests did not run"
     status=1
@@ -152,7 +197,16 @@ for name in day week month my-team sources registry-missing personal-question de
         if [ -s "$SHOTS/$f" ]; then echo "agenda screenshot: $f"; else echo "agenda screenshot MISSING: $f"; status=1; fi
     done
 done
-for f in agenda-menu-light.png agenda-offline-live-light.png; do
+for name in day-clash-overbooked edit-agent-gantt edit-agent-not-in-project new-event edit-conflict pending-offline delete-confirm \
+            repeating-locked viewer-locked; do
+    for look in light dark; do
+        f="agenda-$name-$look.png"
+        if [ -s "$SHOTS/$f" ]; then echo "agenda screenshot: $f"; else echo "agenda screenshot MISSING: $f"; status=1; fi
+    done
+done
+for f in agenda-menu-light.png agenda-offline-live-light.png agenda-edit-live-new-event-light.png agenda-edit-live-delete-light.png \
+         agenda-edit-live-todo-light.png agenda-edit-live-gantt-date-light.png agenda-edit-live-agent-task-light.png \
+         agenda-edit-offline-waiting-light.png agenda-edit-offline-sent-light.png; do
     if [ -s "$SHOTS/$f" ]; then echo "agenda screenshot: $f"; else echo "agenda screenshot MISSING: $f"; status=1; fi
 done
 
