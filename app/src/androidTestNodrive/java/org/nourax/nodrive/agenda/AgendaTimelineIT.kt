@@ -216,6 +216,13 @@ class AgendaTimelineIT {
             assertEquals("D:${CannedAgenda.TODAY.minusDays(2)}", todo.change[EditKeys.START])
             assertEquals("D:${CannedAgenda.TODAY.plusDays(2)}", todo.change[EditKeys.DUE])
             waitForBar("Draft report")
+        }
+    }
+
+    @Test
+    fun aCardMovesItsDueDate() {
+        val engine = engine()
+        show(engine) {
             // a card has only a due date
             compose.waitUntil(WAIT_MILLIS) { compose.onAllNodes(diamond("Pay invoice")).fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(diamond("Pay invoice")).performScrollTo()
@@ -224,7 +231,7 @@ class AgendaTimelineIT {
             compose.onNodeWithTag("timeline_later").performScrollTo()
             compose.onNodeWithTag("timeline_later").performClick()
             waitGoneTag("agenda_detail")
-            val card = engine.submitted.last()
+            val card = engine.submitted.single()
             assertEquals(CommandKind.DECK_UPDATE, card.kind)
             assertEquals("D:${CannedAgenda.TODAY.plusDays(3)}", card.change[EditKeys.DUE])
         }
@@ -260,8 +267,11 @@ class AgendaTimelineIT {
             compose.onNodeWithTag("timeline_later").performScrollTo()
             compose.onNodeWithTag("timeline_later").performClick()
             waitGoneTag("agenda_detail")
-            waitForTag("timeline_waiting")
-            waitForText("Waiting to send")
+            // the bar itself says it (and a screen reader hears it)
+            compose.waitUntil(WAIT_MILLIS) {
+                compose.onAllNodes(bar("Prepare client demo") and hasContentDescription("Waiting to send", substring = true)).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNode(hasTestTag("timeline_bar") and hasText("Waiting to send", substring = true)).assertExists()
             // while it waits, the date editor is not offered for it
             openBar("Prepare client demo")
             assertTrue(compose.onAllNodesWithTag("timeline_later").fetchSemanticsNodes().isEmpty())

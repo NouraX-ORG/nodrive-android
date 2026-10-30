@@ -112,11 +112,15 @@ fun TimelineScreen(layout: TimelineResult, state: ViewState, texts: AgendaTexts,
             }
         }
         HorizontalDivider()
-        Row(Modifier.weight(1f).fillMaxWidth().verticalScroll(vertical)) {
-            NamesColumn(layout, texts, onOpen)
-            Box(Modifier.weight(1f).horizontalScroll(horizontal).testTag("timeline_chart")) {
-                TimelineChart(layout, texts, onOpen)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(vertical)) {
+            Row(Modifier.fillMaxWidth()) {
+                NamesColumn(layout, texts, onOpen)
+                Box(Modifier.weight(1f).horizontalScroll(horizontal).testTag("timeline_chart")) {
+                    TimelineChart(layout, texts, onOpen)
+                }
             }
+            // room under the last row for the "+" button
+            Spacer(Modifier.height(80.dp))
         }
         TimelineLegend()
     }

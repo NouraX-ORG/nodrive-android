@@ -123,7 +123,7 @@ for look in light dark; do
     run_it "$look" "$UI" ui 13
     run_it "$look" "$DB" database 3
     run_it "$look" "$EDITUI" edit-ui 13
-    run_it "$look" "$TIMELINE" timeline 9
+    run_it "$look" "$TIMELINE" timeline 10
 done
 night no
 run_it light "$EDITDB" edit-database 3

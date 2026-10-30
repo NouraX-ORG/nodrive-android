@@ -56,6 +56,7 @@ import org.nourax.nodrive.agenda.logic.TimelineGroup
 import org.nourax.nodrive.agenda.logic.TimelineLayout
 import org.nourax.nodrive.agenda.logic.TimelineResult
 import org.nourax.nodrive.agenda.model.AgendaItem
+import org.nourax.nodrive.agenda.registry.AgentRegistry
 import org.nourax.nodrive.agenda.ui.AgendaTexts
 import java.time.DayOfWeek
 import kotlin.math.atan2
@@ -206,8 +207,11 @@ private fun TimelineDiamond(entry: TimelineEntry, texts: AgendaTexts, onOpen: (S
     }
 }
 
-private fun describe(texts: AgendaTexts, entry: TimelineEntry, item: AgendaItem): String =
-    texts.barDescription(item, entry.start ?: return "", entry.end ?: return "")
+@Composable
+private fun describe(texts: AgendaTexts, entry: TimelineEntry, item: AgendaItem): String {
+    val base = texts.barDescription(item, entry.start ?: return "", entry.end ?: return "")
+    return if (item.pending) base + ", " + stringResource(R.string.nodrive_agenda_timeline_waiting) else base
+}
 
 /** "robot Writer-Bot" or "person Self", and "Waiting to send" when a change of mine has not reached the server. */
 @Composable
@@ -221,7 +225,8 @@ private fun AgentTag(item: AgendaItem, texts: AgendaTexts) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.width(3.dp))
-            Text(texts.agent(item.agent), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+            // the robot icon is drawn already: a leading robot sign in the name (an unknown agent's label) is dropped
+            Text(texts.agent(item.agent).removePrefix(AgentRegistry.robot).trim(), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
         }
         if (item.pending) {
             Spacer(Modifier.width(6.dp))
@@ -232,8 +237,7 @@ private fun AgentTag(item: AgendaItem, texts: AgendaTexts) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.tertiary,
                 maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.testTag("timeline_waiting")
+                softWrap = false
             )
         }
     }
