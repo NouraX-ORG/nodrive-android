@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!-- Lets the phone's Contacts app show the NoDrive account and its contacts (no custom editor: the phone's own is used). -->
+<ContactsAccountType />

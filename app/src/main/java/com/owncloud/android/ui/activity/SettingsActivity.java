@@ -203,6 +203,10 @@ public class SettingsActivity extends PreferenceActivity
         org.nourax.nodrive.reports.ReportsSettingsSection.install(this, preferenceScreen);
         // NoDrive: end
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.devicesync.ui.DeviceSyncSettingsSection.install(this, preferenceScreen);
+        // NoDrive: end
+
         // About
         setupAboutCategory(appVersion);
 

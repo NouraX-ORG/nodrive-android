@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<resources>
+    <!-- Device calendar and contacts sync (English; translations are a to-do). True only in the nodrive flavour (tools/rebrand.py). -->
+    <bool name="nodrive_device_sync">false</bool>
+
+    <!-- The Settings row -->
+    <string name="nodrive_device_sync_title">Calendar and contacts on this phone</string>
+    <string name="nodrive_device_sync_off">Off</string>
+    <string name="nodrive_device_sync_on_summary">On · %1$d calendars, %2$d address books</string>
+
+    <!-- The steps -->
+    <string name="nodrive_device_sync_intro">Show your NoDrive calendars and contacts in this phone\'s Calendar and Contacts apps. Changes go both ways. Tasks stay in NoAgenda.</string>
+    <string name="nodrive_device_sync_intro_tasks">Tasks stay in NoAgenda; your phone\'s calendar has no tasks.</string>
+    <string name="nodrive_device_sync_continue">Continue</string>
+    <string name="nodrive_device_sync_permissions_text">NoDrive needs access to this phone\'s calendars and contacts to put your NoDrive ones there.</string>
+    <string name="nodrive_device_sync_permissions_denied">Without access NoDrive can\'t add your calendars and contacts. You can allow it in the phone\'s settings.</string>
+    <string name="nodrive_device_sync_allow">Allow access</string>
+    <string name="nodrive_device_sync_open_settings">Open settings</string>
+    <string name="nodrive_device_sync_no_calendar_storage">This phone has no calendar storage.</string>
+
+    <string name="nodrive_device_sync_choose_title">Choose what to put on this phone</string>
+    <string name="nodrive_device_sync_choose_calendars">Calendars</string>
+    <string name="nodrive_device_sync_choose_contacts">Address books</string>
+    <string name="nodrive_device_sync_choose_loading">Looking for your calendars and address books…</string>
+    <string name="nodrive_device_sync_choose_offline">NoDrive could not reach your server. Connect to the internet and try again.</string>
+    <string name="nodrive_device_sync_choose_none">Nothing found to put on this phone.</string>
+    <string name="nodrive_device_sync_read_only">Read only on this phone</string>
+    <string name="nodrive_device_sync_off_birthdays">Your phone\'s calendar can already show birthdays from Contacts.</string>
+    <string name="nodrive_device_sync_off_subscription">A calendar you follow. It can only be read on this phone.</string>
+    <string name="nodrive_device_sync_off_readonly">Shared with you to read only. It can only be read on this phone.</string>
+
+    <string name="nodrive_device_sync_backup_text">First, NoDrive saves a copy of this phone\'s calendars and contacts in your NoDrive.</string>
+    <string name="nodrive_device_sync_backup_running">Saving a copy of this phone\'s calendars and contacts…</string>
+    <string name="nodrive_device_sync_backup_done">Saved in NoDrive › .Calendar-Backup and .Contacts-Backup.</string>
+    <string name="nodrive_device_sync_backup_failed">The backup didn\'t finish. Calendar and contacts sync starts after it has.</string>
+    <string name="nodrive_device_sync_try_again">Try again</string>
+
+    <string name="nodrive_device_sync_first_sync_text">Adding your NoDrive calendars and contacts to this phone… Nothing is deleted.</string>
+    <string name="nodrive_device_sync_first_sync_done">Done. %1$d calendars and %2$d address books are on this phone.</string>
+    <string name="nodrive_device_sync_first_sync_failed">The first sync did not finish. It carries on at the next sync.</string>
+
+    <!-- The status screen -->
+    <string name="nodrive_device_sync_never">Not synced yet</string>
+    <string name="nodrive_device_sync_synced_at">Synced at %1$s</string>
+    <string name="nodrive_device_sync_syncing">Syncing…</string>
+    <string name="nodrive_device_sync_sync_now">Sync now</string>
+    <string name="nodrive_device_sync_choose_again">Choose calendars and contacts</string>
+    <string name="nodrive_device_sync_stop">Stop syncing</string>
+    <string name="nodrive_device_sync_stop_and_remove">Stop and remove</string>
+    <string name="nodrive_device_sync_cancel">Cancel</string>
+    <string name="nodrive_device_sync_stop_question">Stop syncing and remove NoDrive calendars and contacts from this phone? Everything stays in your NoDrive.</string>
+    <string name="nodrive_device_sync_stop_refused">Some changes on this phone haven\'t reached NoDrive yet. Connect to the internet and try again.</string>
+    <string name="nodrive_device_sync_auto_sync_off">Auto-sync is off on this phone. Changes are synced when you tap Sync now.</string>
+    <plurals name="nodrive_device_sync_waiting">
+        <item quantity="one">%d change waiting to be sent</item>
+        <item quantity="other">%d changes waiting to be sent</item>
+    </plurals>
+    <string name="nodrive_device_sync_on_phone">On this phone</string>
+    <string name="nodrive_device_sync_collection_count">%1$d items</string>
+
+    <!-- "Not saved" -->
+    <string name="nodrive_device_sync_not_saved">Not saved</string>
+    <string name="nodrive_device_sync_not_saved_explain">These changes on this phone weren\'t saved because they also changed in NoDrive.</string>
+    <string name="nodrive_device_sync_apply_again">Apply my change again</string>
+    <string name="nodrive_device_sync_keep_server">Keep the NoDrive version</string>
+    <string name="nodrive_device_sync_apply_failed">The change could not be sent. Try again later.</string>
+    <string name="nodrive_device_sync_kind_calendar">Event</string>
+    <string name="nodrive_device_sync_kind_contacts">Contact</string>
+    <plurals name="nodrive_device_sync_not_saved_notification">
+        <item quantity="one">%d change on this phone wasn\'t saved because it also changed in NoDrive.</item>
+        <item quantity="other">%d changes on this phone weren\'t saved because they also changed in NoDrive.</item>
+    </plurals>
+</resources>

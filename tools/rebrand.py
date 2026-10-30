@@ -50,6 +50,8 @@ REPORTS_RES = f"{MAIN_RES}/values/nodrive_reports.xml"
 REPORTS_PKG = "org.nourax.nodrive.reports"
 AGENDA_RES = f"{MAIN_RES}/values/nodrive_agenda.xml"
 AGENDA_PKG = "org.nourax.nodrive.agenda"
+DEVICE_SYNC_RES = f"{MAIN_RES}/values/nodrive_device_sync.xml"
+DEVICE_SYNC_PKG = "org.nourax.nodrive.devicesync"
 BACKUP_PKG = "org.nourax.nodrive.backup"
 BACKUP_ACTIVITIES = [f"{BACKUP_PKG}.BackupSetupActivity", f"{BACKUP_PKG}.StopGoogleBackupActivity",
                      f"{BACKUP_PKG}.MoveFromGoogleActivity"]
@@ -470,17 +472,38 @@ REPORTS_DI_ANCHOR = BACKUP_DI_ANCHOR
 REPORTS_DI_BLOCK = (f"    {BEGIN}\n    @ContributesAndroidInjector\n"
                     f"    abstract {REPORTS_PKG}.ReportProblemActivity reportProblemActivity();\n    {END}\n\n")
 
+# Device calendar and contacts sync (org.nourax.nodrive.devicesync, round 3): the Settings row, the screen's injection and the
+# account's rows deleted with the account. All share the anchors of the earlier blocks and come after them.
+DEVICE_SYNC_SETTINGS_ANCHOR = REPORTS_SETTINGS_ANCHOR
+DEVICE_SYNC_SETTINGS_BLOCK = f"""        {BEGIN}
+        {DEVICE_SYNC_PKG}.ui.DeviceSyncSettingsSection.install(this, preferenceScreen);
+        {END}
+
+"""
+DEVICE_SYNC_DI_ANCHOR = BACKUP_DI_ANCHOR
+DEVICE_SYNC_DI_BLOCK = (f"    {BEGIN}\n    @ContributesAndroidInjector\n"
+                        f"    abstract {DEVICE_SYNC_PKG}.ui.DeviceSyncActivity deviceSyncActivity();\n    {END}\n\n")
+DEVICE_SYNC_FORGET_ANCHOR = BACKUP_FORGET_ANCHOR
+DEVICE_SYNC_FORGET_BLOCK = f"""        {BEGIN}
+        {DEVICE_SYNC_PKG}.DeviceSyncAccounts.forget(context, user.accountName)
+        {END}
+
+"""
+
 # file -> [(anchor, block)]: a file may carry several marked blocks, each anchor must be found exactly once.
 HOOKS = {
     AUTH_FILE: [(AUTH_ANCHOR, AUTH_BLOCK), (BACKUP_PENDING_ANCHOR, BACKUP_PENDING_BLOCK)],
     ERROR_FILE: [(ERROR_ANCHOR, ERROR_BLOCK)],
     NOTES_FILE: [(NOTES_ANCHOR, NOTES_BLOCK)],
     BACKUP_SETTINGS_FILE: [(BACKUP_SETTINGS_ANCHOR, BACKUP_SETTINGS_BLOCK),
-                           (REPORTS_SETTINGS_ANCHOR, REPORTS_SETTINGS_BLOCK)],
+                           (REPORTS_SETTINGS_ANCHOR, REPORTS_SETTINGS_BLOCK),
+                           (DEVICE_SYNC_SETTINGS_ANCHOR, DEVICE_SYNC_SETTINGS_BLOCK)],
     BACKUP_DETECT_FILE: [(BACKUP_DETECT_ANCHOR, BACKUP_DETECT_BLOCK)],
     BACKUP_OFFER_FILE: [(REPORTS_SCREEN_ANCHOR, REPORTS_SCREEN_BLOCK), (BACKUP_OFFER_ANCHOR, BACKUP_OFFER_BLOCK)],
-    BACKUP_FORGET_FILE: [(BACKUP_FORGET_ANCHOR, BACKUP_FORGET_BLOCK), (AGENDA_FORGET_ANCHOR, AGENDA_FORGET_BLOCK)],
-    BACKUP_DI_FILE: [(BACKUP_DI_ANCHOR, BACKUP_DI_BLOCK), (REPORTS_DI_ANCHOR, REPORTS_DI_BLOCK), (AGENDA_DI_ANCHOR, AGENDA_DI_BLOCK)],
+    BACKUP_FORGET_FILE: [(BACKUP_FORGET_ANCHOR, BACKUP_FORGET_BLOCK), (AGENDA_FORGET_ANCHOR, AGENDA_FORGET_BLOCK),
+                         (DEVICE_SYNC_FORGET_ANCHOR, DEVICE_SYNC_FORGET_BLOCK)],
+    BACKUP_DI_FILE: [(BACKUP_DI_ANCHOR, BACKUP_DI_BLOCK), (REPORTS_DI_ANCHOR, REPORTS_DI_BLOCK), (AGENDA_DI_ANCHOR, AGENDA_DI_BLOCK),
+                     (DEVICE_SYNC_DI_ANCHOR, DEVICE_SYNC_DI_BLOCK)],
     CONFLICTS_UPLOAD_FILE: [(CONFLICTS_UPLOAD_ANCHOR, CONFLICTS_UPLOAD_BLOCK)],
     CONFLICTS_NOTIFY_FILE: [(CONFLICTS_NOTIFY_ANCHOR, CONFLICTS_NOTIFY_BLOCK),
                             (CONFLICTS_DISMISS_ANCHOR, CONFLICTS_DISMISS_BLOCK)],
@@ -614,8 +637,8 @@ def values_override(src: str, items: list[tuple[str, str, str]], comment: str,
         body.append(f'    <{rtype} name="{name}"{attrs}>{value}</{rtype}>')
     for rtype, name, value in flavour_only or []:
         # Declared (with its default) in a NoDrive-owned file of main, so other flavours still compile.
-        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES) + read(CONFLICTS_RES) + read(REPORTS_RES) + read(AGENDA_RES),
-                            rtype, name, f"{WORKSPACE_RES}, {BACKUP_RES}, {CONFLICTS_RES}, {REPORTS_RES} or {AGENDA_RES}")
+        main_resource_attrs(read(WORKSPACE_RES) + read(BACKUP_RES) + read(CONFLICTS_RES) + read(REPORTS_RES) + read(AGENDA_RES) + read(DEVICE_SYNC_RES),
+                            rtype, name, f"{WORKSPACE_RES}, {BACKUP_RES}, {CONFLICTS_RES}, {REPORTS_RES}, {AGENDA_RES} or {DEVICE_SYNC_RES}")
         body.append(f'    <{rtype} name="{name}">{value}</{rtype}>')
     body.append("</resources>")
     holders, licence = upstream_spdx(main_text)
@@ -991,6 +1014,22 @@ def manifest() -> str:
     application.append(ET.Element("activity", {A + "name": f"{REPORTS_PKG}.ReportProblemActivity", A + "exported": "false"}))
     application.append(ET.Comment(" NoAgenda: Day, Week and Month lists of the person's own work (read only in the first step). "))
     application.append(ET.Element("activity", {A + "name": f"{AGENDA_PKG}.ui.AgendaActivity", A + "exported": "false"}))
+    application.append(ET.Comment(" Device calendar and contacts sync: the screen (also opened from the phone's account settings) and the two "
+                                  "sync adapters of the NoDrive account for the phone's own Calendar and Contacts. "))
+    ds_activity = ET.SubElement(application, "activity", {A + "name": f"{DEVICE_SYNC_PKG}.ui.DeviceSyncActivity", A + "exported": "true"})
+    ds_filter = ET.SubElement(ds_activity, "intent-filter")
+    ET.SubElement(ds_filter, "action", {A + "name": f"{DEVICE_SYNC_PKG}.SETTINGS"})
+    ET.SubElement(ds_filter, "category", {A + "name": "android.intent.category.DEFAULT"})
+    for service, xml_name, structure in (("CalendarSyncService", "nodrive_sync_calendar", False),
+                                         ("ContactsSyncService", "nodrive_sync_contacts", True)):
+        svc = ET.SubElement(application, "service", {A + "name": f"{DEVICE_SYNC_PKG}.{service}", A + "exported": "true",
+                                                      T + "ignore": "ExportedService"})
+        svc_filter = ET.SubElement(svc, "intent-filter")
+        ET.SubElement(svc_filter, "action", {A + "name": "android.content.SyncAdapter"})
+        ET.SubElement(svc, "meta-data", {A + "name": "android.content.SyncAdapter", A + "resource": f"@xml/{xml_name}"})
+        if structure:
+            ET.SubElement(svc, "meta-data", {A + "name": "android.provider.CONTACTS_STRUCTURE",
+                                              A + "resource": "@xml/nodrive_contacts_structure"})
     root.append(ET.Comment(" Package visibility for the Stop Google backup screen: only the apps whose backup it "
                            "can open, never QUERY_ALL_PACKAGES. "))
     queries = ET.SubElement(root, "queries")
@@ -1013,10 +1052,10 @@ def generated_files() -> dict[str, str]:
     out[f"{ND_RES}/values/bools.xml"] = values_override(
         f"{MAIN_RES}/values/bools.xml", [("bool", "show_push_warning", "false")],
         "Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; "
-        "the Workspace apps menu, signed-in in-app pages, the Backup settings, Smart conflicts, Problem reports and NoAgenda are on",
+        "the Workspace apps menu, signed-in in-app pages, the Backup settings, Smart conflicts, Problem reports, NoAgenda and the device calendar and contacts sync are on",
         flavour_only=[("bool", "nodrive_workspace_apps", "true"), ("bool", "nodrive_backup", "true"),
                       ("bool", "nodrive_conflicts", "true"), ("bool", "nodrive_reports", "true"),
-                      ("bool", "nodrive_agenda", "true")])
+                      ("bool", "nodrive_agenda", "true"), ("bool", "nodrive_device_sync", "true")])
     out[f"{ND_RES}/values/colors.xml"] = values_override(
         f"{MAIN_RES}/values/colors.xml", [("color", "bg_default", "#F8FAFC")], "THEME_BIBLE light background")
     out[f"{ND_RES}/values-night/colors.xml"] = values_override(

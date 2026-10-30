@@ -9,11 +9,12 @@
   ~ SPDX-License-Identifier: AGPL-3.0-or-later OR GPL-2.0-only
 -->
 <resources>
-    <!-- Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; the Workspace apps menu, signed-in in-app pages, the Backup settings, Smart conflicts, Problem reports and NoAgenda are on -->
+    <!-- Push is off (Nextcloud's push proxy serves only Nextcloud's apps): no warning snackbar; the Workspace apps menu, signed-in in-app pages, the Backup settings, Smart conflicts, Problem reports, NoAgenda and the device calendar and contacts sync are on -->
     <bool name="show_push_warning">false</bool>
     <bool name="nodrive_workspace_apps">true</bool>
     <bool name="nodrive_backup">true</bool>
     <bool name="nodrive_conflicts">true</bool>
     <bool name="nodrive_reports">true</bool>
     <bool name="nodrive_agenda">true</bool>
+    <bool name="nodrive_device_sync">true</bool>
 </resources>

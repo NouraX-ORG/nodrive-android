@@ -94,6 +94,10 @@ class AccountRemovalWork(
         org.nourax.nodrive.agenda.AgendaAccounts.forget(context, user.accountName)
         // NoDrive: end
 
+        // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+        org.nourax.nodrive.devicesync.DeviceSyncAccounts.forget(context, user.accountName)
+        // NoDrive: end
+
         val storageManager = FileDataStorageManager(user, context.contentResolver)
 
         // disable daily backup

@@ -67,6 +67,26 @@
         <activity android:name="org.nourax.nodrive.reports.ReportProblemActivity" android:exported="false" />
         <!-- NoAgenda: Day, Week and Month lists of the person's own work (read only in the first step). -->
         <activity android:name="org.nourax.nodrive.agenda.ui.AgendaActivity" android:exported="false" />
+        <!-- Device calendar and contacts sync: the screen (also opened from the phone's account settings) and the two sync adapters of the NoDrive account for the phone's own Calendar and Contacts. -->
+        <activity android:name="org.nourax.nodrive.devicesync.ui.DeviceSyncActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="org.nourax.nodrive.devicesync.SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <service android:name="org.nourax.nodrive.devicesync.CalendarSyncService" android:exported="true" tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="android.content.SyncAdapter" />
+            </intent-filter>
+            <meta-data android:name="android.content.SyncAdapter" android:resource="@xml/nodrive_sync_calendar" />
+        </service>
+        <service android:name="org.nourax.nodrive.devicesync.ContactsSyncService" android:exported="true" tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="android.content.SyncAdapter" />
+            </intent-filter>
+            <meta-data android:name="android.content.SyncAdapter" android:resource="@xml/nodrive_sync_contacts" />
+            <meta-data android:name="android.provider.CONTACTS_STRUCTURE" android:resource="@xml/nodrive_contacts_structure" />
+        </service>
     </application>
     <!-- Package visibility for the Stop Google backup screen: only the apps whose backup it can open, never QUERY_ALL_PACKAGES. -->
     <queries>

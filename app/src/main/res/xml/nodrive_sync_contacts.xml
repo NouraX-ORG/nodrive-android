@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ NoDrive by Nourax
+  ~
+  ~ SPDX-FileCopyrightText: 2026 Nourax
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!-- NoDrive's own sync of the phone's Contacts (system authority com.android.contacts) for the NoDrive account. -->
+<sync-adapter xmlns:android="http://schemas.android.com/apk/res/android"
+    android:contentAuthority="com.android.contacts"
+    android:accountType="@string/account_type"
+    android:supportsUploading="true"
+    android:userVisible="true"
+    android:allowParallelSyncs="true"
+    android:isAlwaysSyncable="false"
+    android:settingsActivity="org.nourax.nodrive.devicesync.SETTINGS" />

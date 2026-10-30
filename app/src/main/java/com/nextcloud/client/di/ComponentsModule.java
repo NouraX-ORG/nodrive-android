@@ -207,6 +207,11 @@ abstract class ComponentsModule {
     abstract org.nourax.nodrive.agenda.ui.AgendaActivity agendaActivity();
     // NoDrive: end
 
+    // NoDrive: begin (managed by tools/rebrand.py, do not edit by hand)
+    @ContributesAndroidInjector
+    abstract org.nourax.nodrive.devicesync.ui.DeviceSyncActivity deviceSyncActivity();
+    // NoDrive: end
+
     @ContributesAndroidInjector
     abstract FileDisplayActivity fileDisplayActivity();
 

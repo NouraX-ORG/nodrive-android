@@ -101,6 +101,46 @@ class ICalPatch(source: String, private val component: String) {
 
     private fun indexOf(name: String): Int = lines.indexOfFirst { it.inTarget && it.name == name.uppercase() }
 
+    private fun beginOfTarget(): Int =
+        lines.indexOfFirst { it.name == "BEGIN" && it.unfolded().uppercase() == "BEGIN:${component.uppercase()}" }
+
+    /** Removes every nested component of that type (for example "VALARM") of the target component. Nothing else changes. */
+    fun removeChildren(type: String): ICalPatch {
+        val begin = beginOfTarget()
+        val end = endOfTarget()
+        if (begin < 0 || end < 0) return this
+        val open = "BEGIN:${type.uppercase()}"
+        val close = "END:${type.uppercase()}"
+        var i = end - 1
+        while (i > begin) {
+            if (lines[i].name == "END" && lines[i].unfolded().uppercase() == close) {
+                var j = i
+                while (j > begin && !(lines[j].name == "BEGIN" && lines[j].unfolded().uppercase() == open)) j--
+                if (j > begin) {
+                    repeat(i - j + 1) { lines.removeAt(j) }
+                    i = j - 1
+                    continue
+                }
+            }
+            i--
+        }
+        return this
+    }
+
+    /** Adds a nested component (all its lines, from BEGIN to END, already escaped) at the end of the target component. */
+    fun addChild(childLines: List<String>): ICalPatch {
+        val end = endOfTarget()
+        var at = if (end < 0) lines.size else end
+        for (text in childLines) {
+            var i = 0
+            while (i < text.length && text[i] != ':' && text[i] != ';') i++
+            val name = text.substring(0, i).trim().uppercase()
+            lines.add(at, Line(fold(text).toMutableList(), name, false))
+            at++
+        }
+        return this
+    }
+
     /** The value (still escaped) of the first property of that name, or null. */
     fun rawValue(name: String): String? {
         val i = indexOf(name)

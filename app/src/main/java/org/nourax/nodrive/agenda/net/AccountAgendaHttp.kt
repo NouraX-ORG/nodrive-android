@@ -21,7 +21,9 @@ import java.util.concurrent.TimeUnit
 class AccountAgendaHttp(
     private val baseUrl: String,
     private val authorization: String,
-    okHttp: OkHttpClient
+    okHttp: OkHttpClient,
+    /** Which writes may go out. NoAgenda's own rules by default; device sync passes its own (devicesync.DeviceSyncWritePolicy). */
+    private val writePolicy: (String, String) -> Boolean = WritePolicy::allows
 ) : AgendaHttp {
     private val http: OkHttpClient = okHttp.newBuilder()
         .followRedirects(false)
@@ -54,7 +56,7 @@ class AccountAgendaHttp(
         contentType: String?
     ): HttpResult {
         // Only the writes of the edit step go out (WritePolicy): events and to-dos, NoGantt task updates, NoBoard card updates.
-        if (!WritePolicy.allows(method, path)) return HttpResult(0, refused = true)
+        if (!writePolicy(method, path)) return HttpResult(0, refused = true)
         val url = urlFor(path) ?: return HttpResult(0, refused = true)
         return try {
             val requestBody = when {
@@ -79,5 +81,8 @@ class AccountAgendaHttp(
 
         fun of(client: NextcloudClient): AccountAgendaHttp =
             AccountAgendaHttp(client.baseUri.toString(), client.credentials, client.client)
+
+        fun of(client: NextcloudClient, writePolicy: (String, String) -> Boolean): AccountAgendaHttp =
+            AccountAgendaHttp(client.baseUri.toString(), client.credentials, client.client, writePolicy)
     }
 }
