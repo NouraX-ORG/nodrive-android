@@ -66,6 +66,9 @@ class EditFakeServer : AgendaHttp {
     // ---- Deck ----------------------------------------------------------------------------------------------------------
     var card = JsonObject()
     var board = JsonObject()
+
+    /** The ids of the lists (stacks) of the board; a card in another one is on another board. */
+    var stacks: List<Int> = listOf(4)
     var nextLabelId = 100
     var deckVersion = 1000
 
@@ -117,6 +120,11 @@ class EditFakeServer : AgendaHttp {
         return when {
             method == "GET" && cardPath != null && cardPath.groupValues[4].isEmpty() -> ok(card.toString().toByteArray())
             method == "GET" && Regex("""boards/\d+""").matches(rest) -> ok(board.toString().toByteArray())
+            method == "GET" && Regex("""boards/\d+/stacks""").matches(rest) -> {
+                val array = JsonArray()
+                stacks.forEach { array.add(JsonObject().also { s -> s.addProperty("id", it) }) }
+                ok(array.toString().toByteArray())
+            }
             method == "PUT" && cardPath != null && cardPath.groupValues[4].isEmpty() -> {
                 val request = JsonParser.parseString(body).asJsonObject
                 // Deck replaces the card: what the request leaves out is cleared, and "done" too.
@@ -124,6 +132,8 @@ class EditFakeServer : AgendaHttp {
                     if (request.has(key)) card.add(key, request.get(key)) else card.add(key, JsonNull.INSTANCE)
                 }
                 card.addProperty("title", request.get("title").asString)
+                // Deck's update sets the card's list from the list in the address (CardService::update, setStackId).
+                card.addProperty("stackId", cardPath.groupValues[2].toInt())
                 deckVersion++
                 card.addProperty("lastModified", deckVersion)
                 ok(card.toString().toByteArray())
@@ -192,7 +202,7 @@ class EditFakeServer : AgendaHttp {
         val text = body?.toString(Charsets.UTF_8).orEmpty()
         requests += Req(method, path, headers, text)
         if (offline) return HttpResult(0, networkError = true)
-        if (!WritePolicy.allows(method, path)) return HttpResult(0, networkError = true)
+        if (!WritePolicy.allows(method, path)) return HttpResult(0, refused = true)
         val query = path.substringAfter('?', "")
         val p = path.substringBefore('?').trimStart('/')
         return when {

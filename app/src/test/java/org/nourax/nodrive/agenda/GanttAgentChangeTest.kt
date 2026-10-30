@@ -86,8 +86,13 @@ class GanttAgentChangeTest {
     private val writer get() = registry.byId("AG-0001")
     private val researcher get() = registry.byId("AG-0003")
 
-    private fun plan(task: JsonObject, target: org.nourax.nodrive.agenda.registry.Agent?, rolesOnly: Boolean = false, visible: List<JsonObject> = resources) =
-        GanttAgentChange.plan(task, project(rolesOnly), visible, ctx, target)
+    private fun plan(
+        task: JsonObject,
+        target: org.nourax.nodrive.agenda.registry.Agent?,
+        rolesOnly: Boolean = false,
+        visible: List<JsonObject> = resources,
+        nextToMe: Set<Int> = emptySet()
+    ) = GanttAgentChange.plan(task, project(rolesOnly), visible, ctx, target, nextToMe = nextToMe)
 
     private fun rows(plan: Plan): List<Row> = (plan as Plan.Send).rows
 
@@ -131,9 +136,30 @@ class GanttAgentChangeTest {
     }
 
     @Test
-    fun anAgentRecognisedByItsExactNameCanBeChosen() {
-        val p = plan(task(1 to 2.0), researcher)
+    fun anAgentRecognisedByItsExactNameCanBeChosenWhenItSitsNextToMe() {
+        // 12 is on another task of the project where I (1) am too: it is next to my own planning person (design 4.5 (b))
+        val others = listOf(task(1 to 1.0, 12 to null))
+        val near = GanttAgentChange.idsNextToMe(others, resources, ctx)
+        assertEquals(setOf(1, 12), near)
+        val p = plan(task(1 to 2.0), researcher, nextToMe = near)
         assertEquals(listOf(Row(1, 2.0), Row(12, null)), rows(p))
+    }
+
+    @Test
+    fun anAgentRecognisedOnlyByNameThatSitsNextToNobodyOfMineIsNotOffered() {
+        // the name matches, but this planning person is on no task next to me: "Ask your project manager"
+        assertEquals(Plan.Refuse(ConflictReason.AGENT_NOT_IN_PROJECT, "Research-Bot"), plan(task(1 to 2.0), researcher))
+        val others = listOf(task(2 to 1.0, 12 to null))
+        assertEquals(setOf(2, 12), GanttAgentChange.idsInProject(others))
+        assertEquals(emptySet<Int>(), GanttAgentChange.idsNextToMe(others, resources, ctx))
+        val choice = GanttAgentChange.choices(task(1 to 2.0), project(), resources, ctx, GanttAgentChange.idsInProject(others))
+            .first { it.agentId == "AG-0003" }
+        assertFalse(choice.enabled)
+    }
+
+    @Test
+    fun anAgentListedByItsIdNeedsNoNeighbour() {
+        assertEquals(listOf(Row(1, 2.0), Row(11, null)), rows(plan(task(1 to 2.0), writer)))
     }
 
     @Test

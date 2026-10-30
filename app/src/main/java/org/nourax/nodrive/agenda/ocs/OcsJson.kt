@@ -21,7 +21,9 @@ class OcsReply(
     val httpStatus: Int,
     val networkError: Boolean,
     val envelopeOk: Boolean,
-    val data: JsonElement?
+    val data: JsonElement?,
+    /** The answer said `Retry-After`: the server is not ready, wait. */
+    val retryAfter: Boolean = false
 ) {
     val ok: Boolean get() = httpStatus in 200..299 && envelopeOk
     val notFound: Boolean get() = httpStatus == 404
@@ -40,9 +42,9 @@ object OcsJson {
         val root = parseElement(result.body)
         val ocs = (root as? JsonObject)?.get("ocs") as? JsonObject
         if (ocs == null || ocs.get("meta") !is JsonObject || !ocs.has("data")) {
-            return OcsReply(result.status, result.networkError, false, null)
+            return OcsReply(result.status, result.networkError, false, null, result.header("Retry-After") != null)
         }
-        return OcsReply(result.status, result.networkError, true, ocs.get("data"))
+        return OcsReply(result.status, result.networkError, true, ocs.get("data"), result.header("Retry-After") != null)
     }
 }
 

@@ -256,6 +256,19 @@ class EditRunner(
         return true
     }
 
+    /**
+     * "Send again" on a change the server could not take (see [EditConflict.canSendAgain]). Unlike [resolve] it puts the command back
+     * with the version the person saw and without `rebase`, so the check for a change made elsewhere still runs.
+     */
+    fun sendAgain(conflictId: Long): Boolean {
+        val conflict = store.conflicts(account).firstOrNull { it.id == conflictId } ?: return false
+        store.removeConflict(account, conflictId)
+        store.add(
+            conflict.command.copy(id = 0, account = account, rebase = false, attempts = 0, serverErrors = 0, recovered = false, state = CommandState.WAITING)
+        )
+        return true
+    }
+
     /** Takes a date change back (NoGantt's own undo). */
     fun undo(opId: String): EditNotice {
         val ok = gantt.undo(opId)
@@ -270,7 +283,7 @@ class EditRunner(
         private const val LANE_GANTT = 1
         private const val LANE_BOARD = 2
 
-        /** After this many server errors in a row a change moves to "Not sent". */
+        /** After this many server errors (see [EditCommand.serverErrors]) a change moves to "Not sent". */
         const val MAX_SERVER_ERRORS = 5
     }
 }

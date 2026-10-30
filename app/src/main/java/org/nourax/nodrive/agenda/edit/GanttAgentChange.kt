@@ -107,12 +107,34 @@ object GanttAgentChange {
     fun idsInProject(tasks: Iterable<JsonObject>): Set<Int> = tasks.flatMap { rowsOf(it) }.map { it.resourceId }.toSet()
 
     /**
-     * The planning person of [agent] that I can see, or null. When the agent has more than one, the one that is already on a task of
-     * this project ([inProject]) is preferred.
+     * The ids of the planning people that sit on a task of this project next to my own planning person (design 4.5 (b)): the people
+     * on the tasks where I am a person too.
      */
-    private fun resourceOf(agent: Agent, resources: List<JsonObject>, ctx: Context, inProject: Set<Int>): JsonObject? {
+    fun idsNextToMe(tasks: Iterable<JsonObject>, resources: List<JsonObject>, ctx: Context): Set<Int> {
+        val mine = resources.filter { it.str("type") == "person" && ctx.isMe(it.str("uid")) }.map { intOf(it.get("id")) }.toSet()
+        val out = HashSet<Int>()
+        for (task in tasks) {
+            val ids = rowsOf(task).map { it.resourceId }
+            if (ids.any { it in mine }) out += ids
+        }
+        return out
+    }
+
+    // The people next to me, with those of the task being changed (a task of mine is next to me by itself).
+    private fun nextToMeWith(task: JsonObject, resources: List<JsonObject>, ctx: Context, known: Set<Int>): Set<Int> = known + idsNextToMe(listOf(task), resources, ctx)
+
+    /**
+     * The planning person of [agent] that I can see, or null. A person listed in the registry by its NoGantt id counts at once; when
+     * the agent has more than one, the one already on a task of this project ([inProject]) is preferred. A person recognised only by
+     * its exact name (design 4.5 (b)) counts only when it sits on a task next to my own planning person ([nextToMe]); otherwise it is
+     * "unknown" and the person is told to ask the project manager.
+     */
+    private fun resourceOf(agent: Agent, resources: List<JsonObject>, ctx: Context, inProject: Set<Int>, nextToMe: Set<Int>): JsonObject? {
         val candidates = resources.filter { agentOf(it, resources, ctx)?.id == agent.id }
-        return candidates.firstOrNull { intOf(it.get("id")) in inProject } ?: candidates.firstOrNull()
+        val byId = candidates.filter { ctx.registry.byResourceId(intOf(it.get("id")))?.id == agent.id }
+        byId.firstOrNull { intOf(it.get("id")) in inProject }?.let { return it }
+        byId.firstOrNull()?.let { return it }
+        return candidates.firstOrNull { intOf(it.get("id")) in nextToMe }
     }
 
     /**
@@ -126,7 +148,8 @@ object GanttAgentChange {
         resources: List<JsonObject>,
         ctx: Context,
         target: Agent?,
-        inProject: Set<Int> = emptySet()
+        inProject: Set<Int> = emptySet(),
+        nextToMe: Set<Int> = emptySet()
     ): Plan {
         val byId = resources.associateBy { intOf(it.get("id")) }
         val rows = rowsOf(task)
@@ -138,7 +161,8 @@ object GanttAgentChange {
         val mine = rows.filter { row -> byId[row.resourceId]?.let { agentOf(it, resources, ctx)?.let { a -> ctx.isMe(a.person) } } == true }
         var targetRow: Row? = null
         if (target != null) {
-            val resource = resourceOf(target, resources, ctx, inProject) ?: return Plan.Refuse(ConflictReason.AGENT_NOT_IN_PROJECT, target.name)
+            val resource = resourceOf(target, resources, ctx, inProject, nextToMeWith(task, resources, ctx, nextToMe))
+                ?: return Plan.Refuse(ConflictReason.AGENT_NOT_IN_PROJECT, target.name)
             val rid = intOf(resource.get("id"))
             targetRow = rows.firstOrNull { it.resourceId == rid } ?: Row(rid, null)
         }
@@ -163,7 +187,15 @@ object GanttAgentChange {
     }
 
     /** The choices of my agents for a task: Self is always there; the others are agents whose planning person I can see. */
-    fun choices(task: JsonObject, project: JsonObject?, resources: List<JsonObject>, ctx: Context, inProject: Set<Int> = emptySet()): List<Choice> {
+    fun choices(
+        task: JsonObject,
+        project: JsonObject?,
+        resources: List<JsonObject>,
+        ctx: Context,
+        inProject: Set<Int> = emptySet(),
+        nextToMe: Set<Int> = emptySet()
+    ): List<Choice> {
+        val near = nextToMeWith(task, resources, ctx, nextToMe)
         val byId = resources.associateBy { intOf(it.get("id")) }
         val onTask = rowsOf(task).mapNotNull { row -> byId[row.resourceId]?.let { agentOf(it, resources, ctx) } }.filter { ctx.isMe(it.person) }
         val out = ArrayList<Choice>()
@@ -172,7 +204,7 @@ object GanttAgentChange {
             val current = onTask.any { it.id == agent.id }
             val note = when {
                 agent.isPaused && !current -> ChoiceNote.PAUSED
-                resourceOf(agent, resources, ctx, inProject) == null -> ChoiceNote.NOT_IN_PROJECT
+                resourceOf(agent, resources, ctx, inProject, near) == null -> ChoiceNote.NOT_IN_PROJECT
                 else -> ChoiceNote.NONE
             }
             out += Choice(agent.id, agent.name, enabled = note == ChoiceNote.NONE, note = note, current = current)

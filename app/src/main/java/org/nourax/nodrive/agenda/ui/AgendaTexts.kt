@@ -212,6 +212,8 @@ class AgendaTexts(private val context: Context) {
             "version_guard" -> s(R.string.nodrive_agenda_edit_version_guard)
             "progress_from_board" -> s(R.string.nodrive_agenda_edit_percent_from_board)
             "http401", "http403" -> s(R.string.nodrive_agenda_edit_refused_signin)
+            "board_unavailable" -> s(R.string.nodrive_agenda_edit_board_unavailable)
+            "card_moved_board" -> s(R.string.nodrive_agenda_edit_card_moved_board)
             else -> s(R.string.nodrive_agenda_edit_refused)
         }
         ConflictReason.INVALID -> s(R.string.nodrive_agenda_edit_invalid)
@@ -222,7 +224,11 @@ class AgendaTexts(private val context: Context) {
         ConflictReason.NOW_REPEATING -> s(R.string.nodrive_agenda_edit_now_repeating)
         ConflictReason.LABEL_NEEDS_MANAGE -> s(R.string.nodrive_agenda_edit_label_manage, conflict.detail)
         ConflictReason.CHECK_IN_HOME -> s(R.string.nodrive_agenda_edit_check_in_gantt)
-        ConflictReason.OTHER -> s(R.string.nodrive_agenda_edit_other)
+        ConflictReason.OTHER -> when {
+            conflict.canSendAgain -> s(R.string.nodrive_agenda_edit_server_error)
+            conflict.detail == "write_refused" -> s(R.string.nodrive_agenda_edit_not_allowed_here)
+            else -> s(R.string.nodrive_agenda_edit_other)
+        }
     }
 
     /** The message under the screen after a change (the Snackbar). */

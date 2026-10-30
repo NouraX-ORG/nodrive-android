@@ -77,8 +77,10 @@ import org.nourax.nodrive.agenda.logic.CategoryFilter
 import org.nourax.nodrive.agenda.model.AgendaItem
 import org.nourax.nodrive.agenda.model.Home
 import org.nourax.nodrive.agenda.model.SourceState
+import org.nourax.nodrive.agenda.ui.AgendaLinks
 import org.nourax.nodrive.agenda.ui.AgendaPage
 import org.nourax.nodrive.agenda.ui.AgendaTexts
+import org.nourax.nodrive.agenda.ui.AgendaUiState
 import org.nourax.nodrive.agenda.ui.AgendaViewModel
 import org.nourax.nodrive.agenda.ui.NewKind
 import kotlinx.coroutines.withTimeoutOrNull
@@ -172,7 +174,7 @@ fun banners(snapshot: AgendaSnapshot, texts: AgendaTexts, hasItems: Boolean, con
 }
 
 @Composable
-private fun MainScreen(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.AgendaUiState, texts: AgendaTexts, baseUrl: String, openUrl: OpenUrl) {
+private fun MainScreen(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaTexts, baseUrl: String, openUrl: OpenUrl) {
     val context = LocalContext.current
     val snapshot = ui.snapshot
     val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale
@@ -219,7 +221,7 @@ private fun MainScreen(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.Age
             onDismiss = { vm.select(null) }
         ) { item ->
             vm.select(null)
-            openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.itemUrl(item, baseUrl, snapshot.zone), openLabel(context, item))
+            openUrl.open(AgendaLinks.itemUrl(item, baseUrl, snapshot.zone), openLabel(context, item))
         }
     }
     val creating = ui.creating
@@ -292,8 +294,13 @@ private fun ConflictCard(conflict: EditConflict, texts: AgendaTexts, baseUrl: St
                     }
                 } else {
                     val home = conflict.command.home
+                    if (conflict.canSendAgain) {
+                        TextButton(onClick = { vm.resend(conflict.id) }, modifier = Modifier.testTag("agenda_conflict_resend")) {
+                            Text(stringResource(R.string.nodrive_agenda_edit_send_again))
+                        }
+                    }
                     TextButton(
-                        onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), openText) },
+                        onClick = { openUrl.open(AgendaLinks.appUrl(home, baseUrl), openText) },
                         modifier = Modifier.testTag("agenda_conflict_open")
                     ) { Text(openText) }
                     TextButton(onClick = { vm.resolve(conflict.id, false) }, modifier = Modifier.testTag("agenda_conflict_drop")) {
@@ -344,7 +351,7 @@ private fun BannerView(banner: Banner, baseUrl: String, openUrl: OpenUrl) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(banner.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.weight(1f))
             banner.openHome?.let { home ->
-                TextButton(onClick = { openUrl.open(org.nourax.nodrive.agenda.ui.AgendaLinks.appUrl(home, baseUrl), openLabel) }) {
+                TextButton(onClick = { openUrl.open(AgendaLinks.appUrl(home, baseUrl), openLabel) }) {
                     Text(openLabel)
                 }
             }
@@ -362,7 +369,7 @@ private fun EmptyState(text: String) {
 @Composable
 private fun AgendaList(
     vm: AgendaViewModel,
-    ui: org.nourax.nodrive.agenda.ui.AgendaUiState,
+    ui: AgendaUiState,
     snapshot: AgendaSnapshot,
     rows: List<AgendaRow>,
     hasItems: Boolean,
@@ -431,7 +438,7 @@ private fun rowKey(index: Int, row: AgendaRow): String = when (row) {
 }
 
 @Composable
-private fun Header(vm: AgendaViewModel, ui: org.nourax.nodrive.agenda.ui.AgendaUiState, texts: AgendaTexts, firstDay: DayOfWeek) {
+private fun Header(vm: AgendaViewModel, ui: AgendaUiState, texts: AgendaTexts, firstDay: DayOfWeek) {
     val state = ui.view
     var showPicker by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {

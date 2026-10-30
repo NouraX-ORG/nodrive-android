@@ -599,7 +599,7 @@ class EditServiceTest {
         server.card = JsonParser.parseString(
             """{"id":7,"title":"Call supplier","type":"plain","owner":{"primaryKey":"mara","uid":"mara","displayname":"Mara","type":0},
                 "description":"Keep this text","order":3,"duedate":"2026-10-29T00:00:00+00:00","startdate":"2026-10-27T00:00:00+00:00",
-                "archived":false,"done":null,"lastModified":1000,"ETag":"","labels":[]}"""
+                "archived":false,"done":null,"lastModified":1000,"stackId":4,"ETag":"","labels":[]}"""
         ).asJsonObject
         val labels = JsonArray()
         onCard.forEach { (id, title) ->
@@ -869,6 +869,167 @@ class EditServiceTest {
         assertEquals("http500", conflict.detail)
         assertTrue(store.commands("ali@test").isEmpty())
         assertTrue(server.objects.getValue(eventHref.trimStart('/')).text.contains("SUMMARY:Not held back"))
+    }
+
+    @Test
+    fun aServerThatIsNotReadyKeepsTheChangeWaitingHoweverOftenAndSendsItWhenItIsBack() {
+        // 503 is what Nextcloud answers in maintenance mode; 502 and 504 are a proxy with no server behind it; Retry-After says "wait".
+        val answers = listOf(HttpResult(503), HttpResult(502), HttpResult(504), HttpResult(500, headers = mapOf("Retry-After" to "120")))
+        for (answer in answers) {
+            val server = ganttServer()
+            var down = true
+            val http = Wrapped(server, before = { if (down && it.contains("nc_gantt")) answer else null })
+            val store = InMemoryEditStore()
+            val r = runnerOn(http, store)
+            r.enqueue(EditCommands.taskDone(taskItem()))
+            repeat(EditRunner.MAX_SERVER_ERRORS * 2) { r.run() }
+            val waiting = store.commands("ali@test").single()
+            assertEquals("status ${answer.status}: not counted", 0, waiting.serverErrors)
+            assertTrue("status ${answer.status}: no conflict", store.conflicts("ali@test").isEmpty())
+            assertTrue(server.writes().isEmpty())
+            down = false
+            r.run()
+            assertTrue("status ${answer.status}: sent when back", store.commands("ali@test").isEmpty())
+            assertEquals(1, server.writes().size)
+        }
+    }
+
+    @Test
+    fun sendAgainOfAChangeTheServerCouldNotTakeSendsItWithTheOriginalVersionCheck() {
+        val server = ganttServer()
+        var broken = true
+        val http = Wrapped(server, before = { if (broken && it.contains("nc_gantt")) HttpResult(500) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        repeat(EditRunner.MAX_SERVER_ERRORS) { r.run() }
+        val conflict = store.conflicts("ali@test").single()
+        assertTrue(conflict.canSendAgain)
+        assertEquals("http500", conflict.detail)
+        broken = false
+        // the task is changed by someone else before the person taps "Send again": the other change still wins
+        server.ganttTasks.first().asJsonObject.addProperty("updated_at", "2026-10-28 09:30:00")
+        assertTrue(r.sendAgain(conflict.id))
+        val back = store.commands("ali@test").single()
+        assertEquals("2026-10-28 08:00:00", back.baseVersion)
+        assertFalse(back.rebase)
+        assertEquals(1, r.run().newConflicts)
+        assertEquals(ConflictReason.CHANGED_ELSEWHERE, store.conflicts("ali@test").single().reason)
+        assertTrue(server.writes().isEmpty())
+    }
+
+    @Test
+    fun sendAgainSendsTheChangeWhenNothingChangedMeanwhile() {
+        val server = ganttServer()
+        var broken = true
+        val http = Wrapped(server, before = { if (broken && it.contains("nc_gantt")) HttpResult(500) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        repeat(EditRunner.MAX_SERVER_ERRORS) { r.run() }
+        broken = false
+        assertTrue(r.sendAgain(store.conflicts("ali@test").single().id))
+        r.run()
+        assertTrue(store.commands("ali@test").isEmpty())
+        assertTrue(store.conflicts("ali@test").isEmpty())
+        assertEquals(1, server.writes().size)
+    }
+
+    @Test
+    fun onlyAServerErrorOffersSendAgain() {
+        val server = ganttServer()
+        val store = InMemoryEditStore()
+        val http = Wrapped(server, before = { if (it.contains("nc_gantt")) HttpResult(403) else null })
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.taskDone(taskItem()))
+        r.run()
+        assertFalse(store.conflicts("ali@test").single().canSendAgain)
+    }
+
+    @Test
+    fun aWriteThatTheRulesRefuseIsAConflictAndDoesNotHoldTheLaneBackForEver() {
+        val server = EditFakeServer()
+        val event = eventItem(server)
+        val http = Wrapped(server, before = { if (it.contains("remote.php/dav")) HttpResult(0, refused = true) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.event(event, eventForm(event).copy(title = "Never sent"), UTC, agents)!!)
+        assertEquals(1, r.run().newConflicts)
+        val conflict = store.conflicts("ali@test").single()
+        assertEquals(ConflictReason.OTHER, conflict.reason)
+        assertEquals("write_refused", conflict.detail)
+        assertFalse(conflict.canSendAgain)
+        assertTrue(store.commands("ali@test").isEmpty())
+    }
+
+    @Test
+    fun aDeleteWithNoVersionAtAllIsNotSent() {
+        val server = EditFakeServer()
+        val event = eventItem(server)
+        // the server's answer to the read has no ETag
+        var reads = 0
+        val http = Wrapped(server, before = { if (it == eventHref && reads++ == 0) HttpResult(200, sampleEvent().toByteArray()) else null })
+        val store = InMemoryEditStore()
+        val r = runnerOn(http, store)
+        r.enqueue(EditCommands.removeObject(event).copy(baseVersion = ""))
+        r.run()
+        assertEquals(ConflictReason.OTHER, store.conflicts("ali@test").single().reason)
+        assertTrue(http.calls.none { it.startsWith("DELETE") })
+        assertTrue(server.objects.containsKey(eventHref.trimStart('/')))
+    }
+
+    @Test
+    fun aCardMovedToAnotherListIsWrittenInThatListWhenMyChangeIsAppliedAgain() {
+        val server = deckServer()
+        server.stacks = listOf(4, 5)
+        val store = InMemoryEditStore()
+        val r = runner(server, store)
+        r.enqueue(EditCommands.cardDone(cardItem()))
+        // a teammate moves the card from list 4 to list 5
+        server.card.addProperty("stackId", 5)
+        server.card.addProperty("lastModified", 1001)
+        r.run()
+        val conflict = store.conflicts("ali@test").single()
+        assertEquals(ConflictReason.CHANGED_ELSEWHERE, conflict.reason)
+        assertTrue(server.writes().isEmpty())
+        assertTrue(r.resolve(conflict.id, applyAgain = true))
+        r.run()
+        val put = server.requests.single { it.method == "PUT" }
+        assertEquals("index.php/apps/deck/api/v1.0/boards/3/stacks/5/cards/7", put.path)
+        assertEquals("the card stays in the list it was moved to", 5, server.card.get("stackId").asInt)
+        assertFalse("and is done", server.card.get("done").isJsonNull)
+        assertTrue(store.commands("ali@test").isEmpty())
+    }
+
+    @Test
+    fun aLabelOfAMovedCardIsChangedInTheListTheCardIsIn() {
+        val server = deckServer()
+        server.stacks = listOf(4, 5)
+        server.board.getAsJsonArray("labels").add(JsonParser.parseString("""{"id":21,"title":"$robot Writer-Bot","color":"31CC7C"}"""))
+        server.card.addProperty("stackId", 5)
+        server.card.addProperty("lastModified", 1001)
+        val r = runner(server)
+        r.enqueue(EditCommands.card(cardItem(), CardForm.of(cardItem()).copy(agentId = "AG-0001"), agents).single().copy(rebase = true))
+        r.run()
+        assertTrue(server.writes().isNotEmpty())
+        assertTrue(server.writes().all { it.path.contains("stacks/5/cards/7") })
+        assertEquals(5, server.card.get("stackId").asInt)
+    }
+
+    @Test
+    fun aCardThatIsOnAnotherBoardNowIsNotWritten() {
+        val server = deckServer()
+        // the list the card is in now is not one of board 3's lists
+        server.stacks = listOf(9)
+        server.card.addProperty("stackId", 5)
+        val store = InMemoryEditStore()
+        val r = runner(server, store)
+        r.enqueue(EditCommands.cardDone(cardItem()).copy(rebase = true))
+        r.run()
+        assertTrue(server.writes().isEmpty())
+        val conflict = store.conflicts("ali@test").single()
+        assertEquals(ConflictReason.REFUSED, conflict.reason)
+        assertEquals("card_moved_board", conflict.detail)
     }
 
     @Test

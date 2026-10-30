@@ -162,6 +162,20 @@ class EditRound2Test {
     }
 
     @Test
+    fun aDueTimeBeforeTheKeptStartTimeOnTheSameDayIsRefusedByTheForm() {
+        val day = LocalDate.of(2026, 11, 3)
+        val form = TodoForm("t", day, day, java.time.LocalTime.of(8, 0), "", EditKeys.SELF, startTime = java.time.LocalTime.of(9, 0))
+        assertFalse(form.datesValid())
+        assertTrue(form.copy(dueTime = java.time.LocalTime.of(9, 0)).datesValid())
+        assertTrue(form.copy(dueTime = java.time.LocalTime.of(17, 0)).datesValid())
+        // a day only, or a start that is a day only, has no times to compare
+        assertTrue(form.copy(dueTime = null).datesValid())
+        assertTrue(form.copy(startTime = null).datesValid())
+        // another day: the times do not matter
+        assertTrue(form.copy(due = day.plusDays(1)).datesValid())
+    }
+
+    @Test
     fun aChangeThatTheServerAlreadyHasIsRecognisedAndOneItDoesNotHaveIsNot() {
         val text = todo("DTSTART:20261103T090000Z", "DUE:20261110T170000Z")
         val change = mapOf(EditKeys.START to d("2026-11-05"))

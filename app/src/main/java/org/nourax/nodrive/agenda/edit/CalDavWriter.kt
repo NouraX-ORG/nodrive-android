@@ -87,8 +87,9 @@ class CalDavWriter(private val http: AgendaHttp, private val zone: () -> ZoneId 
             got.failure()?.let { return it }
             etag = etagOf(got)
         }
-        val headers = if (etag.isEmpty()) emptyMap() else mapOf("If-Match" to etag)
-        val result = http.send("DELETE", href, headers)
+        // A delete always carries the version it is meant for. Without one (the server sent no ETag) nothing is deleted.
+        if (etag.isEmpty()) return SendResult.Conflict(ConflictReason.OTHER, "no_etag")
+        val result = http.send("DELETE", href, mapOf("If-Match" to etag))
         // Gone already is what the person wanted.
         if (result.status == NOT_FOUND) return SendResult.Done()
         result.failure()?.let { return it }

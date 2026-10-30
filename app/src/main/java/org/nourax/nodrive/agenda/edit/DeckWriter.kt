@@ -6,9 +6,11 @@
  */
 package org.nourax.nodrive.agenda.edit
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import org.nourax.nodrive.agenda.deck.DeckClient
 import org.nourax.nodrive.agenda.net.AgendaHttp
 import org.nourax.nodrive.agenda.net.HttpResult
@@ -27,6 +29,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
@@ -35,29 +38,45 @@ import java.time.format.DateTimeFormatter
  * Deck's card update is a FULL replace: whatever the request leaves out is cleared (and `done` is cleared when it is not sent).
  * So the request is always built from a card read right before, plus the one change, and always carries `done`. `color` is never
  * sent (it is left as it is). Labels are separate calls.
+ *
+ * Deck's card update also sets the card's list from the stack in its address. So every write goes to the stack the FRESH card is in,
+ * never to the one saved with the change: a card that someone moved to another list while the change waited stays where it was
+ * moved. A card that is on another board now is not written at all.
  */
 class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, private val now: () -> Instant) {
     private val base = DeckClient.API_BASE
 
-    private fun cardPath(command: EditCommand) = "${base}boards/${command.locInt("boardId")}/stacks/${command.locInt("stackId")}/cards/${command.locInt("cardId")}"
+    private fun cardPath(boardId: Int, stackId: Int, cardId: Int) = "${base}boards/$boardId/stacks/$stackId/cards/$cardId"
+
+    // The address as the change was made. Only used to READ the card: Deck finds a card by its id, whatever list the address names.
+    private fun savedPath(command: EditCommand) = cardPath(command.locInt("boardId"), command.locInt("stackId"), command.locInt("cardId"))
 
     private fun versionOf(card: JsonObject): String = card.str("ETag").ifEmpty { card.int("lastModified").toString() }
 
     private sealed interface Read {
-        class Ok(val card: JsonObject) : Read
+        /** [path] is the address of the card in the list it is in now: the only one a write may use. */
+        class Ok(val card: JsonObject, val path: String) : Read
 
         class Stop(val result: SendResult) : Read
     }
 
     private fun readCard(command: EditCommand): Read {
-        val reply = http.getOcs(cardPath(command))
+        val reply = http.getOcs(savedPath(command))
         reply.failure(appPassword = true)?.let { return Read.Stop(it) }
         val card = OcsJson.parseElement(reply.body) as? JsonObject ?: return Read.Stop(SendResult.Conflict(ConflictReason.OTHER, "bad_card_answer"))
         val version = versionOf(card)
         if (!command.rebase && command.baseVersion.isNotEmpty() && version != command.baseVersion) {
             return Read.Stop(SendResult.Conflict(ConflictReason.CHANGED_ELSEWHERE, "lastModified", version))
         }
-        return Read.Ok(card)
+        val boardId = command.locInt("boardId")
+        val stackId = card.int("stackId")
+        if (stackId <= 0 || stackId == command.locInt("stackId")) return Read.Ok(card, savedPath(command))
+        // Someone moved the card to another list. It is written there, not back where it was; on another board it is not written.
+        val stacks = http.getOcs("${base}boards/$boardId/stacks")
+        stacks.failure(appPassword = true)?.let { return Read.Stop(it) }
+        val onBoard = (OcsJson.parseElement(stacks.body) as? JsonArray)?.objects().orEmpty().any { intOf(it.get("id")) == stackId }
+        if (!onBoard) return Read.Stop(SendResult.Conflict(ConflictReason.REFUSED, CARD_MOVED_BOARD))
+        return Read.Ok(card, cardPath(boardId, stackId, command.locInt("cardId")))
     }
 
     private fun ownerOf(card: JsonObject): String {
@@ -94,7 +113,7 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
         body.addProperty("order", card.int("order"))
         var due: JsonElement = textOrNull(card, "duedate")
         when (val value = EditKeys.parse(command.change[EditKeys.DUE])) {
-            is EditKeys.Value.Day -> due = com.google.gson.JsonPrimitive(dueText(due, value.date))
+            is EditKeys.Value.Day -> due = JsonPrimitive(dueText(due, value.date))
             EditKeys.Value.None -> due = JsonNull.INSTANCE
             is EditKeys.Value.Moment, null -> Unit
         }
@@ -104,28 +123,28 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
         var done: JsonElement = textOrNull(card, "done")
         val wanted = command.change[EditKeys.DONE]
         if (wanted == "true" && done.isJsonNull) {
-            done = com.google.gson.JsonPrimitive(now().atOffset(java.time.ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+            done = JsonPrimitive(now().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
         } else if (wanted == "false") {
             done = JsonNull.INSTANCE
         } else if (card.get("done")?.let { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean && it.asBoolean } == true) {
-            done = com.google.gson.JsonPrimitive(now().atOffset(java.time.ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+            done = JsonPrimitive(now().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
         }
         body.add("done", done)
         return body
     }
 
     fun update(command: EditCommand): SendResult {
-        val card = when (val r = readCard(command)) {
+        val read = when (val r = readCard(command)) {
             is Read.Stop -> return r.result
-            is Read.Ok -> r.card
+            is Read.Ok -> r
         }
-        val put = http.sendJson("PUT", cardPath(command), updateBody(card, command))
+        val put = http.sendJson("PUT", read.path, updateBody(read.card, command))
         put.failure(appPassword = true)?.let { return it }
-        return SendResult.Done(newVersion = currentVersion(command))
+        return SendResult.Done(newVersion = currentVersion(read.path))
     }
 
-    private fun currentVersion(command: EditCommand): String {
-        val reply = http.getOcs(cardPath(command))
+    private fun currentVersion(path: String): String {
+        val reply = http.getOcs(path)
         val card = if (reply.ok) OcsJson.parseElement(reply.body) as? JsonObject else null
         return card?.let { versionOf(it) }.orEmpty()
     }
@@ -133,10 +152,11 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
     /** Puts the label of one of my agents on the card (or none, for Self) and takes my other agents' labels off. */
     @Suppress("ReturnCount", "CyclomaticComplexMethod")
     fun changeAgent(command: EditCommand, registry: AgentRegistry, me: String): SendResult {
-        val card = when (val r = readCard(command)) {
+        val read = when (val r = readCard(command)) {
             is Read.Stop -> return r.result
-            is Read.Ok -> r.card
+            is Read.Ok -> r
         }
+        val card = read.card
         val agentId = command.change[EditKeys.AGENT].orEmpty()
         val target = if (agentId == EditKeys.SELF || agentId.isEmpty()) null else registry.byId(agentId)
         if (agentId != EditKeys.SELF && agentId.isNotEmpty() && (target == null || !target.person.equals(me, ignoreCase = true))) {
@@ -172,32 +192,35 @@ class DeckWriter(private val http: AgendaHttp, private val zone: () -> ZoneId, p
         for (label in onCard) {
             val id = intOf(label.get("id"))
             if (id == targetId || AgentRegistry.normalize(label.str("title")) !in mine) continue
-            val reply = http.sendJson("PUT", "${cardPath(command)}/removeLabel", JsonObject().also { it.addProperty("labelId", id) })
-            if (!reply.ok) return stoppedHalfway(command, removed, reply, "label_not_removed")
+            val reply = http.sendJson("PUT", "${read.path}/removeLabel", JsonObject().also { it.addProperty("labelId", id) })
+            if (!reply.ok) return stoppedHalfway(read.path, removed, reply, "label_not_removed")
             removed += id
         }
         if (targetId != 0 && onCard.none { intOf(it.get("id")) == targetId }) {
-            val reply = http.sendJson("PUT", "${cardPath(command)}/assignLabel", JsonObject().also { it.addProperty("labelId", targetId) })
-            if (!reply.ok) return stoppedHalfway(command, removed, reply, "label_not_assigned")
+            val reply = http.sendJson("PUT", "${read.path}/assignLabel", JsonObject().also { it.addProperty("labelId", targetId) })
+            if (!reply.ok) return stoppedHalfway(read.path, removed, reply, "label_not_assigned")
         }
-        return SendResult.Done(newVersion = currentVersion(command))
+        return SendResult.Done(newVersion = currentVersion(read.path))
     }
 
     // The change stopped after some labels were already taken off: they are put on again, so a failed change leaves the card as it was.
     // The card is different now (this very change touched it), so a lost network is reported as "half done" with the card's new
     // version: the next try starts from it and does not call NoAgenda's own change "changed somewhere else".
-    private fun stoppedHalfway(command: EditCommand, removed: List<Int>, reply: HttpResult, code: String): SendResult {
+    private fun stoppedHalfway(path: String, removed: List<Int>, reply: HttpResult, code: String): SendResult {
         val failure = reply.failure(appPassword = true) ?: SendResult.Conflict(ConflictReason.OTHER, code)
         if (removed.isEmpty()) return failure
-        putBack(command, removed)
-        return if (failure is SendResult.Offline || failure is SendResult.ServerError) SendResult.HalfDone(currentVersion(command)) else failure
+        putBack(path, removed)
+        return if (failure is SendResult.Offline || failure is SendResult.ServerError) SendResult.HalfDone(currentVersion(path)) else failure
     }
 
-    private fun putBack(command: EditCommand, removed: List<Int>) {
-        for (id in removed) http.sendJson("PUT", "${cardPath(command)}/assignLabel", JsonObject().also { it.addProperty("labelId", id) })
+    private fun putBack(path: String, removed: List<Int>) {
+        for (id in removed) http.sendJson("PUT", "$path/assignLabel", JsonObject().also { it.addProperty("labelId", id) })
     }
 
-    private companion object {
-        const val LABEL_COLOR = "2563EB"
+    companion object {
+        /** The detail of the conflict for a card that is on another board now. */
+        const val CARD_MOVED_BOARD = "card_moved_board"
+
+        private const val LABEL_COLOR = "2563EB"
     }
 }

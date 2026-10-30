@@ -63,17 +63,22 @@
     <string name="nodrive_agenda_edit_refused">The server did not allow this change.</string>
     <string name="nodrive_agenda_edit_refused_signin">NoGantt or NoBoard does not accept NoDrive\'s sign-in. Make this change there (use Open in NoGantt or NoBoard).</string>
     <string name="nodrive_agenda_edit_ro_refused">NoGantt or NoBoard does not accept NoDrive\'s sign-in, so this can be read here but not changed. Use Open in NoGantt or NoBoard.</string>
-    <string name="nodrive_agenda_edit_description_locked">This description is too long to change here. Change it in the Calendar or Tasks page (Open in NoCalendar).</string>
+    <string name="nodrive_agenda_edit_description_locked">This description is too long to change here. Use the Open button to change it in the Calendar or Tasks page.</string>
     <string name="nodrive_agenda_edit_due_before_start">The due date can\'t be before the start.</string>
     <string name="nodrive_agenda_edit_invalid">The server did not accept this value.</string>
     <string name="nodrive_agenda_edit_now_repeating">This item repeats now. Change it in the Calendar or Tasks page.</string>
     <string name="nodrive_agenda_edit_label_manage">You need to manage this board to add the label %1$s.</string>
     <string name="nodrive_agenda_edit_version_guard">NoGantt or NoBoard has a version that NoAgenda was not tested with, so nothing is written there.</string>
     <string name="nodrive_agenda_edit_other">This change could not be sent.</string>
+    <string name="nodrive_agenda_edit_server_error">The server answered with an error, so this change was not sent. You can send it again.</string>
+    <string name="nodrive_agenda_edit_not_allowed_here">NoAgenda does not send this kind of change. Make it in the original app.</string>
+    <string name="nodrive_agenda_edit_board_unavailable">NoBoard is not available on your server now, so this change was not sent.</string>
+    <string name="nodrive_agenda_edit_card_moved_board">This card is on another board now, so your change was not sent. Use Open in NoBoard.</string>
 
     <!-- The offline queue and edit conflicts -->
     <string name="nodrive_agenda_edit_conflict">This changed somewhere else while you were editing. NoAgenda kept the other change.</string>
     <string name="nodrive_agenda_edit_apply_again">Apply my change again</string>
+    <string name="nodrive_agenda_edit_send_again">Send again</string>
     <string name="nodrive_agenda_edit_keep_other">Keep the other change</string>
     <string name="nodrive_agenda_edit_drop">Drop my change</string>
     <string name="nodrive_agenda_edit_not_sent">Not sent</string>

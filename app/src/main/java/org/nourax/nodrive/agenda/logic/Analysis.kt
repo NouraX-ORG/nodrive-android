@@ -85,7 +85,10 @@ object AnalysisBuilder {
             val data = gantt.projectData[item.projectId] ?: continue
             val task = data.tasks.objects().firstOrNull { intOf(it.get("id")) == item.taskId } ?: continue
             val project = gantt.projects.objects().firstOrNull { intOf(it.get("id")) == item.projectId }
-            out[item.key] = GanttAgentChange.choices(task, project, resources, ctx, GanttAgentChange.idsInProject(data.tasks.objects()))
+            val tasks = data.tasks.objects()
+            out[item.key] = GanttAgentChange.choices(
+                task, project, resources, ctx, GanttAgentChange.idsInProject(tasks), GanttAgentChange.idsNextToMe(tasks, resources, ctx)
+            )
         }
         return out
     }

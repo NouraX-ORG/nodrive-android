@@ -169,6 +169,7 @@ object CalendarMapper {
                     due = due,
                     end = dueInstant,
                     startDate = startDate,
+                    todoStartTime = rec.startMs?.let { Instant.ofEpochMilli(it).atZone(ctx.zone).toLocalTime().withSecond(0).withNano(0) },
                     endDate = due,
                     late = late,
                     dueToday = due != null && due == ctx.today,

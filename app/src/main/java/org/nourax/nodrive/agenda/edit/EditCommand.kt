@@ -58,7 +58,10 @@ data class EditCommand(
     val state: CommandState = CommandState.WAITING,
     /** True after "Apply my change again": the newest version is the base. */
     val rebase: Boolean = false,
-    /** How many times in a row the server answered with an error of its own (5xx). After a few, the change moves to "Not sent". */
+    /**
+     * How many times the server answered with an error of its own (500, 501, 505...; not 502, 503 and 504, which only make the change
+     * wait). An answer that works or a wait does not reset it. After a few, the change moves to "Not sent".
+     */
     val serverErrors: Int = 0,
     /**
      * Found in the state "being sent" after the app stopped: it may have reached the server. It is sent only against the version the
@@ -104,7 +107,13 @@ data class EditConflict(
     val detail: String = "",
     val serverVersion: String = "",
     val createdMs: Long = 0
-)
+) {
+    /**
+     * A change that was not sent only because the server kept answering with an error of its own (5xx): the person can send it
+     * again. It goes out with its original version check, so a change made meanwhile still wins.
+     */
+    val canSendAgain: Boolean get() = reason == ConflictReason.OTHER && detail.startsWith("http5")
+}
 
 /** The keys of [EditCommand.change] and the way dates are written in it. */
 object EditKeys {

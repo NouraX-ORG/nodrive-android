@@ -11,6 +11,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -63,7 +64,13 @@ class AgendaRepository(private val agenda: AgendaEngine) {
     suspend fun store(commands: List<EditCommand>) {
         // The outer NonCancellable matters: a withContext that switches to another thread would, on its way back, throw the
         // cancellation of a caller that was cancelled meanwhile; this one returns normally even then.
-        withContext(NonCancellable) { withContext(Dispatchers.IO) { agenda.enqueue(commands) } }
+        withContext(NonCancellable) {
+            withContext(Dispatchers.IO) {
+                agenda.enqueue(commands)
+                // The change shows at once, with its "Waiting to send" mark, also while a long refresh holds the lock.
+                _state.update { current -> current?.let { agenda.withQueue(it) } }
+            }
+        }
     }
 
     /** Whether a change waits in the queue. Like [store] it takes no lock and a closed screen cannot cancel it. */
@@ -88,6 +95,12 @@ class AgendaRepository(private val agenda: AgendaEngine) {
     suspend fun resolveConflict(id: Long, applyAgain: Boolean) {
         mutex.withLock {
             withContext(Dispatchers.IO) { _state.value = agenda.resolveConflict(id, applyAgain) }
+        }
+    }
+
+    suspend fun resendConflict(id: Long) {
+        mutex.withLock {
+            withContext(Dispatchers.IO) { _state.value = agenda.resendConflict(id) }
         }
     }
 

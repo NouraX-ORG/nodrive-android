@@ -51,17 +51,28 @@ data class EventForm(
     }
 }
 
-/** What the person typed for a to-do. A null date is "none". [dueTime] is set only when the to-do has a due time. */
+/**
+ * What the person typed for a to-do. A null date is "none". [dueTime] is set only when the to-do has a due time. [startTime] is the
+ * time of day the to-do's start already has: it is kept (not typed), and only used to check the dates.
+ */
 data class TodoForm(
     val title: String,
     val start: LocalDate?,
     val due: LocalDate?,
     val dueTime: LocalTime?,
     val description: String,
-    val agentId: String
+    val agentId: String,
+    val startTime: LocalTime? = null
 ) {
-    /** A start after the due date is refused (the server would too: it is not a valid to-do). */
-    fun datesValid(): Boolean = start == null || due == null || !due.isBefore(start)
+    /**
+     * A start after the due date is refused (the server would too: it is not a valid to-do). On the same day, a due time before the
+     * start's time of day is refused as well, when both have a time.
+     */
+    fun datesValid(): Boolean {
+        if (start == null || due == null) return true
+        if (due.isBefore(start)) return false
+        return !(due == start && startTime != null && dueTime != null && dueTime.isBefore(startTime))
+    }
 
     companion object {
         fun of(item: AgendaItem, zone: ZoneId): TodoForm = TodoForm(
@@ -70,7 +81,8 @@ data class TodoForm(
             due = item.due,
             dueTime = item.end?.atZone(zone)?.toLocalTime()?.withSecond(0)?.withNano(0),
             description = item.description,
-            agentId = if (item.agent.isSelf) EditKeys.SELF else item.agent.id
+            agentId = if (item.agent.isSelf) EditKeys.SELF else item.agent.id,
+            startTime = item.todoStartTime
         )
     }
 }

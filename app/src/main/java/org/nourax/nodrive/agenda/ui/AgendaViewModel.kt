@@ -23,6 +23,7 @@ import org.nourax.nodrive.agenda.edit.EditCommand
 import org.nourax.nodrive.agenda.logic.AgendaView
 import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.CategoryFilter
+import org.nourax.nodrive.agenda.logic.SourceSettings
 import org.nourax.nodrive.agenda.logic.ViewState
 import org.nourax.nodrive.agenda.logic.WorkMode
 import org.nourax.nodrive.agenda.logic.WorkingHours
@@ -90,7 +91,7 @@ class AgendaViewModel(
         }
     }
 
-    private fun restore(settings: org.nourax.nodrive.agenda.logic.SourceSettings) {
+    private fun restore(settings: SourceSettings) {
         viewState.update {
             it.copy(
                 view = when (settings.lastView) {
@@ -225,6 +226,14 @@ class AgendaViewModel(
         }
     }
 
+    /** "Send again" on a change that the server could not take. */
+    fun resend(conflictId: Long) {
+        viewModelScope.launch {
+            repository.resendConflict(conflictId)
+            if (repository.state.value?.edit?.pending?.isNotEmpty() == true) onQueued()
+        }
+    }
+
     fun undo(opId: String) {
         viewModelScope.launch { repository.undo(opId) }
     }
@@ -246,7 +255,7 @@ class AgendaViewModel(
         viewModelScope.launch { repository.refresh(manual = true) }
     }
 
-    private fun changeSettingsAndRead(change: (org.nourax.nodrive.agenda.logic.SourceSettings) -> org.nourax.nodrive.agenda.logic.SourceSettings) {
+    private fun changeSettingsAndRead(change: (SourceSettings) -> SourceSettings) {
         viewModelScope.launch {
             repository.updateSettings(change)
             // A source that was Hidden has not been read: read it now.

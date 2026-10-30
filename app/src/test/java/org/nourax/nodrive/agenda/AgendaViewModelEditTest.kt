@@ -134,6 +134,38 @@ class AgendaViewModelEditTest {
     }
 
     @Test
+    fun aSavedChangeShowsAtOnceWithItsWaitingMarkWhileALongRefreshStillRuns() {
+        val started = CountDownLatch(1)
+        val gate = CountDownLatch(1)
+        val store = InMemoryEditStore()
+        val real = AccountAgenda(account, FakeHttp(), InMemoryAgendaStore(), clock, editStore = store)
+        val engine = object : AgendaEngine by real {
+            override fun refresh(manual: Boolean): AgendaSnapshot {
+                started.countDown()
+                gate.await()
+                return real.snapshot()
+            }
+
+            // spelled out: the methods with a default body of the interface are not forwarded by "by" on every compiler
+            override fun enqueue(commands: List<EditCommand>) = real.enqueue(commands)
+
+            override fun hasPending(): Boolean = real.hasPending()
+
+            override fun sendPending(manual: Boolean): AgendaSnapshot = real.sendPending(manual)
+
+            override fun withQueue(current: AgendaSnapshot): AgendaSnapshot = real.withQueue(current)
+        }
+        val repository = AgendaRepository(engine)
+        val vm = AgendaViewModel(repository, clock)
+        assertTrue("the refresh started", started.await(WAIT_MS, TimeUnit.MILLISECONDS))
+        val command = EditCommand(kind = CommandKind.CAL_PATCH, itemKey = "cal:a", home = Home.CALENDAR, title = "A", change = mapOf(EditKeys.SUMMARY to "A2"))
+        vm.submit(listOf(command))
+        // the refresh still holds the lock, and the screen already knows about the waiting change
+        waitUntil("the waiting change is on screen", { "pending: ${repository.state.value?.edit?.pending?.size}" }) { repository.state.value?.edit?.pending?.size == 1 }
+        gate.countDown()
+    }
+
+    @Test
     fun aChangeThatIsSentQueuesNothing() {
         val f = fixture()
         val ready = waitFor(f.vm) { it.snapshot?.build?.items?.size == 33 && !it.refreshing }

@@ -54,8 +54,8 @@ class AccountAgendaHttp(
         contentType: String?
     ): HttpResult {
         // Only the writes of the edit step go out (WritePolicy): events and to-dos, NoGantt task updates, NoBoard card updates.
-        if (!WritePolicy.allows(method, path)) return HttpResult(0, networkError = true)
-        val url = urlFor(path) ?: return HttpResult(0, networkError = true)
+        if (!WritePolicy.allows(method, path)) return HttpResult(0, refused = true)
+        val url = urlFor(path) ?: return HttpResult(0, refused = true)
         return try {
             val requestBody = when {
                 body != null -> body.toRequestBody(contentType?.toMediaTypeOrNull())

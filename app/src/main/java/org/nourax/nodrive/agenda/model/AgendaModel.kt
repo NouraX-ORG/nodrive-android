@@ -8,6 +8,7 @@ package org.nourax.nodrive.agenda.model
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 /** The row type of every NoAgenda view (plans/noagenda-android-plan.md 1.3). No Android types: runs in JVM tests. */
@@ -154,6 +155,8 @@ data class AgendaItem(
     /** A card or task with real start and end times on one day (the clash rule). Events use [start] and [end]. */
     val clashStart: Instant? = null,
     val clashEnd: Instant? = null,
+    /** A to-do whose start has a time of day: that time in the person's zone (the editor keeps it). Null = a day, or no start. */
+    val todoStartTime: LocalTime? = null,
     /** My change is made on the phone and waits to be sent (design 9: "Waiting to send"). */
     val pending: Boolean = false
 ) {

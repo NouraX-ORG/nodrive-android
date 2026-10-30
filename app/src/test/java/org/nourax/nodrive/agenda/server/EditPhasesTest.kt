@@ -509,4 +509,41 @@ class EditPhasesTest {
         assertNull(snapshot.edit.notice?.takeIf { it.conflict })
         row("conflict deck", true, "the other change stayed; apply again kept both")
     }
+
+    @Test
+    fun conflictACardMovedToAnotherListStaysThereWhenMyChangeIsAppliedAgain() {
+        val seed = Seed.load()
+        val mara = RawServer("mara")
+        val board = seed.board
+        val stack = mara.stackId(board)
+        val other = mara.createStack(board, "Review $tag")
+        val id = mara.createCard(board, stack, "Edit card move $tag", day(2).toString() + "T00:00:00+00:00", "d", null, "ali")
+        val ali = Session("ali")
+        var snapshot = ali.refresh()
+        val agents = snapshot.build.myAgents
+        val stale = snapshot.mine("Edit card move $tag")
+        // the manager moves the card to the other list: a full update at the other list's address, as Deck's own page sends it
+        val card = mara.card(board, stack, id)
+        val move = JsonObject()
+        move.addProperty("title", "Edit card move $tag")
+        move.addProperty("type", "plain")
+        move.addProperty("owner", "mara")
+        move.addProperty("description", "d")
+        move.addProperty("order", card.get("order").asInt)
+        move.addProperty("duedate", card.get("duedate").asString)
+        assertEquals(200, mara.json("PUT", "${deck}boards/$board/stacks/$other/cards/$id", move).status)
+        assertEquals("the manager moved it", other, mara.card(board, other, id).get("stackId").asInt)
+
+        snapshot = ali.agenda.submit(EditCommands.card(stale, CardForm.of(stale).copy(due = day(6)), agents).single())
+        val conflict = snapshot.edit.conflicts.single()
+        assertEquals(ConflictReason.CHANGED_ELSEWHERE, conflict.reason)
+        assertEquals("nothing was written", other, mara.card(board, other, id).get("stackId").asInt)
+        assertTrue(mara.card(board, other, id).get("duedate").asString.startsWith(day(2).toString()))
+        snapshot = ali.agenda.resolveConflict(conflict.id, applyAgain = true)
+        snapshot.clean("apply again")
+        val now = mara.card(board, other, id)
+        assertEquals("the card stays in the list it was moved to", other, now.get("stackId").asInt)
+        assertTrue(now.get("duedate").asString.startsWith(day(6).toString()))
+        row("conflict deck moved", true, "the card stayed in the new list; apply again put the new due date on it")
+    }
 }

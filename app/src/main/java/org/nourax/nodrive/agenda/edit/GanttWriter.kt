@@ -44,7 +44,9 @@ class GanttWriter(
         val resources: List<JsonObject>,
         val hoursPerPt: Double,
         /** The planning people that are on any task of this project. */
-        val inProject: Set<Int>
+        val inProject: Set<Int>,
+        /** Those that are on a task next to my own planning person (design 4.5 (b)). */
+        val nextToMe: Set<Int>
     )
 
     private sealed interface Read {
@@ -57,7 +59,7 @@ class GanttWriter(
         val projectId = command.locInt("projectId")
         val taskId = command.locInt("taskId")
         val reply = ocs("projects/$projectId/tasks")
-        if (!reply.ok) return Read.Stop(stopFor(reply.httpStatus, reply.networkError))
+        if (!reply.ok) return Read.Stop(stopFor(reply.httpStatus, reply.networkError, reply.retryAfter))
         val task = (reply.data as? JsonArray)?.objects()?.firstOrNull { intOf(it.get("id")) == taskId }
             ?: return Read.Stop(SendResult.Conflict(ConflictReason.GONE))
         val version = task.str("updated_at")
@@ -71,18 +73,20 @@ class GanttWriter(
             val projects = ocs("projects")
             project = (projects.data as? JsonArray)?.objects()?.firstOrNull { intOf(it.get("id")) == projectId }
             val all = ocs("resources")
-            if (!all.ok) return Read.Stop(stopFor(all.httpStatus, all.networkError))
+            if (!all.ok) return Read.Stop(stopFor(all.httpStatus, all.networkError, all.retryAfter))
             resources = (all.data as? JsonArray)?.objects().orEmpty()
             (ocs("settings").data as? JsonObject)?.let { hoursPerPt = GanttAgentChange.hoursPerPtOf(it) }
         }
-        val inProject = GanttAgentChange.idsInProject((reply.data as? JsonArray)?.objects().orEmpty())
-        return Read.Ok(Fresh(task, project, resources, hoursPerPt, inProject))
+        val tasks = (reply.data as? JsonArray)?.objects().orEmpty()
+        val inProject = GanttAgentChange.idsInProject(tasks)
+        val nextToMe = GanttAgentChange.idsNextToMe(tasks, resources, GanttAgentChange.Context(me(), myName(), registry(), hoursPerPt))
+        return Read.Ok(Fresh(task, project, resources, hoursPerPt, inProject, nextToMe))
     }
 
     // What a failed read means. NoGantt's 401 and 403 are the "does not accept this sign-in" case: a refusal, not a wait.
-    private fun stopFor(status: Int, networkError: Boolean): SendResult = when {
+    private fun stopFor(status: Int, networkError: Boolean, retryAfter: Boolean): SendResult = when {
         networkError || status == 0 -> SendResult.Offline
-        status >= SERVER_ERROR -> SendResult.ServerError(status)
+        status >= SERVER_ERROR -> serverAnswer(status, retryAfter)
         status == UNAUTHORIZED -> SendResult.Conflict(ConflictReason.REFUSED, "http401")
         status == FORBIDDEN -> SendResult.Conflict(ConflictReason.REFUSED, "http403")
         status == NOT_FOUND -> SendResult.Conflict(ConflictReason.GONE)
@@ -132,7 +136,7 @@ class GanttWriter(
         val target: Agent? = if (agentId == EditKeys.SELF || agentId.isEmpty()) null else registry().byId(agentId)
             ?: return SendResult.Conflict(ConflictReason.AGENT_NOT_IN_PROJECT, agentId)
         if (target != null && !ctx.isMe(target.person)) return SendResult.Conflict(ConflictReason.REFUSED, "not_my_agent")
-        return when (val plan = GanttAgentChange.plan(fresh.task, fresh.project, fresh.resources, ctx, target, fresh.inProject)) {
+        return when (val plan = GanttAgentChange.plan(fresh.task, fresh.project, fresh.resources, ctx, target, fresh.inProject, fresh.nextToMe)) {
             is GanttAgentChange.Plan.Refuse -> SendResult.Conflict(plan.reason, plan.detail)
             GanttAgentChange.Plan.Same -> SendResult.Done(fresh.task.str("updated_at"))
             is GanttAgentChange.Plan.Send -> {

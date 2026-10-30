@@ -6,12 +6,16 @@
  */
 package org.nourax.nodrive.agenda.net
 
-/** The answer of one request. A request that never got an answer has [status] 0 and [networkError]. */
+/**
+ * The answer of one request. A request that never got an answer has [status] 0 and [networkError]. A write that NoAgenda's own rules
+ * do not allow (WritePolicy, another origin) is never sent and has [refused]: it is not a lost network, and waiting does not help.
+ */
 class HttpResult(
     val status: Int,
     val body: ByteArray = ByteArray(0),
     val headers: Map<String, String> = emptyMap(),
-    val networkError: Boolean = false
+    val networkError: Boolean = false,
+    val refused: Boolean = false
 ) {
     val ok: Boolean get() = status in 200..299
     val multistatus: Boolean get() = status == 207

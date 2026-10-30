@@ -112,11 +112,22 @@ class RawServer(private val user: String) {
         return id
     }
 
+    /** Makes a list (stack) at the end of a board (as this user, who must manage the board). Returns its id. */
+    fun createStack(boardId: Int, title: String): Int {
+        val body = JsonObject()
+        body.addProperty("title", title)
+        body.addProperty("order", STACK_ORDER)
+        val reply = json("POST", "${deck}boards/$boardId/stacks", body)
+        check(reply.status in 200..299) { "creating a stack answered ${reply.status}" }
+        return reply.json().asJsonObject.get("id").asInt
+    }
+
     fun card(boardId: Int, stackId: Int, cardId: Int): JsonObject = get("${deck}boards/$boardId/stacks/$stackId/cards/$cardId").json().asJsonObject
 
     companion object {
         private const val TIMEOUT_MILLIS = 60_000
         private const val HTTP_ERROR = 400
+        private const val STACK_ORDER = 99
     }
 }
 

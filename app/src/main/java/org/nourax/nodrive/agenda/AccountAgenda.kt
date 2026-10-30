@@ -37,6 +37,7 @@ import org.nourax.nodrive.agenda.gantt.GanttSnapshot
 import org.nourax.nodrive.agenda.logic.AgendaBuilder
 import org.nourax.nodrive.agenda.logic.BuildInput
 import org.nourax.nodrive.agenda.logic.BuildOutput
+import org.nourax.nodrive.agenda.logic.CalendarMode
 import org.nourax.nodrive.agenda.logic.SourceSettings
 import org.nourax.nodrive.agenda.logic.WorkMode
 import org.nourax.nodrive.agenda.model.AgendaClock
@@ -78,7 +79,9 @@ data class AgendaSnapshot(
     /** Clashes, the workload and the agents' load, worked out on the phone (design 7). */
     val analysis: Analysis = Analysis.EMPTY,
     /** The changes that wait to be sent, the ones that were not sent, and the last result (design 9). */
-    val edit: EditState = EditState()
+    val edit: EditState = EditState(),
+    /** The rows before the waiting changes were drawn on them, so the queue can be drawn again at once ([AgendaEngine.withQueue]). */
+    val base: List<AgendaItem> = emptyList()
 ) {
     fun status(key: String): SourceStatus = statuses[key] ?: SourceStatus(key)
 }
@@ -109,6 +112,15 @@ interface AgendaEngine {
     /** The person's decision on a change that was not sent: send it again on the newest version, or keep the other change. */
     fun resolveConflict(id: Long, applyAgain: Boolean): AgendaSnapshot = snapshot()
 
+    /** "Send again" on a change that the server could not take: it goes back in the queue with its original version check. */
+    fun resendConflict(id: Long): AgendaSnapshot = snapshot()
+
+    /**
+     * [current] with the changes that wait drawn on it again, from what is already read: no request, no lock. It makes a change that
+     * was just stored show at once (with its "Waiting to send" mark), even while a long refresh still runs.
+     */
+    fun withQueue(current: AgendaSnapshot): AgendaSnapshot = current
+
     /** Takes back the last date change of NoGantt. */
     fun undo(opId: String): AgendaSnapshot = snapshot()
 }
@@ -138,6 +150,9 @@ class AccountAgenda(
     private var registry = AgentRegistry.MISSING
     private var registryEtag = ""
     private var registryRead = false
+
+    // The version guard of NoGantt was read (and the data with it) by the send that began this refresh: the refresh does not read it again.
+    private var ganttReadByGuard = false
     private val statuses = LinkedHashMap<String, SourceStatus>()
     private val failures = HashMap<String, Int>()
     private val nextTryMs = HashMap<String, Long>()
@@ -155,7 +170,7 @@ class AccountAgenda(
         registry = { registry },
         me = { server.uid.ifEmpty { account.substringBefore('@') } },
         myName = { server.displayName },
-        guarded = { home -> if (home == Home.GANTT) !gantt.contractOk else !DeckClient.versionIsTested(server.deckVersion.ifEmpty { deck.version }) },
+        guarded = { home -> if (home == Home.GANTT) !gantt.contractOk else !DeckClient.versionIsTested(deckVersionNow()) },
         prepare = { home -> prepareGuard(home) }
     )
 
@@ -241,6 +256,10 @@ class AccountAgenda(
 
     // ---- the rows -----------------------------------------------------------------------------------------------------
 
+    // The Deck version to check: the one the server's capabilities name. Only before they were ever read, the saved one is used (a
+    // Deck that was switched off lists no version once they are read, and is then not available).
+    private fun deckVersionNow(): String = if (server.capabilitiesKnown) server.deckVersion else deck.version
+
     override fun snapshot(): AgendaSnapshot {
         ensureLoaded()
         val clockNow = clock.now()
@@ -263,15 +282,31 @@ class AccountAgenda(
             )
         )
         val savedAt = listOf(calendar.fetchedAtMs, gantt.fetchedAtMs, deck.fetchedAtMs).maxOrNull() ?: 0L
-        // The changes that wait to be sent are drawn on top of the saved data, so the effect shows at once (plan 2.3).
-        val edit = runner.state(lastNotice)
-        val locked = lockRefused(built.items)
+        return compose(built, lockRefused(built.items), lastNotice, LinkedHashMap(statuses), savedAt, today, zone)
+    }
+
+    override fun withQueue(current: AgendaSnapshot): AgendaSnapshot =
+        compose(current.build, current.base, current.edit.notice, current.statuses, current.savedAtMs, current.today, current.zone)
+
+    // The changes that wait to be sent are drawn on top of the saved data, so the effect shows at once (plan 2.3).
+    @Suppress("LongParameterList")
+    private fun compose(
+        built: BuildOutput,
+        locked: List<AgendaItem>,
+        notice: EditNotice?,
+        shownStatuses: Map<String, SourceStatus>,
+        savedAt: Long,
+        today: LocalDate,
+        zone: ZoneId
+    ): AgendaSnapshot {
+        val davUser = server.uid.ifEmpty { account.substringBefore('@') }
+        val edit = runner.state(notice)
         val items = PendingOverlay.apply(locked, edit.pending, registry, today, zone)
         val build = if (items === built.items) built else built.copy(items = items)
         val analysis = AnalysisBuilder.build(
             build, registry, gantt, davUser, server.displayName.ifEmpty { davUser }, GanttAgentChange.hoursPerPtOf(gantt.settings), today, zone
         )
-        return AgendaSnapshot(build, LinkedHashMap(statuses), registry.status, registry.skipped, settings, today, zone, savedAt, analysis, edit)
+        return AgendaSnapshot(build, shownStatuses, registry.status, registry.skipped, settings, today, zone, savedAt, analysis, edit, locked)
     }
 
     // The rows of a part (NoGantt, NoBoard) that does not accept the sign-in stay in view, but can not be changed (design 5).
@@ -317,10 +352,13 @@ class AccountAgenda(
             if (!result.ok) return failedGuard(result.status, result.networkError)
             server = result.info
             store.write(account, Sources.USER, StoredSource(gson.toJson(server), "", nowMs, "ok"))
-            return null
+            // The capabilities no longer list the board app (it was switched off): nothing can be written there.
+            return if (server.deckVersion.isEmpty()) SendResult.Conflict(ConflictReason.REFUSED, BOARD_UNAVAILABLE) else null
         }
         val result = readGantt(manual = true, nowMs) ?: return null
-        return if (result.ok) null else failedGuard(result.status, result.networkError)
+        if (!result.ok) return failedGuard(result.status, result.networkError)
+        ganttReadByGuard = true
+        return null
     }
 
     private fun failedGuard(status: Int, networkError: Boolean): SendResult = when {
@@ -342,6 +380,12 @@ class AccountAgenda(
         ensureLoaded()
         lastNotice = null
         return if (runner.resolve(id, applyAgain)) sendPending(manual = true) else snapshot()
+    }
+
+    override fun resendConflict(id: Long): AgendaSnapshot {
+        ensureLoaded()
+        lastNotice = null
+        return if (runner.sendAgain(id)) sendPending(manual = true) else snapshot()
     }
 
     override fun undo(opId: String): AgendaSnapshot {
@@ -424,9 +468,16 @@ class AccountAgenda(
         }
 
         // Back online: what waited is sent first (oldest first), then everything is read, so the screen shows the server's picture.
-        if (editStore.commands(account).isNotEmpty()) runner.run().notice?.let { lastNotice = it }
+        var ganttAlreadyRead = false
+        if (editStore.commands(account).isNotEmpty()) {
+            ganttReadByGuard = false
+            val report = runner.run()
+            report.notice?.let { lastNotice = it }
+            // NoGantt was read for the guard before anything was sent there; if nothing was sent there, that read is still the picture.
+            ganttAlreadyRead = ganttReadByGuard && Home.GANTT !in report.homes
+        }
         readRegistry(manual)
-        readGantt(manual, nowMs)
+        if (!ganttAlreadyRead) readGantt(manual, nowMs)
         readCalendar(manual, nowMs, today)
         readDeck(manual, nowMs)
         return snapshot()
@@ -496,7 +547,7 @@ class AccountAgenda(
             zone = clock.zone(),
             now = clock.now(),
             forceFull = manual && !calendar.loaded,
-            wanted = { settings.calendarMode(it, copyUri) != org.nourax.nodrive.agenda.logic.CalendarMode.HIDDEN }
+            wanted = { settings.calendarMode(it, copyUri) != CalendarMode.HIDDEN }
         )
         val result = CalendarReader.read(http, options, calendar)
         noteResult(StatusKeys.CALENDAR, result.ok, result.status, result.networkError)
@@ -540,6 +591,7 @@ class AccountAgenda(
         const val HTTP_SERVER_ERROR = 500
         const val HOUR_MS = 3_600_000L
         const val REGISTRY_MISSING = "missing"
+        const val BOARD_UNAVAILABLE = "board_unavailable"
         val BACKOFF_MINUTES = listOf(5, 10, 20, 30)
     }
 }
