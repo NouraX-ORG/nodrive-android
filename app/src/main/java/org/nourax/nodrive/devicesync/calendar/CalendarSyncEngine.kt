@@ -29,7 +29,7 @@ import java.util.UUID
  * then upload (the phone's changes: new, changed and deleted rows). Only events travel; a to-do in a mixed calendar is skipped.
  * The first sync of a calendar only adds: nothing is deleted or overwritten on either side.
  */
-class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarProviderStore) {
+class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarStore) {
     private val dao = env.dao
     private val account = env.account
 
@@ -41,6 +41,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         var notSaved = 0
         var waiting = 0
         var tooMany = false
+        var heldBack = 0
         var complete = true
 
         /** The first thing that went wrong (a code, never any content). */
@@ -55,11 +56,22 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
     fun sync(collection: CollectionEntity): SyncOutcome {
         val calId = try {
             store.ensureCalendar(collection.href, collection.name, parseColor(collection.color), collection.readOnly)
+        } catch (e: SecurityException) {
+            AgendaLog.w(TAG, "no permission for the phone calendar")
+            return SyncOutcome.failed("no_permission")
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "no phone calendar: ${e.javaClass.simpleName}")
             return SyncOutcome.failed("no_calendar_storage")
         }
-        val col = collection.with(androidId = calId)
+        var col = collection.with(androidId = calId)
+        if (collection.androidId != 0L && collection.androidId != calId) {
+            // The phone's copy was made again (its Calendar Storage was cleared, or the calendar was added again). What this sync remembers
+            // is not on the phone any more and the stored token would say "nothing changed", so the collection starts over: the
+            // first-sync rules put everything back, and nothing is deleted.
+            AgendaLog.w(TAG, "the phone calendar is a new one: the collection starts over")
+            dao.deleteObjects(account, col.href)
+            col = col.with(syncToken = "", firstSyncDone = false, objectCount = 0)
+        }
         dao.putCollection(col)
         val pass = Pass(col, calId, !col.firstSyncDone)
         val delta = DavSync.delta(env.http, col.href, col.syncToken)
@@ -69,7 +81,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
             upload(pass)
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "calendar sync stopped: ${e.javaClass.simpleName}")
-            pass.fail("exception_${e.javaClass.simpleName}: ${e.message.orEmpty().take(MESSAGE_LIMIT)}")
+            pass.fail("exception_${e.javaClass.simpleName}")
         }
         val done = pass.complete && !pass.tooMany
         dao.putCollection(
@@ -81,7 +93,8 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         )
         return SyncOutcome(
             ok = pass.complete, added = pass.added, changed = pass.changed, sentToServer = pass.sent, removed = pass.removed,
-            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting, message = pass.message
+            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting, message = pass.message,
+            heldBack = pass.heldBack
         )
     }
 
@@ -93,6 +106,12 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
 
     private fun exceptionsFor(rows: List<CalendarRow>, master: CalendarRow): List<CalendarRow> =
         rows.filter { it.isException && (it.originalId == master.id || (master.syncId != null && it.originalSyncId == master.syncId)) }
+
+    /** The e-mail addresses of the guests of an object as the server last had it. */
+    private fun guestEmails(original: String?): Set<String> {
+        if (original.isNullOrEmpty()) return emptySet()
+        return EventMapper.parse(original, env.zone)?.master?.guests?.map { it.email.lowercase() }?.toSet().orEmpty()
+    }
 
     private fun phoneObject(master: CalendarRow, exceptions: List<CalendarRow>, uid: String) =
         PhoneObject(master.event.copy(uid = uid), exceptions.filter { !it.deleted }.map { it.event })
@@ -158,13 +177,13 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         }
         when (ConflictPlan.decide(dirty && !masterRow.deleted, masterRow.deleted, ServerState.CHANGED)) {
             Decision.APPLY_SERVER -> {
-                val id = store.replaceObject(masterRow.id, p.calId, href, etag, parsed)
+                val id = store.replaceObject(masterRow.id, p.calId, href, etag, parsed, guestEmails(known?.original))
                 putObject(p, href, etag, uid, data, id)
                 p.changed++
             }
             Decision.SERVER_WINS_KEEP_PHONE_VERSION -> {
                 keepPhoneVersion(p, href, known, masterRow, exceptions, uid)
-                val id = store.replaceObject(masterRow.id, p.calId, href, etag, parsed)
+                val id = store.replaceObject(masterRow.id, p.calId, href, etag, parsed, guestEmails(known?.original))
                 putObject(p, href, etag, uid, data, id)
                 p.changed++
             }
@@ -221,6 +240,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         if (!DeleteGuard.allow(phoneRemovals.size, total, env.flags.overrideTooManyDeletions)) {
             // nothing is deleted; the token stays, so the next sync reports the same removals (after the person answered)
             p.tooMany = true
+            p.heldBack += phoneRemovals.size
             return
         }
         for (href in phoneRemovals) {
@@ -237,8 +257,33 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
 
     private class Deletion(val row: CalendarRow, val obj: ObjectEntity)
 
+    /**
+     * A read-only copy is read only on the phone too: a change made there (by an app that ignores the calendar's access level) can never
+     * be sent, so it must not wait for ever. The server's version is put back; an edit is kept in "Not saved" first, so it is not lost
+     * silently. Nothing is put back in the first sync (it only adds).
+     */
+    private fun restoreReadOnly(p: Pass) {
+        if (p.first) return
+        val rows = store.rows(p.calId)
+        val known = dao.objects(account, p.col.href).associateBy { it.href }
+        for (master in rows.filter { !it.isException }) {
+            val exceptions = exceptionsFor(rows, master)
+            if (!(master.dirty || master.deleted || exceptions.any { it.dirty || it.deleted })) continue
+            val obj = master.syncId?.let { known[it] } ?: continue
+            val parsed = EventMapper.parse(obj.original, env.zone) ?: continue
+            if (!master.deleted) keepPhoneVersion(p, obj.href, obj, master, exceptions, obj.uid.ifEmpty { master.event.uid })
+            store.deleteObject(master.id, p.calId, master.syncId)
+            val id = store.insertObject(p.calId, obj.href, obj.etag, parsed)
+            putObject(p, obj.href, obj.etag, obj.uid, obj.original, id)
+            p.changed++
+        }
+    }
+
     private fun upload(p: Pass) {
-        if (p.col.readOnly) return
+        if (p.col.readOnly) {
+            restoreReadOnly(p)
+            return
+        }
         val rows = store.rows(p.calId)
         val known = dao.objects(account, p.col.href).associateBy { it.href }
         val deletions = ArrayList<Deletion>()
@@ -253,7 +298,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
                 continue
             }
             if (master.deleted) {
-                if (obj == null || master.syncId == null) {
+                if (obj == null) {
                     store.deleteObject(master.id, p.calId, master.syncId) // it never reached the server
                 } else {
                     deletions += Deletion(master, obj)
@@ -338,6 +383,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         }
         val etag = got.header("ETag") ?: DavSync.etagOf(env.http, href)
         val parsed = EventMapper.parse(got.text(), env.zone)
+        val guests = guestEmails(obj.original)
         dao.addNotSaved(
             NotSavedEntity(0, account, p.col.href, href, RemoteCollection.CALENDAR, master.event.title, phoneText, obj.original, env.clock().toEpochMilli())
         )
@@ -346,7 +392,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
             putObject(p, href, etag, uid, got.text(), master.id)
             return
         }
-        val id = store.replaceObject(master.id, p.calId, href, etag, parsed)
+        val id = store.replaceObject(master.id, p.calId, href, etag, parsed, guests)
         putObject(p, href, etag, parsed.master.uid, got.text(), id)
         p.changed++
     }
@@ -360,6 +406,7 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         val total = dao.syncedCount(account, p.col.href)
         if (!DeleteGuard.allow(deletions.size, total, env.flags.overrideTooManyDeletions)) {
             p.tooMany = true
+            p.heldBack += deletions.size
             return
         }
         for (d in deletions) {
@@ -412,13 +459,15 @@ class CalendarSyncEngine(private val env: SyncEnv, private val store: CalendarPr
         val etag = got.header("ETag") ?: DavSync.etagOf(env.http, href)
         val server = EventMapper.parse(got.text(), env.zone) ?: return false
         val merged = if (base == null) phone.master else EventMapper.rebase(base.master, phone.master, server.master)
-        val text = EventDocument.upload(got.text(), server.master.uid, PhoneObject(merged.copy(uid = server.master.uid), emptyList()), env.zone, env.clock())
+        // The changed occurrences of the saved phone version go on top too (when the phone changed them), not only the event itself.
+        val phoneChangedOccurrences = if (base == null) phone.exceptions.isNotEmpty() else phone.exceptions != base.exceptions
+        val occurrences = if (phoneChangedOccurrences) phone.exceptions else server.exceptions
+        val text = EventDocument.upload(got.text(), server.master.uid, PhoneObject(merged.copy(uid = server.master.uid), occurrences), env.zone, env.clock())
         return env.dav.replace(href, etag, text, ICS_TYPE) is WriteResult.Ok
     }
 
     private companion object {
         const val TAG = "DeviceSyncCalendar"
         const val ICS_TYPE = "text/calendar; charset=utf-8"
-        const val MESSAGE_LIMIT = 100
     }
 }

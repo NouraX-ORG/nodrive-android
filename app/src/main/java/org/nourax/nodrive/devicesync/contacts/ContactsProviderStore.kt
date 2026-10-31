@@ -29,7 +29,7 @@ class ContactRow(
  * Reads and writes the phone's contacts of the account through [ProviderScope]: the only class that writes to the Contacts provider.
  * Writes are made as the sync adapter, so a change is not marked dirty (it comes from the server).
  */
-class ContactsProviderStore(private val resolver: ContentResolver, private val scope: ProviderScope) {
+class ContactsProviderStore(private val resolver: ContentResolver, private val scope: ProviderScope) : ContactsStore {
     private class Builder {
         var display = ""
         var given = ""
@@ -50,6 +50,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
         val nicknames = ArrayList<String>()
         val impps = ArrayList<String>()
         val groupIds = ArrayList<Long>()
+        val relations = ArrayList<TypedValue>()
+        var hasPhoto = false
+        var photoThumb: ByteArray? = null
     }
 
     // ---- groups and settings ---------------------------------------------------------------
@@ -90,7 +93,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Makes the phone show the contacts of this account (also those that are in no group). */
-    fun ensureSettings() {
+    override fun ensureSettings() {
         var present = false
         resolver.query(
             scope.settings, arrayOf(ContactsContract.Settings.ACCOUNT_NAME),
@@ -157,14 +160,30 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                     CommonDataKinds.Im.CONTENT_ITEM_TYPE -> b.impps += s(c, CommonDataKinds.Im.DATA).trim()
                     CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE ->
                         s(c, CommonDataKinds.GroupMembership.GROUP_ROW_ID).toLongOrNull()?.let { b.groupIds += it }
+                    CommonDataKinds.Relation.CONTENT_ITEM_TYPE ->
+                        b.relations += TypedValue(s(c, CommonDataKinds.Relation.NAME).trim(), s(c, CommonDataKinds.Relation.TYPE).toIntOrNull() ?: 12)
+                    CommonDataKinds.Photo.CONTENT_ITEM_TYPE -> {
+                        b.hasPhoto = true
+                        b.photoThumb = c.getColumnIndexOrThrow(CommonDataKinds.Photo.PHOTO).let { if (c.isNull(it)) null else c.getBlob(it) }
+                    }
                 }
             }
         }
         return out
     }
 
-    /** Every raw contact of ours (also the deleted ones) with its data. */
-    fun rows(): List<ContactRow> {
+    /** The photo of a raw contact at its full size (what the phone keeps as the display photo); null when it can not be read. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun fullPhoto(rawContactId: Long): ByteArray? = try {
+        resolver.openAssetFileDescriptor(scope.displayPhoto(rawContactId), "r")?.use { afd ->
+            afd.createInputStream().use { input -> input.readBytes().takeIf { it.size in 1..MAX_PHOTO_BYTES } }
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Every raw contact of ours (also the deleted ones) with its data. The photo is only read for a row that was changed. */
+    override fun rows(): List<ContactRow> {
         val data = readData()
         val titles = groupTitles()
         val out = ArrayList<ContactRow>()
@@ -180,6 +199,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
             while (c.moveToNext()) {
                 val id = c.getLong(0)
                 val b = data[id] ?: Builder()
+                val dirty = c.getInt(4) == 1
+                val deleted = c.getInt(5) == 1
+                val photo = if (dirty && !deleted && b.hasPhoto) (fullPhoto(id) ?: b.photoThumb)?.takeIf { it.isNotEmpty() } else null
                 val contact = PhoneContact(
                     uid = c.getString(3).orEmpty(),
                     displayName = b.display, given = b.given, family = b.family, middle = b.middle, prefix = b.prefix, suffix = b.suffix,
@@ -188,9 +210,11 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                     company = b.company, department = b.department, title = b.title, note = b.note,
                     urls = b.urls.filter { it.isNotEmpty() }, birthday = b.birthday, anniversary = b.anniversary,
                     nicknames = b.nicknames.filter { it.isNotEmpty() }, impps = b.impps.filter { it.isNotEmpty() },
-                    groups = b.groupIds.mapNotNull { titles[it] }.distinct()
+                    groups = b.groupIds.mapNotNull { titles[it] }.distinct(),
+                    relations = b.relations.filter { it.value.isNotEmpty() },
+                    photo = photo?.let { PhotoBytes(it) }
                 )
-                out += ContactRow(id, c.getString(1), c.getString(2).orEmpty(), c.getInt(4) == 1, c.getInt(5) == 1, contact)
+                out += ContactRow(id, c.getString(1), c.getString(2).orEmpty(), dirty, deleted, contact)
             }
         }
         return out
@@ -260,6 +284,10 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
             put(CommonDataKinds.Im.PROTOCOL, CommonDataKinds.Im.PROTOCOL_CUSTOM)
             put(CommonDataKinds.Im.CUSTOM_PROTOCOL, "IMPP")
         }
+        for (r in contact.relations) row(CommonDataKinds.Relation.CONTENT_ITEM_TYPE) {
+            put(CommonDataKinds.Relation.NAME, r.value)
+            put(CommonDataKinds.Relation.TYPE, r.type)
+        }
         for (g in groupIds) row(CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE) { put(CommonDataKinds.GroupMembership.GROUP_ROW_ID, g) }
         if (photo != null && photo.isNotEmpty()) row(CommonDataKinds.Photo.CONTENT_ITEM_TYPE) { put(CommonDataKinds.Photo.PHOTO, photo) }
         return out
@@ -276,7 +304,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Adds the contact as a new raw contact; returns its id. */
-    fun insert(href: String, etag: String, parsed: ParsedContact): Long {
+    override fun insert(href: String, etag: String, parsed: ParsedContact): Long {
         ensureSettings()
         val groupIds = ensureGroups(parsed.contact.groups)
         val ops = ArrayList<ContentProviderOperation>()
@@ -292,11 +320,25 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
         return ContentUris.parseId(checkNotNull(results[0].uri) { "the phone did not add the contact" })
     }
 
-    /** Puts the server's version into an existing raw contact: its data rows are written again. */
-    fun replace(id: Long, href: String, etag: String, parsed: ParsedContact) {
+    /**
+     * Puts the server's version into an existing raw contact: the data rows of the kinds the sync manages are written again. Everything
+     * else stays as it is: a photo, when the card has none (the phone's own photo is never removed by a server edit), the other kinds of
+     * event (a death, a custom date), a SIP address, and the data rows that other apps add (their own mime types).
+     */
+    override fun replace(id: Long, href: String, etag: String, parsed: ParsedContact) {
         val groupIds = ensureGroups(parsed.contact.groups)
         val ops = ArrayList<ContentProviderOperation>()
-        ops += ContentProviderOperation.newDelete(scope.data).withSelection(ContactsContract.Data.RAW_CONTACT_ID + " = ?", arrayOf(id.toString())).build()
+        val managed = ArrayList(MANAGED_MIME_TYPES)
+        if (parsed.photo != null) managed += CommonDataKinds.Photo.CONTENT_ITEM_TYPE
+        val selection = ContactsContract.Data.RAW_CONTACT_ID + " = ? AND (" + ContactsContract.Data.MIMETYPE + " IN (" +
+            managed.joinToString(",") { "?" } + ") OR (" + ContactsContract.Data.MIMETYPE + " = ? AND " + CommonDataKinds.Event.TYPE + " IN (?,?)))"
+        val args = ArrayList<String>()
+        args += id.toString()
+        args += managed
+        args += CommonDataKinds.Event.CONTENT_ITEM_TYPE
+        args += CommonDataKinds.Event.TYPE_BIRTHDAY.toString()
+        args += CommonDataKinds.Event.TYPE_ANNIVERSARY.toString()
+        ops += ContentProviderOperation.newDelete(scope.data).withSelection(selection, args.toTypedArray()).build()
         ops += ContentProviderOperation.newUpdate(ContentUris.withAppendedId(scope.rawContacts, id)).withValues(rawValues(href, etag, parsed.contact.uid)).build()
         for (v in dataValues(parsed.contact, parsed.photo, groupIds)) {
             ops += ContentProviderOperation.newInsert(scope.data).withValue(ContactsContract.Data.RAW_CONTACT_ID, id).withValues(v).build()
@@ -305,21 +347,33 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Removes the raw contact from the phone for good (a sync adapter delete). */
-    fun delete(id: Long) {
+    override fun delete(id: Long) {
         resolver.delete(ContentUris.withAppendedId(scope.rawContacts, id), null, null)
     }
 
     /** The row was sent: clean, linked to its address, with the ETag. */
-    fun markSent(id: Long, href: String?, etag: String, uid: String?) {
+    override fun markSent(id: Long, href: String?, etag: String, uid: String?) {
         resolver.update(ContentUris.withAppendedId(scope.rawContacts, id), rawValues(href, etag, uid), null, null)
     }
 
     /** Only the ETag and link of a row (a first-sync link). */
-    fun link(id: Long, href: String, etag: String) {
+    override fun link(id: Long, href: String, etag: String) {
         val v = ContentValues()
         v.put(ContactsContract.RawContacts.SOURCE_ID, href)
         v.put(ContactsContract.RawContacts.SYNC1, etag)
         resolver.update(ContentUris.withAppendedId(scope.rawContacts, id), v, null, null)
+    }
+
+    private companion object {
+        const val MAX_PHOTO_BYTES = 1_500_000
+
+        /** The kinds of data row that the card can say something about (events are looked at by their type). Photo is added when the card has one. */
+        val MANAGED_MIME_TYPES = listOf(
+            CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE, CommonDataKinds.Phone.CONTENT_ITEM_TYPE, CommonDataKinds.Email.CONTENT_ITEM_TYPE,
+            CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE, CommonDataKinds.Organization.CONTENT_ITEM_TYPE, CommonDataKinds.Note.CONTENT_ITEM_TYPE,
+            CommonDataKinds.Website.CONTENT_ITEM_TYPE, CommonDataKinds.Nickname.CONTENT_ITEM_TYPE, CommonDataKinds.Im.CONTENT_ITEM_TYPE,
+            CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE, CommonDataKinds.Relation.CONTENT_ITEM_TYPE
+        )
     }
 
     /** Removes every raw contact and group of our account from the phone (Stop syncing, after the final upload). */

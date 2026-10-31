@@ -13,4 +13,4 @@
     android:userVisible="true"
     android:allowParallelSyncs="true"
     android:isAlwaysSyncable="false"
-    android:settingsActivity="org.nourax.nodrive.devicesync.SETTINGS" />
+    android:settingsActivity="org.nourax.nodrive.devicesync.ui.DeviceSyncActivity" />

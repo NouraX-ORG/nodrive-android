@@ -87,6 +87,13 @@ class DeviceSyncSettingsIT {
             }
             assertFalse(DeviceSyncControl.isSyncable(support.context, account.name, authority) == 1)
         }
+        // The phone's account settings open the screen of the app: Android takes the settings activity as a class name.
+        val ours = ContentResolver.getSyncAdapterTypes().filter {
+            it.accountType == support.accountType &&
+                it.authority in listOf(DeviceSyncConstants.AUTHORITY_CALENDAR, DeviceSyncConstants.AUTHORITY_CONTACTS)
+        }
+        assertEquals("both adapters are known to the phone", 2, ours.size)
+        for (type in ours) assertEquals(type.authority, "org.nourax.nodrive.devicesync.ui.DeviceSyncActivity", type.settingsActivity)
     }
 
     @Test

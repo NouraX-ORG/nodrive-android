@@ -24,7 +24,17 @@ data class PhoneAddress(
     val type: Int = 3
 )
 
-/** One contact as the phone's Contacts holds it (plain values, so it can be unit-tested). */
+/** The bytes of a photo; two photos are equal when their bytes are. */
+class PhotoBytes(val bytes: ByteArray) {
+    override fun equals(other: Any?): Boolean = other is PhotoBytes && bytes.contentEquals(other.bytes)
+
+    override fun hashCode(): Int = bytes.contentHashCode()
+}
+
+/**
+ * One contact as the phone's Contacts holds it (plain values, so it can be unit-tested). The [photo] of a row read from the phone is
+ * only loaded for rows that were changed (it is what a change could send); the photo of a parsed card is always there.
+ */
 data class PhoneContact(
     val uid: String = "",
     val displayName: String = "",
@@ -48,11 +58,19 @@ data class PhoneContact(
     val nicknames: List<String> = emptyList(),
     val impps: List<String> = emptyList(),
     /** Group titles (the server's CATEGORIES). */
-    val groups: List<String> = emptyList()
-)
+    val groups: List<String> = emptyList(),
+    /** `RELATED`: the name of the person and Android's relation type number (see [ContactMapper.relationType]). */
+    val relations: List<TypedValue> = emptyList(),
+    val photo: PhotoBytes? = null
+) {
+    /** Nothing in it that could be sent (a card that was started and left empty; only a group does not count). */
+    fun isBlank(): Boolean = copy(uid = "", groups = emptyList()) == PhoneContact()
+}
 
-/** A parsed card. The photo travels only from the server to the phone. */
-class ParsedContact(val contact: PhoneContact, val photo: ByteArray?)
+/** A parsed card. */
+class ParsedContact(val contact: PhoneContact) {
+    val photo: ByteArray? get() = contact.photo?.bytes
+}
 
 object ContactMapper {
     private val REV: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
@@ -114,6 +132,28 @@ object ContactMapper {
         }
     }
 
+    /**
+     * Android's relation type of a `RELATED` line: 14 spouse, 3 child, 9 parent, 2 brother (any sibling), 6 friend, 12 relative (anything
+     * else). A relation made on the phone with a finer type (father, mother, manager...) is sent with the nearest kind and read back as it.
+     */
+    fun relationType(types: Set<String>): Int = when {
+        "SPOUSE" in types -> 14
+        "CHILD" in types -> 3
+        "PARENT" in types -> 9
+        "SIBLING" in types -> 2
+        "FRIEND" in types -> 6
+        else -> 12
+    }
+
+    fun relationTypeParam(type: Int): String = when (type) {
+        14, 4, 10 -> ";TYPE=spouse"
+        3 -> ";TYPE=child"
+        9, 5, 8 -> ";TYPE=parent"
+        2, 13 -> ";TYPE=sibling"
+        6 -> ";TYPE=friend"
+        else -> ""
+    }
+
     private fun photoOf(props: List<VProp>): ByteArray? {
         val prop = props.firstOrNull { it.name == "PHOTO" } ?: return null
         val raw = prop.raw.trim()
@@ -166,9 +206,11 @@ object ContactMapper {
             anniversary = props.firstOrNull { it.name == "ANNIVERSARY" }?.let { normalDate(it.raw) }.orEmpty(),
             nicknames = props.filter { it.name == "NICKNAME" }.flatMap { it.list() },
             impps = props.filter { it.name == "IMPP" }.map { it.raw.trim() }.filter { it.isNotEmpty() },
-            groups = props.filter { it.name == "CATEGORIES" }.flatMap { it.list() }.distinct()
+            groups = props.filter { it.name == "CATEGORIES" }.flatMap { it.list() }.distinct(),
+            relations = props.filter { it.name == "RELATED" }.map { TypedValue(it.text().trim(), relationType(it.types)) }.filter { it.value.isNotEmpty() },
+            photo = photoOf(props)?.let { PhotoBytes(it) }
         )
-        return ParsedContact(contact, photoOf(props))
+        return ParsedContact(contact)
     }
 
     // ------------------------------------------------------------------------------------------
@@ -181,6 +223,16 @@ object ContactMapper {
         !version.startsWith("4") -> normal
         normal.startsWith("--") -> "--" + normal.substring(2).replace("-", "")
         else -> normal.replace("-", "")
+    }
+
+    private fun photoLine(bytes: ByteArray, version: String): String {
+        val png = bytes.size > 3 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() && bytes[2] == 'N'.code.toByte()
+        val encoded = Base64.getEncoder().encodeToString(bytes)
+        return if (version.startsWith("4")) {
+            "PHOTO:data:" + (if (png) "image/png" else "image/jpeg") + ";base64," + encoded
+        } else {
+            "PHOTO;ENCODING=b;TYPE=" + (if (png) "PNG" else "JPEG") + ":" + encoded
+        }
     }
 
     /**
@@ -259,6 +311,14 @@ object ContactMapper {
             changed = true
         }
         changed = list(p, "IMPP", base.impps, now.impps, { it.raw.trim() }, { "IMPP:$it" }) || changed
+        changed = list(p, "RELATED", base.relations, now.relations, { TypedValue(it.text().trim(), relationType(it.types)) },
+            { "RELATED" + relationTypeParam(it.type) + ":" + esc(it.value) }) || changed
+        // A photo is sent when the phone has one and the card has none. A photo that the card already has is not compared: the phone keeps
+        // its own re-encoded copy of it, so the bytes are never the same, and the server's photo is never replaced by that copy.
+        if (base.photo == null && now.photo != null) {
+            p.set("PHOTO", photoLine(now.photo.bytes, version))
+            changed = true
+        }
         if (base.groups.toSet() != now.groups.toSet()) {
             if (now.groups.isEmpty()) p.remove("CATEGORIES") else p.set("CATEGORIES", "CATEGORIES:" + now.groups.joinToString(",") { esc(it) })
             changed = true
@@ -289,7 +349,9 @@ object ContactMapper {
             anniversary = pick(base.anniversary, phone.anniversary, server.anniversary),
             nicknames = pick(base.nicknames, phone.nicknames, server.nicknames),
             impps = pick(base.impps, phone.impps, server.impps),
-            groups = pick(base.groups, phone.groups, server.groups)
+            groups = pick(base.groups, phone.groups, server.groups),
+            relations = pick(base.relations, phone.relations, server.relations),
+            photo = server.photo ?: phone.photo
         )
     }
 

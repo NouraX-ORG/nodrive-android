@@ -198,6 +198,17 @@ class DeviceSyncTestSupport {
         return DavXml.parseMultistatus(reply.body).responses.map { it.href }.filter { !it.endsWith("/") }
     }
 
+    /**
+     * Any request as Ali with the app's own HTTP code (OkHttp, which knows MKCALENDAR and the like). Test code against the throwaway
+     * server only, so no write policy. Returns the status.
+     */
+    fun dav(method: String, path: String, body: String? = null, contentType: String? = null): Int {
+        val http = AccountAgendaHttp(
+            checkNotNull(agenda.serverUrl), "Basic " + Base64.getEncoder().encodeToString("ali:${agenda.token("ali")}".toByteArray()), OkHttpClient()
+        ) { _, _ -> true }
+        return http.send(method, path, emptyMap(), body?.toByteArray(Charsets.UTF_8), contentType).status
+    }
+
     fun newId(): String = UUID.randomUUID().toString().take(8)
 
     fun screenshot(name: String) {

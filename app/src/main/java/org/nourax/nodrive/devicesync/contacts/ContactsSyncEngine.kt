@@ -25,10 +25,10 @@ import java.util.UUID
 
 /**
  * One sync of one address book (plan 4.3 to 4.6): the same rules as the calendar engine. Differences: before a CardDAV delete the
- * server's last version of the contact is saved into `.Contacts-Backup` (the server has no trash bin for contacts), and the photo
- * only travels from the server to the phone. The first sync only adds.
+ * server's last version of the contact is saved into `.Contacts-Backup` (the server has no trash bin for contacts), and a photo of the
+ * phone is only sent when the card has none. The first sync only adds.
  */
-class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsProviderStore, private val safety: RemovedContactsCopy) {
+class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsStore, private val safety: RemovedContactsCopy) {
     private val dao = env.dao
     private val account = env.account
 
@@ -40,6 +40,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         var notSaved = 0
         var waiting = 0
         var tooMany = false
+        var heldBack = 0
         var complete = true
 
         /** The first thing that went wrong (a code, never any content). */
@@ -51,12 +52,24 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         }
     }
 
-    fun sync(collection: CollectionEntity): SyncOutcome {
+    fun sync(listed: CollectionEntity): SyncOutcome {
         try {
             store.ensureSettings()
+        } catch (e: SecurityException) {
+            AgendaLog.w(TAG, "no permission for the phone contacts")
+            return SyncOutcome.failed("no_permission")
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "no phone contacts storage: ${e.javaClass.simpleName}")
             return SyncOutcome.failed("no_contacts_storage")
+        }
+        var collection = listed
+        if (collection.firstSyncDone && dao.syncedCount(account, collection.href) > 0 && store.rows().none { it.syncId?.startsWith(collection.href) == true }) {
+            // None of the contacts that this sync remembers is on the phone any more (its Contacts Storage was cleared). The stored token
+            // would say "nothing changed", so the collection starts over: the first-sync rules put everything back, nothing is deleted.
+            AgendaLog.w(TAG, "the phone has none of the remembered contacts: the collection starts over")
+            dao.deleteObjects(account, collection.href)
+            collection = collection.with(syncToken = "", firstSyncDone = false, objectCount = 0)
+            dao.putCollection(collection)
         }
         val pass = Pass(collection, !collection.firstSyncDone)
         val delta = DavSync.delta(env.http, collection.href, collection.syncToken)
@@ -66,7 +79,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
             upload(pass)
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "contacts sync stopped: ${e.javaClass.simpleName}")
-            pass.fail("exception_${e.javaClass.simpleName}: ${e.message.orEmpty().take(MESSAGE_LIMIT)}")
+            pass.fail("exception_${e.javaClass.simpleName}")
         }
         val done = pass.complete && !pass.tooMany
         dao.putCollection(
@@ -78,7 +91,8 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         )
         return SyncOutcome(
             ok = pass.complete, added = pass.added, changed = pass.changed, sentToServer = pass.sent, removed = pass.removed,
-            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting, message = pass.message
+            notSaved = pass.notSaved, tooManyDeletions = pass.tooMany, waiting = pass.waiting, message = pass.message,
+            heldBack = pass.heldBack
         )
     }
 
@@ -209,6 +223,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         if (phoneRemovals.isEmpty()) return
         if (!DeleteGuard.allow(phoneRemovals.size, dao.syncedCount(account, p.col.href), env.flags.overrideTooManyDeletions)) {
             p.tooMany = true
+            p.heldBack += phoneRemovals.size
             return
         }
         for (href in phoneRemovals) {
@@ -225,17 +240,44 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
 
     private class Deletion(val row: ContactRow, val obj: ObjectEntity)
 
-    private fun isEmpty(c: PhoneContact): Boolean =
-        c.displayName.isEmpty() && c.given.isEmpty() && c.family.isEmpty() && c.phones.isEmpty() && c.emails.isEmpty() &&
-            c.company.isEmpty() && c.addresses.isEmpty() && c.note.isEmpty()
+    /**
+     * A read-only address book is read only on the phone too: a change made there (the Contacts app lets the person edit such a
+     * contact) can never be sent, so it must not wait for ever. The server's version is put back; an edit is kept in "Not saved" first,
+     * so it is not lost silently. Nothing is put back in the first sync (it only adds).
+     */
+    private fun restoreReadOnly(p: Pass) {
+        if (p.first) return
+        val known = dao.objects(account, p.col.href).associateBy { it.href }
+        for (row in store.rows()) {
+            val sid = row.syncId ?: continue
+            if (!(row.dirty || row.deleted)) continue
+            val obj = known[sid] ?: continue
+            val parsed = ContactMapper.parse(obj.original) ?: continue
+            if (row.deleted) {
+                store.delete(row.id)
+                val id = store.insert(sid, obj.etag, parsed)
+                putObject(p, sid, obj.etag, obj.uid, obj.original, id)
+            } else {
+                keepPhoneVersion(p, sid, obj, row)
+                store.replace(row.id, sid, obj.etag, parsed)
+                putObject(p, sid, obj.etag, obj.uid, obj.original, row.id)
+            }
+            p.changed++
+        }
+    }
 
     private fun upload(p: Pass) {
-        if (p.col.readOnly) return
+        if (p.col.readOnly) {
+            restoreReadOnly(p)
+            return
+        }
         val known = dao.objects(account, p.col.href).associateBy { it.href }
         val rows = ownRows(p, store.rows(), known)
         val deletions = ArrayList<Deletion>()
         for (row in rows) {
             if (!(row.dirty || row.deleted)) continue
+            // a contact made on the phone goes to one address book only: the default one
+            if (row.syncId == null && env.newContactsBook != null && env.newContactsBook != p.col.href) continue
             val obj = row.syncId?.let { known[it] }
             if (p.first) {
                 if (row.deleted || obj != null) continue
@@ -260,7 +302,11 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
     }
 
     private fun create(p: Pass, row: ContactRow) {
-        if (isEmpty(row.contact)) return // an empty card (a Contacts app that was left open) is not sent
+        if (row.contact.isBlank()) {
+            // a card that was started and left empty (a Contacts app that was left open) is not sent; it is cleared, so it does not wait
+            store.markSent(row.id, null, "", null)
+            return
+        }
         val uid = row.contact.uid.ifEmpty { UUID.randomUUID().toString() }
         val text = ContactMapper.create(uid, row.contact, env.clock())
         var href = row.syncId ?: newHref(p)
@@ -343,6 +389,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
         }
         if (!DeleteGuard.allow(deletions.size, dao.syncedCount(account, p.col.href), env.flags.overrideTooManyDeletions)) {
             p.tooMany = true
+            p.heldBack += deletions.size
             return
         }
         // The safety copy first: if it is not saved, nothing is deleted on the server (the rows stay deleted on the phone and are retried).
@@ -400,6 +447,5 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsPr
     private companion object {
         const val TAG = "DeviceSyncContacts"
         const val VCF_TYPE = "text/vcard; charset=utf-8"
-        const val MESSAGE_LIMIT = 100
     }
 }

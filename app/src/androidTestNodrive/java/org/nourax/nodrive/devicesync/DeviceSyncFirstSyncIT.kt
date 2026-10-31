@@ -225,7 +225,8 @@ class DeviceSyncFirstSyncIT {
         val phoneOnlyRow = checkNotNull(support.event(phoneWork, phoneOnly))
         assertFalse("it is linked to its server object now", phoneOnlyRow.syncId.isNullOrEmpty())
 
-        // No to-do reached the phone's calendar, and the board app's and NoGantt's copy calendars are not there.
+        // No to-do reached the phone's calendar, and the board app's calendars are not there. (Ali has no NoGantt copy calendar in this seed:
+        // an account that has one is covered by DeviceSyncSafetyIT.)
         val allTitles = support.calendarStore().calendarIds().keys.flatMap { support.events(it) }.map { it.title }
         for (todo in listOf("Renew passport", "Late bill", "Someday", "Draft report", "Completed already")) {
             assertFalse("to-do \"$todo\" must not be in the phone's calendar", todo in allTitles)

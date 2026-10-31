@@ -7,6 +7,7 @@
 package org.nourax.nodrive.devicesync.ui
 
 import android.text.format.DateFormat
+import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -159,6 +160,7 @@ private fun offText(reason: String): String? = when (reason) {
     "birthdays" -> stringResource(R.string.nodrive_device_sync_off_birthdays)
     "subscription" -> stringResource(R.string.nodrive_device_sync_off_subscription)
     "readonly" -> stringResource(R.string.nodrive_device_sync_off_readonly)
+    RemoteCollection.OFF_GONE -> stringResource(R.string.nodrive_device_sync_off_gone)
     else -> null
 }
 
@@ -278,15 +280,41 @@ private fun Status(ui: DeviceSyncUi, actions: DeviceSyncActions) {
     val context = LocalContext.current
     Title(stringResource(R.string.nodrive_device_sync_title))
     val lastText = if (ui.lastSyncUtc > 0) {
-        stringResource(R.string.nodrive_device_sync_synced_at, DateFormat.getTimeFormat(context).format(Date(ui.lastSyncUtc)))
+        // today: the time; an older sync: the date as well, so a sync from days ago does not look like one from today
+        val whenText = Date(ui.lastSyncUtc).let {
+            if (DateUtils.isToday(ui.lastSyncUtc)) {
+                DateFormat.getTimeFormat(context).format(it)
+            } else {
+                DateFormat.getMediumDateFormat(context).format(it) + " " + DateFormat.getTimeFormat(context).format(it)
+            }
+        }
+        stringResource(R.string.nodrive_device_sync_synced_at, whenText)
     } else {
         stringResource(R.string.nodrive_device_sync_never)
     }
     Body(if (ui.syncing) stringResource(R.string.nodrive_device_sync_syncing) else lastText, "ds_last_sync")
     Body(stringResource(R.string.nodrive_device_sync_on_summary, calendarCount(ui.calendarsOnPhone), bookCount(ui.addressBooksOnPhone)), "ds_counts")
+    for (c in ui.collectionCounts) {
+        val n = if (c.kind == RemoteCollection.CONTACTS) {
+            pluralStringResource(R.plurals.nodrive_device_sync_n_contacts, c.count, c.count)
+        } else {
+            pluralStringResource(R.plurals.nodrive_device_sync_n_events, c.count, c.count)
+        }
+        Text(
+            c.name + " · " + n, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp).testTag("ds_count_" + c.href.trimEnd('/').substringAfterLast('/'))
+        )
+    }
     if (ui.autoSyncOff) Body(stringResource(R.string.nodrive_device_sync_auto_sync_off), "ds_auto_sync_off")
     if (ui.waiting > 0) Body(pluralStringResource(R.plurals.nodrive_device_sync_waiting, ui.waiting, ui.waiting), "ds_waiting")
-    if (ui.noCalendarStorage) Body(stringResource(R.string.nodrive_device_sync_no_calendar_storage), "ds_no_storage")
+    if (ui.noPermission) {
+        Body(stringResource(R.string.nodrive_device_sync_permissions_denied), "ds_no_permission")
+        Button(onClick = actions.openSettings, modifier = Modifier.padding(bottom = 12.dp).testTag("ds_open_settings")) {
+            Text(stringResource(R.string.nodrive_device_sync_open_settings))
+        }
+    } else if (ui.noCalendarStorage) {
+        Body(stringResource(R.string.nodrive_device_sync_no_calendar_storage), "ds_no_storage")
+    }
     if (ui.stopRefused) Body(stringResource(R.string.nodrive_device_sync_stop_refused), "ds_stop_refused")
     if (ui.applyFailed) Body(stringResource(R.string.nodrive_device_sync_apply_failed), "ds_apply_failed")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

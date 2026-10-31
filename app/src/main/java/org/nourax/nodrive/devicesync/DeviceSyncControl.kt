@@ -77,8 +77,11 @@ object DeviceSyncControl {
      * copies of what stays on the server (plan 4.6).
      * @param href the one collection to take away, or null for everything (sync is then switched off).
      */
-    fun stop(context: Context, accountName: String, href: String? = null): StopResult {
-        val app = context.applicationContext
+    fun stop(context: Context, accountName: String, href: String? = null): StopResult =
+        // One lock for the final sync and the removal: a sync that the phone starts in between would add an empty copy again.
+        DeviceSyncRunner.exclusive { stopLocked(context.applicationContext, accountName, href) }
+
+    private fun stopLocked(app: Context, accountName: String, href: String?): StopResult {
         val dao = DeviceSyncDatabase.get(app).dao()
         val outcome = DeviceSyncRunner.run(app, accountName, setOf(RemoteCollection.CALENDAR, RemoteCollection.CONTACTS))
         val waiting = DeviceSyncRunner.waitingCount(app, accountName)
@@ -88,17 +91,9 @@ object DeviceSyncControl {
         val scope = ProviderScope(accountName, MainApp.getAccountType(app))
         val calendars = CalendarProviderStore(app.contentResolver, scope)
         val contacts = ContactsProviderStore(app.contentResolver, scope)
-        val collections = dao.collections(accountName).filter { href == null || it.href == href }
         try {
-            for (c in collections) {
-                if (c.kind == RemoteCollection.CALENDAR) {
-                    calendars.findCalendarId(c.href)?.let { calendars.deleteCalendar(it) }
-                } else if (href != null) {
-                    // one address book: its contacts (they are linked to its addresses)
-                    for (row in contacts.rows()) if (row.syncId?.startsWith(c.href) == true) contacts.delete(row.id)
-                }
-                dao.deleteObjects(accountName, c.href)
-                dao.putCollection(c.with(chosen = false, syncToken = "", androidId = 0, firstSyncDone = false, objectCount = 0))
+            for (c in dao.collections(accountName).filter { href == null || it.href == href }) {
+                CollectionRemoval.takeAway(dao, accountName, c, calendars, contacts)
             }
             if (href == null) {
                 // every phone calendar of ours (also one the server no longer lists), and all our contacts and groups

@@ -36,7 +36,8 @@ object DeviceSyncRequests {
         val outcome = DeviceSyncRunner.run(context, account.name, setOf(kind), flags)
         syncResult.stats.numInserts += outcome.added.toLong()
         syncResult.stats.numUpdates += outcome.changed.toLong() + outcome.sentToServer
-        syncResult.stats.numDeletes += outcome.removed.toLong()
+        // the deletes that the guard held back count too: Android's "too many deletions" screen shows this number
+        syncResult.stats.numDeletes += (outcome.removed + outcome.heldBack).toLong()
         if (outcome.tooManyDeletions) syncResult.tooManyDeletions = true
         if (!outcome.ok) {
             // no network, or the server was not reachable: the phone tries again later with its own back-off

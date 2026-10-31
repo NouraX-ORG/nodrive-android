@@ -6,6 +6,7 @@
  */
 package org.nourax.nodrive.devicesync
 
+import android.content.ContentUris
 import android.net.Uri
 import android.provider.CalendarContract
 import android.provider.ContactsContract
@@ -32,12 +33,17 @@ class ProviderScope(val accountName: String, val accountType: String) {
     val events: Uri get() = calendar(CalendarContract.Events.CONTENT_URI)
     val reminders: Uri get() = calendar(CalendarContract.Reminders.CONTENT_URI)
     val attendees: Uri get() = calendar(CalendarContract.Attendees.CONTENT_URI)
-    val alerts: Uri get() = CalendarContract.CalendarAlerts.CONTENT_URI
 
     val rawContacts: Uri get() = contacts(ContactsContract.RawContacts.CONTENT_URI)
     val data: Uri get() = contacts(ContactsContract.Data.CONTENT_URI)
     val groups: Uri get() = contacts(ContactsContract.Groups.CONTENT_URI)
     val settings: Uri get() = contacts(ContactsContract.Settings.CONTENT_URI)
+
+    /** The full-size photo of one raw contact (for reading it; the system hands out a file for it). */
+    fun displayPhoto(rawContactId: Long): Uri = Uri.withAppendedPath(
+        ContentUris.withAppendedId(ContactsContract.RawContacts.CONTENT_URI, rawContactId),
+        ContactsContract.RawContacts.DisplayPhoto.CONTENT_DIRECTORY
+    )
 
     /** "account_name = ? AND account_type = ?" with its arguments, to put in front of every selection of a calendar or contacts table. */
     fun accountSelection(nameColumn: String, typeColumn: String): String = "$nameColumn = ? AND $typeColumn = ?"

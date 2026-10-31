@@ -6,8 +6,11 @@
  */
 package org.nourax.nodrive.devicesync.ui
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -44,6 +47,9 @@ class CollectionItem(
 
 class NotSavedItem(val id: Long, val kind: String, val title: String)
 
+/** One chosen calendar or address book with how many objects it holds on this phone. */
+class CollectionCount(val href: String, val kind: String, val name: String, val count: Int)
+
 data class DeviceSyncUi(
     val step: Step = Step.INTRO,
     val permissionsDenied: Boolean = false,
@@ -68,7 +74,10 @@ data class DeviceSyncUi(
     val stopQuestion: Boolean = false,
     val stopRefused: Boolean = false,
     val applyFailed: Boolean = false,
-    val noCalendarStorage: Boolean = false
+    val noCalendarStorage: Boolean = false,
+    /** The phone's calendar or contacts permission was taken away: nothing can be synced until it is given again. */
+    val noPermission: Boolean = false,
+    val collectionCounts: List<CollectionCount> = emptyList()
 )
 
 /**
@@ -108,7 +117,10 @@ class DeviceSyncModel(
         mutable.update { it.copy(step = Step.CHOOSE, loading = true, offline = false, changing = changing) }
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { DeviceSyncRunner.discover(context, account) }
-            val rows = withContext(Dispatchers.IO) { DeviceSyncDatabase.get(context).dao().collections(account) }
+            // NoGantt's copy calendar is never offered
+            val rows = withContext(Dispatchers.IO) {
+                DeviceSyncDatabase.get(context).dao().collections(account).filter { it.offReason != RemoteCollection.OFF_TASK_COPY }
+            }
             val anyChosen = rows.any { it.chosen }
             val items = rows.map {
                 CollectionItem(
@@ -210,12 +222,22 @@ class DeviceSyncModel(
         return rows.count { it.kind == RemoteCollection.CALENDAR } to rows.count { it.kind == RemoteCollection.CONTACTS }
     }
 
+    /** True when the phone's calendar or contacts permission is not given (any more). */
+    private fun permissionMissing(): Boolean = listOf(
+        Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR, Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS
+    ).any { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+
     fun refreshStatus() {
         viewModelScope.launch {
             val snapshot = withContext(Dispatchers.IO) {
                 val dao = DeviceSyncDatabase.get(context).dao()
                 val state = DeviceSyncSettings.get(context, account)
                 Triple(state, dao.notSaved(account), counts())
+            }
+            val perCollection = withContext(Dispatchers.IO) {
+                DeviceSyncDatabase.get(context).dao().collections(account)
+                    .filter { it.chosen && it.offReason != RemoteCollection.OFF_GONE }
+                    .map { CollectionCount(it.href, it.kind, it.name, it.objectCount) }
             }
             val waiting = withContext(Dispatchers.IO) { DeviceSyncRunner.waitingCount(context, account) }
             mutable.update {
@@ -226,7 +248,9 @@ class DeviceSyncModel(
                     notSaved = snapshot.second.map { n -> NotSavedItem(n.id, n.kind, n.title) },
                     calendarsOnPhone = snapshot.third.first,
                     addressBooksOnPhone = snapshot.third.second,
-                    noCalendarStorage = snapshot.first.lastMessage == "no_calendar_storage"
+                    noCalendarStorage = snapshot.first.lastMessage == "no_calendar_storage",
+                    noPermission = snapshot.first.lastMessage == "no_permission" || permissionMissing(),
+                    collectionCounts = perCollection
                 )
             }
         }

@@ -35,7 +35,7 @@ class CalendarRow(
  * Reads and writes the phone's calendars of the account through [ProviderScope]: the only class that writes to the Calendar provider.
  * Writes are made as the sync adapter, so a change is not marked dirty (it comes from the server).
  */
-class CalendarProviderStore(private val resolver: ContentResolver, private val scope: ProviderScope) {
+class CalendarProviderStore(private val resolver: ContentResolver, private val scope: ProviderScope) : CalendarStore {
     private val eventColumns = arrayOf(
         CalendarContract.Events._ID, CalendarContract.Events.CALENDAR_ID, CalendarContract.Events._SYNC_ID,
         CalendarContract.Events.SYNC_DATA1, CalendarContract.Events.DIRTY, CalendarContract.Events.DELETED,
@@ -62,7 +62,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Every calendar of ours on the phone: id to server address. */
-    fun calendarIds(): Map<Long, String> {
+    override fun calendarIds(): Map<Long, String> {
         val out = LinkedHashMap<Long, String>()
         resolver.query(
             scope.calendars, arrayOf(CalendarContract.Calendars._ID, CalendarContract.Calendars.NAME),
@@ -71,7 +71,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
         return out
     }
 
-    fun ensureCalendar(href: String, displayName: String, color: Int, readOnly: Boolean): Long {
+    override fun ensureCalendar(href: String, displayName: String, color: Int, readOnly: Boolean): Long {
         val values = ContentValues().apply {
             put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, displayName)
             put(CalendarContract.Calendars.CALENDAR_COLOR, color)
@@ -95,7 +95,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Removes our phone calendar and every event in it (the provider removes the events of a deleted calendar). */
-    fun deleteCalendar(calendarId: Long) {
+    override fun deleteCalendar(calendarId: Long) {
         resolver.delete(ContentUris.withAppendedId(scope.calendars, calendarId), null, null)
     }
 
@@ -163,7 +163,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Every row (also the deleted ones) of our phone calendar. */
-    fun rows(calendarId: Long): List<CalendarRow> {
+    override fun rows(calendarId: Long): List<CalendarRow> {
         val out = ArrayList<CalendarRow>()
         resolver.query(
             scope.events, eventColumns,
@@ -237,33 +237,35 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
             r.put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
             resolver.insert(scope.reminders, r)
         }
-        for (guest in e.guests) {
-            if (guest.email.isEmpty()) continue
-            val a = ContentValues()
-            a.put(CalendarContract.Attendees.EVENT_ID, eventId)
-            a.put(CalendarContract.Attendees.ATTENDEE_NAME, guest.name)
-            a.put(CalendarContract.Attendees.ATTENDEE_EMAIL, guest.email)
-            a.put(CalendarContract.Attendees.ATTENDEE_RELATIONSHIP, CalendarContract.Attendees.RELATIONSHIP_ATTENDEE)
-            a.put(CalendarContract.Attendees.ATTENDEE_TYPE, CalendarContract.Attendees.TYPE_REQUIRED)
-            a.put(
-                CalendarContract.Attendees.ATTENDEE_STATUS,
-                when (guest.partstat) {
-                    "ACCEPTED" -> CalendarContract.Attendees.ATTENDEE_STATUS_ACCEPTED
-                    "DECLINED" -> CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED
-                    "TENTATIVE" -> CalendarContract.Attendees.ATTENDEE_STATUS_TENTATIVE
-                    else -> CalendarContract.Attendees.ATTENDEE_STATUS_INVITED
-                }
-            )
-            try {
-                resolver.insert(scope.attendees, a)
-            } catch (_: RuntimeException) {
-                // the guest list is a nicety; the event itself is what counts
+        for (guest in e.guests) addGuest(eventId, guest)
+    }
+
+    private fun addGuest(eventId: Long, guest: PhoneGuest) {
+        if (guest.email.isEmpty()) return
+        val a = ContentValues()
+        a.put(CalendarContract.Attendees.EVENT_ID, eventId)
+        a.put(CalendarContract.Attendees.ATTENDEE_NAME, guest.name)
+        a.put(CalendarContract.Attendees.ATTENDEE_EMAIL, guest.email)
+        a.put(CalendarContract.Attendees.ATTENDEE_RELATIONSHIP, CalendarContract.Attendees.RELATIONSHIP_ATTENDEE)
+        a.put(CalendarContract.Attendees.ATTENDEE_TYPE, CalendarContract.Attendees.TYPE_REQUIRED)
+        a.put(
+            CalendarContract.Attendees.ATTENDEE_STATUS,
+            when (guest.partstat) {
+                "ACCEPTED" -> CalendarContract.Attendees.ATTENDEE_STATUS_ACCEPTED
+                "DECLINED" -> CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED
+                "TENTATIVE" -> CalendarContract.Attendees.ATTENDEE_STATUS_TENTATIVE
+                else -> CalendarContract.Attendees.ATTENDEE_STATUS_INVITED
             }
+        )
+        try {
+            resolver.insert(scope.attendees, a)
+        } catch (_: RuntimeException) {
+            // the guest list is a nicety; the event itself is what counts
         }
     }
 
     /** Adds the event and its changed occurrences as new rows; returns the id of the event's row. */
-    fun insertObject(calendarId: Long, href: String, etag: String, parsed: ParsedObject): Long {
+    override fun insertObject(calendarId: Long, href: String, etag: String, parsed: ParsedObject): Long {
         val uri = checkNotNull(resolver.insert(scope.events, valuesOf(calendarId, parsed.master, href, etag))) { "the phone did not add the event" }
         val masterId = ContentUris.parseId(uri)
         addChildren(masterId, parsed.master)
@@ -288,9 +290,45 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
      * insert path is the one that is proven for every column; an update of a whole row is refused by some provider versions).
      * Returns the id of the new row of the event.
      */
-    fun replaceObject(masterId: Long, calendarId: Long, href: String, etag: String, parsed: ParsedObject): Long {
+    override fun replaceObject(
+        masterId: Long, calendarId: Long, href: String, etag: String, parsed: ParsedObject, previousGuests: Set<String>
+    ): Long {
+        // Guests are not sent to the server, so a guest that was added on the phone exists nowhere else: it is put back on the new row.
+        val serverGuests = parsed.master.guests.map { it.email.lowercase() }.toSet()
+        val added = phoneGuests(masterId).filter {
+            it.email.isNotEmpty() && it.email.lowercase() !in previousGuests && it.email.lowercase() !in serverGuests
+        }
         deleteObject(masterId, calendarId, href)
-        return insertObject(calendarId, href, etag, parsed)
+        val id = insertObject(calendarId, href, etag, parsed)
+        if (added.isNotEmpty()) {
+            if (parsed.master.guests.isEmpty()) {
+                val v = ContentValues()
+                v.put(CalendarContract.Events.HAS_ATTENDEE_DATA, 1)
+                resolver.update(ContentUris.withAppendedId(scope.events, id), v, null, null)
+            }
+            for (guest in added) addGuest(id, guest)
+        }
+        return id
+    }
+
+    private fun phoneGuests(eventId: Long): List<PhoneGuest> {
+        val out = ArrayList<PhoneGuest>()
+        resolver.query(
+            scope.attendees,
+            arrayOf(CalendarContract.Attendees.ATTENDEE_NAME, CalendarContract.Attendees.ATTENDEE_EMAIL, CalendarContract.Attendees.ATTENDEE_STATUS),
+            CalendarContract.Attendees.EVENT_ID + " = ?", arrayOf(eventId.toString()), null
+        )?.use {
+            while (it.moveToNext()) {
+                val partstat = when (it.getInt(2)) {
+                    CalendarContract.Attendees.ATTENDEE_STATUS_ACCEPTED -> "ACCEPTED"
+                    CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED -> "DECLINED"
+                    CalendarContract.Attendees.ATTENDEE_STATUS_TENTATIVE -> "TENTATIVE"
+                    else -> "NEEDS-ACTION"
+                }
+                out += PhoneGuest(it.getString(0).orEmpty(), it.getString(1).orEmpty(), partstat)
+            }
+        }
+        return out
     }
 
     // The selection names the calendar (one of ours, found through the scoped query) next to the event it belongs to.
@@ -304,13 +342,13 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Removes the event and its occurrences from the phone for good (a sync adapter delete). */
-    fun deleteObject(masterId: Long, calendarId: Long, href: String?) {
+    override fun deleteObject(masterId: Long, calendarId: Long, href: String?) {
         deleteExceptions(masterId, calendarId, href)
         resolver.delete(ContentUris.withAppendedId(scope.events, masterId), null, null)
     }
 
     /** The row was sent: clean, linked to its address, with the ETag. */
-    fun markSent(id: Long, href: String?, etag: String, uid: String?) {
+    override fun markSent(id: Long, href: String?, etag: String, uid: String?) {
         val v = ContentValues()
         v.put(CalendarContract.Events.DIRTY, 0)
         if (href != null) v.put(CalendarContract.Events._SYNC_ID, href)
@@ -320,28 +358,11 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
     }
 
     /** Only the ETag and link of a row, nothing else (a first-sync link). */
-    fun link(id: Long, href: String, etag: String) {
+    override fun link(id: Long, href: String, etag: String) {
         val v = ContentValues()
         v.put(CalendarContract.Events._SYNC_ID, href)
         v.put(CalendarContract.Events.SYNC_DATA1, etag)
         resolver.update(ContentUris.withAppendedId(scope.events, id), v, null, null)
-    }
-
-    /** Sets the uid of a row that was made on the phone (the provider leaves it empty). */
-    fun setUid(id: Long, uid: String) {
-        val v = ContentValues()
-        v.put(CalendarContract.Events.UID_2445, uid)
-        resolver.update(ContentUris.withAppendedId(scope.events, id), v, null, null)
-    }
-
-    /** Alert rows of the phone's reminders for our calendars (for the tests and the status line). */
-    fun alertCount(eventId: Long): Int {
-        var count = 0
-        resolver.query(
-            scope.alerts, arrayOf(CalendarContract.CalendarAlerts._ID),
-            CalendarContract.CalendarAlerts.EVENT_ID + " = ?", arrayOf(eventId.toString()), null
-        )?.use { count = it.count }
-        return count
     }
 
     private companion object {

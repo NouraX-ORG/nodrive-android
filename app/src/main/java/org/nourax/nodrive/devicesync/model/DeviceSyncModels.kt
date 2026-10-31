@@ -33,6 +33,12 @@ class RemoteCollection(
         const val CALENDAR = "calendar"
         const val CONTACTS = "contacts"
         const val DEFAULT_COLOR = "#2563EB"
+
+        /** Chosen once, but the server no longer lists it (deleted, or no longer shared): not synced any more, taken away on Stop. */
+        const val OFF_GONE = "gone"
+
+        /** NoGantt's copy calendar (it holds copies of tasks): never offered, and taken off the phone if it was chosen. */
+        const val OFF_TASK_COPY = "taskcopy"
     }
 }
 
@@ -47,12 +53,14 @@ class SyncOutcome(
     val tooManyDeletions: Boolean = false,
     /** A change on the phone that could not be sent (offline, error). */
     val waiting: Int = 0,
-    val message: String = ""
+    val message: String = "",
+    /** The deletes that the delete guard held back (Android's "too many deletions" screen shows this number). */
+    val heldBack: Int = 0
 ) {
     fun plus(other: SyncOutcome): SyncOutcome = SyncOutcome(
         ok && other.ok, added + other.added, changed + other.changed, sentToServer + other.sentToServer,
         removed + other.removed, notSaved + other.notSaved, tooManyDeletions || other.tooManyDeletions,
-        waiting + other.waiting, message.ifEmpty { other.message }
+        waiting + other.waiting, message.ifEmpty { other.message }, heldBack + other.heldBack
     )
 
     companion object {

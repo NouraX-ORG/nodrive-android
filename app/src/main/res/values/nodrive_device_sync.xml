@@ -17,6 +17,14 @@
         <item quantity="one">%d calendar</item>
         <item quantity="other">%d calendars</item>
     </plurals>
+    <plurals name="nodrive_device_sync_n_events">
+        <item quantity="one">%d event</item>
+        <item quantity="other">%d events</item>
+    </plurals>
+    <plurals name="nodrive_device_sync_n_contacts">
+        <item quantity="one">%d contact</item>
+        <item quantity="other">%d contacts</item>
+    </plurals>
     <plurals name="nodrive_device_sync_n_books">
         <item quantity="one">%d address book</item>
         <item quantity="other">%d address books</item>
@@ -41,7 +49,8 @@
     <string name="nodrive_device_sync_read_only">Read only on this phone</string>
     <string name="nodrive_device_sync_off_birthdays">Your phone\'s calendar can already show birthdays from Contacts.</string>
     <string name="nodrive_device_sync_off_subscription">A calendar you follow. It can only be read on this phone.</string>
-    <string name="nodrive_device_sync_off_readonly">Shared with you to read only. It can only be read on this phone.</string>
+    <string name="nodrive_device_sync_off_readonly">Read only for you. It can only be read on this phone.</string>
+    <string name="nodrive_device_sync_off_gone">No longer in NoDrive. Untick it to take it off this phone.</string>
 
     <string name="nodrive_device_sync_backup_text">First, NoDrive saves a copy of this phone\'s calendars and contacts in your NoDrive.</string>
     <string name="nodrive_device_sync_backup_running">Saving a copy of this phone\'s calendars and contacts…</string>

@@ -15,6 +15,9 @@
 #   DeviceSyncReminderIT   a server alarm is a phone reminder that the phone's Calendar fires (or schedules).
 #   DeviceSyncContactsIT   a contacts round trip: group and photo, a changed number keeps the unknown line, a new contact, a delete that
 #                          first saves the card in .Contacts-Backup.
+#   DeviceSyncSafetyIT     a calendar deleted on the server does not hold "Stop syncing" up; a photo set on the phone survives a server edit
+#                          and reaches the server; NoGantt's copy calendar of an account that has it on is never offered and a chosen one
+#                          leaves the phone.
 #   DeviceSyncStopIT       a1 sync on and a change waiting, this script turns data off, a2 stopping is refused, data goes on, a3 the final
 #                          sync sends the change and only our copies are removed from the phone.
 # Then tools/ci/devicesync-server-check.py asks the server itself. Pulls devicesync-*.png to build/device/screens/devicesync/, fails when an
@@ -32,6 +35,7 @@ TWOWAY=org.nourax.nodrive.devicesync.DeviceSyncTwoWayIT
 REMINDER=org.nourax.nodrive.devicesync.DeviceSyncReminderIT
 CONTACTS=org.nourax.nodrive.devicesync.DeviceSyncContactsIT
 STOP=org.nourax.nodrive.devicesync.DeviceSyncStopIT
+SAFETY=org.nourax.nodrive.devicesync.DeviceSyncSafetyIT
 SHOTS="$OUT/screens/devicesync"
 status=0
 
@@ -138,6 +142,7 @@ if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; th
     run_it light "$REMINDER" reminder 1
     "$ADB" shell cat "/sdcard/Android/data/$PKG/files/devicesync-reminder-proof.txt" 2> /dev/null | tr -d '\r' > "$OUT/devicesync-reminder-proof.txt" || true
     echo "devicesync: reminder proof: $(cat "$OUT/devicesync-reminder-proof.txt" 2> /dev/null)"
+    run_it light "$SAFETY" safety 3
 
     # Stop syncing, with the network off and on in between
     run_it light "$STOP#a1SyncIsOnAndAPhoneChangeIsWaiting" stop-a1 1

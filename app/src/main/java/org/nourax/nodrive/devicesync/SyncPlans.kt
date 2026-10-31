@@ -6,63 +6,6 @@
  */
 package org.nourax.nodrive.devicesync
 
-/** An object on the phone, as far as the plans need to know it. */
-class PhoneRowRef(
-    val rowId: Long,
-    /** The server address the row is linked to, or null when it was never linked. */
-    val syncId: String?,
-    val uid: String,
-    val dirty: Boolean,
-    val deleted: Boolean
-)
-
-/** An object on the server. */
-class ServerRef(val href: String, val etag: String, val uid: String)
-
-sealed class FirstSyncAction {
-    class AddToPhone(val server: ServerRef) : FirstSyncAction()
-    class AddToServer(val row: PhoneRowRef) : FirstSyncAction()
-    class Link(val row: PhoneRowRef, val server: ServerRef) : FirstSyncAction()
-    class Wait(val row: PhoneRowRef) : FirstSyncAction()
-}
-
-/**
- * The first sync of a collection only adds (design 10, plan 4.4). There is no delete action in this plan: a missing server object
- * for a row with an old address leads to an add, a deleted phone row waits for the first sync to be complete.
- */
-object FirstSyncPlan {
-    fun plan(server: List<ServerRef>, phone: List<PhoneRowRef>): List<FirstSyncAction> {
-        val out = ArrayList<FirstSyncAction>()
-        val linked = HashSet<Long>()
-        val byHref = phone.filter { it.syncId != null }.associateBy { it.syncId }
-        val byUid = phone.filter { it.syncId == null && it.uid.isNotEmpty() && !it.deleted }.groupBy { it.uid }
-        for (s in server) {
-            val same = byHref[s.href]
-            if (same != null) {
-                linked += same.rowId
-                continue
-            }
-            val match = byUid[s.uid]?.firstOrNull { it.rowId !in linked }
-            if (match != null && s.uid.isNotEmpty()) {
-                linked += match.rowId
-                out += FirstSyncAction.Link(match, s)
-            } else {
-                out += FirstSyncAction.AddToPhone(s)
-            }
-        }
-        for (row in phone) {
-            if (row.rowId in linked) continue
-            if (row.deleted) {
-                out += FirstSyncAction.Wait(row)
-            } else if (row.syncId == null || server.none { it.href == row.syncId }) {
-                // Never linked, or its object is missing on the server: add it, never delete anything.
-                out += FirstSyncAction.AddToServer(row)
-            }
-        }
-        return out
-    }
-}
-
 enum class ServerState { UNCHANGED, CHANGED, DELETED }
 
 enum class Decision {

@@ -11,57 +11,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The first sync only adds, the conflicts are decided as plan 4.5 says, and the delete guard has its thresholds (plan 4.9). */
+/**
+ * The conflicts are decided as plan 4.5 says, and the delete guard has its thresholds (plan 4.9). That the first sync only adds is
+ * tested on the engines themselves (`CalendarEngineTest`, `ContactsEngineTest`).
+ */
 class SyncPlansTest {
-    private fun server(vararg pairs: Pair<String, String>) = pairs.map { ServerRef("/c/${it.first}.ics", "\"e\"", it.second) }
-
-    private fun row(id: Long, syncId: String?, uid: String, dirty: Boolean = false, deleted: Boolean = false) =
-        PhoneRowRef(id, syncId, uid, dirty, deleted)
-
-    // ---- the first sync
-
-    @Test
-    fun serverObjectsThatAreNotOnThePhoneAreAddedToThePhone() {
-        val plan = FirstSyncPlan.plan(server("a" to "ua", "b" to "ub"), emptyList())
-        assertEquals(2, plan.filterIsInstance<FirstSyncAction.AddToPhone>().size)
-        assertEquals(2, plan.size)
-    }
-
-    @Test
-    fun phoneRowsWithoutAServerObjectAreAddedToTheServer() {
-        val plan = FirstSyncPlan.plan(emptyList(), listOf(row(1, null, "x"), row(2, "/c/old.ics", "y")))
-        assertEquals(listOf(1L, 2L), plan.filterIsInstance<FirstSyncAction.AddToServer>().map { it.row.rowId })
-    }
-
-    @Test
-    fun anObjectOnBothSidesIsLinkedByUidAndNothingIsOverwritten() {
-        val plan = FirstSyncPlan.plan(server("a" to "same"), listOf(row(1, null, "same", dirty = true)))
-        assertEquals(1, plan.size)
-        val link = plan.single() as FirstSyncAction.Link
-        assertEquals(1L, link.row.rowId)
-        assertEquals("/c/a.ics", link.server.href)
-    }
-
-    @Test
-    fun anObjectAlreadyLinkedByAddressIsLeftAlone() {
-        val plan = FirstSyncPlan.plan(server("a" to "ua"), listOf(row(1, "/c/a.ics", "ua")))
-        assertTrue(plan.isEmpty())
-    }
-
-    @Test
-    fun aDeletedPhoneRowWaitsAndNothingIsEverDeleted() {
-        val plan = FirstSyncPlan.plan(server("a" to "ua"), listOf(row(1, "/c/gone.ics", "ug", deleted = true)))
-        assertEquals(1, plan.filterIsInstance<FirstSyncAction.Wait>().size)
-        // the plan has no way to say "delete": the only actions are add, link and wait
-        assertTrue(plan.all { it is FirstSyncAction.AddToPhone || it is FirstSyncAction.AddToServer || it is FirstSyncAction.Link || it is FirstSyncAction.Wait })
-    }
-
-    @Test
-    fun aMissingServerObjectForARowWithAnOldAddressIsAnAddNeverADelete() {
-        val plan = FirstSyncPlan.plan(emptyList(), listOf(row(7, "/c/was-here.ics", "u7")))
-        assertEquals(1, plan.filterIsInstance<FirstSyncAction.AddToServer>().size)
-    }
-
     // ---- conflicts
 
     @Test

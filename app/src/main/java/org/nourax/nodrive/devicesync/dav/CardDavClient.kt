@@ -6,11 +6,19 @@
  */
 package org.nourax.nodrive.devicesync.dav
 
+import com.google.gson.JsonObject
 import org.nourax.nodrive.agenda.dav.CalendarReader
 import org.nourax.nodrive.agenda.dav.Dav
 import org.nourax.nodrive.agenda.dav.DavResponse
 import org.nourax.nodrive.agenda.dav.DavXml
+import org.nourax.nodrive.agenda.gantt.GanttClient
+import org.nourax.nodrive.agenda.gantt.GanttContract
+import org.nourax.nodrive.agenda.gantt.GanttMapper
+import org.nourax.nodrive.agenda.gantt.GanttSnapshot
 import org.nourax.nodrive.agenda.net.AgendaHttp
+import org.nourax.nodrive.agenda.net.getOcs
+import org.nourax.nodrive.agenda.ocs.OcsJson
+import org.nourax.nodrive.agenda.ocs.bool
 import org.nourax.nodrive.devicesync.model.RemoteCollection
 
 /** How a write ended. */
@@ -26,7 +34,13 @@ sealed class WriteResult {
 
     /** Anything else; [status] 0 means no network. */
     class Failed(val status: Int, val network: Boolean) : WriteResult()
+
+    /** Nothing was sent: the sync does not know the object's ETag, so it can not say "only if it is still this one". */
+    object NoEtag : WriteResult()
 }
+
+/** What the server says about NoGantt's copy calendar. [known] is false when it could not be read: nothing is then assumed. */
+class GanttCopy(val known: Boolean, val calendarUri: String)
 
 /**
  * CalDAV and CardDAV objects of the person's own account: the lists of calendars and address books, and writes with `If-Match` /
@@ -98,15 +112,20 @@ class CardDavClient(private val http: AgendaHttp, val davUser: String) {
         return out
     }
 
-    /** NoGantt's copy calendar (it holds copies of tasks): its name, or empty. Asked of the account's own server; any failure means none. */
-    fun ganttCopyCalendar(): String {
-        val reply = http.send(
-            "GET", "ocs/v2.php/apps/nc_gantt/api/v1/task-sync", mapOf("OCS-APIRequest" to "true", "Accept" to "application/json")
-        )
-        if (!reply.ok) return ""
-        val text = reply.text()
-        if (!Regex("\"enabled\"\\s*:\\s*(true|1)").containsMatchIn(text)) return ""
-        return Regex("\"calendar_uri\"\\s*:\\s*\"([^\"]*)\"").find(text)?.groupValues?.get(1).orEmpty()
+    /**
+     * NoGantt's copy calendar (it holds copies of tasks, which never go to the phone). Asked of the account's own server and read the way
+     * NoAgenda reads it (the same route, the same shape check). It fails closed: only "NoGantt is not on this server" (404) and a
+     * well-formed answer count as known. Anything else (no network, an error, an answer of another shape, a copy that is on but has no
+     * calendar name) is unknown, and then no calendar is offered or synced.
+     */
+    fun ganttCopy(): GanttCopy {
+        val reply = OcsJson.parse(http.getOcs(GanttClient.API_BASE + "task-sync?format=json"))
+        if (reply.notFound) return GanttCopy(true, "")
+        val data = reply.data as? JsonObject
+        if (!reply.ok || data == null || GanttContract.check(GanttContract.Endpoint.TASK_SYNC, data).isNotEmpty()) return GanttCopy(false, "")
+        val uri = GanttMapper.taskCopyCalendarUri(GanttSnapshot(taskSync = data))
+        if (data.bool("enabled") && uri.isEmpty()) return GanttCopy(false, "")
+        return GanttCopy(true, uri)
     }
 
     private fun isAddressBook(response: DavResponse): Boolean = response.prop(Dav.NS_DAV, "resourcetype").has("addressbook")
@@ -116,8 +135,10 @@ class CardDavClient(private val http: AgendaHttp, val davUser: String) {
         put(href, data, contentType, mapOf("If-None-Match" to "*"))
 
     /** PUT a changed object: fails with 412 when the ETag moved on. */
-    fun replace(href: String, etag: String, data: String, contentType: String): WriteResult =
-        put(href, data, contentType, if (etag.isEmpty()) emptyMap() else mapOf("If-Match" to DavSync.quoted(etag)))
+    fun replace(href: String, etag: String, data: String, contentType: String): WriteResult {
+        if (etag.isEmpty()) return WriteResult.NoEtag
+        return put(href, data, contentType, mapOf("If-Match" to DavSync.quoted(etag)))
+    }
 
     private fun put(href: String, data: String, contentType: String, conditions: Map<String, String>): WriteResult {
         val reply = http.send("PUT", href, conditions, data.toByteArray(Charsets.UTF_8), contentType)
@@ -131,7 +152,8 @@ class CardDavClient(private val http: AgendaHttp, val davUser: String) {
 
     /** DELETE an object, only with its ETag (`If-Match`). The server keeps a calendar object in its trash bin. */
     fun delete(href: String, etag: String): WriteResult {
-        val reply = http.send("DELETE", href, if (etag.isEmpty()) emptyMap() else mapOf("If-Match" to DavSync.quoted(etag)))
+        if (etag.isEmpty()) return WriteResult.NoEtag
+        val reply = http.send("DELETE", href, mapOf("If-Match" to DavSync.quoted(etag)))
         return when {
             reply.ok -> WriteResult.Ok("")
             reply.status == 404 -> WriteResult.Gone

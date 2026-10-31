@@ -13,6 +13,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nourax.nodrive.devicesync.contacts.ContactMapper
 import org.nourax.nodrive.devicesync.contacts.PhoneAddress
+import org.nourax.nodrive.devicesync.contacts.PhoneContact
+import org.nourax.nodrive.devicesync.contacts.PhotoBytes
 import org.nourax.nodrive.devicesync.contacts.TypedValue
 import java.time.Instant
 import java.util.Base64
@@ -126,6 +128,55 @@ class ContactMapperTest {
         val back = checkNotNull(ContactMapper.parse(text)).contact
         assertEquals(c.copy(uid = "new-uid"), back)
         assertNotNull(text)
+    }
+
+    @Test
+    fun relationsAreReadAndSentBothWays() {
+        val text = card("VERSION:3.0", "UID:r1", "FN:Rel", "RELATED;TYPE=spouse:Sam Spouse", "RELATED;TYPE=friend:Fay Friend", "RELATED:Somebody")
+        val c = checkNotNull(ContactMapper.parse(text)).contact
+        assertEquals(listOf(TypedValue("Sam Spouse", 14), TypedValue("Fay Friend", 6), TypedValue("Somebody", 12)), c.relations)
+        // a relation made on the phone
+        val sent = ContactMapper.patch(text, c, c.copy(relations = c.relations + TypedValue("Chris Child", 3)), now)
+        assertTrue(sent, sent.contains("RELATED;TYPE=child:Chris Child"))
+        assertTrue("the others are untouched", sent.contains("RELATED;TYPE=spouse:Sam Spouse") && sent.contains("RELATED:Somebody"))
+        // a relation removed on the phone
+        val removed = ContactMapper.patch(text, c, c.copy(relations = c.relations.drop(1)), now)
+        assertFalse(removed, removed.contains("Sam Spouse"))
+        assertTrue(removed.contains("Fay Friend"))
+        // the finer types of the phone go to the nearest kind
+        assertEquals(";TYPE=parent", ContactMapper.relationTypeParam(5))
+        assertEquals(";TYPE=sibling", ContactMapper.relationTypeParam(13))
+        assertEquals("", ContactMapper.relationTypeParam(7))
+    }
+
+    @Test
+    fun aPhotoOfThePhoneIsSentOnlyWhenTheCardHasNone() {
+        val none = card("VERSION:3.0", "UID:p1", "FN:No Photo")
+        val base = checkNotNull(ContactMapper.parse(none)).contact
+        val photo = PhotoBytes(byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 9, 8, 7))
+        val sent = ContactMapper.patch(none, base, base.copy(photo = photo), now)
+        assertTrue(sent, sent.contains("PHOTO;ENCODING=b;TYPE=PNG:"))
+        assertEquals(photo, checkNotNull(ContactMapper.parse(sent)).contact.photo)
+        // a version 4 card gets the data address form
+        val four = card("VERSION:4.0", "UID:p2", "FN:Four")
+        val sentFour = ContactMapper.patch(four, checkNotNull(ContactMapper.parse(four)).contact, PhoneContact(displayName = "Four", photo = photo, uid = "p2"), now)
+        assertTrue(sentFour, sentFour.contains("PHOTO:data:image/png;base64,"))
+        // a card that has a photo keeps it, whatever the phone holds
+        val has = card("VERSION:3.0", "UID:p3", "FN:Has", "PHOTO;ENCODING=b;TYPE=PNG:$png")
+        val hasBase = checkNotNull(ContactMapper.parse(has)).contact
+        assertEquals(has, ContactMapper.patch(has, hasBase, hasBase.copy(photo = PhotoBytes(byteArrayOf(5, 5))), now))
+    }
+
+    @Test
+    fun aContactIsBlankOnlyWhenNothingInItCouldBeSent() {
+        assertTrue(PhoneContact().isBlank())
+        assertTrue(PhoneContact(uid = "x", groups = listOf("Family")).isBlank())
+        assertFalse(PhoneContact(nicknames = listOf("Bo")).isBlank())
+        assertFalse(PhoneContact(birthday = "--05-12").isBlank())
+        assertFalse(PhoneContact(urls = listOf("https://example.test")).isBlank())
+        assertFalse(PhoneContact(impps = listOf("xmpp:a@b")).isBlank())
+        assertFalse(PhoneContact(title = "Boss").isBlank())
+        assertFalse(PhoneContact(photo = PhotoBytes(byteArrayOf(1))).isBlank())
     }
 
     @Test

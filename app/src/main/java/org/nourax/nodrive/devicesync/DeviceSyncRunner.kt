@@ -89,46 +89,28 @@ object DeviceSyncRunner {
     /** Asks the server for the calendars and address books and keeps their rows (what is chosen stays chosen). False when it could not ask. */
     fun discover(context: Context, accountName: String): Boolean {
         val connection = connect(context, accountName) ?: return false
-        return synchronized(lock) { refreshCollections(connection.env) }
+        return synchronized(lock) { CollectionRefresh.run(connection.env).ok }
     }
 
-    private fun refreshCollections(env: SyncEnv): Boolean {
-        val gantt = env.dav.ganttCopyCalendar()
-        val calendars = env.dav.calendars(if (gantt.isEmpty()) emptySet() else setOf(gantt))
-        val books = env.dav.addressBooks()
-        if (calendars == null && books == null) return false
-        fun merge(list: List<RemoteCollection>?, kind: String) {
-            if (list == null) return
-            val have = env.dao.collections(env.account).filter { it.kind == kind }.associateBy { it.href }
-            for (r in list) {
-                val old = have[r.href]
-                env.dao.putCollection(
-                    CollectionEntity(
-                        env.account, r.href, kind, r.name, r.colorText, r.readOnly, r.offReason, old?.chosen ?: false,
-                        old?.syncToken.orEmpty(), old?.androidId ?: 0L, old?.firstSyncDone ?: false, old?.objectCount ?: 0
-                    )
-                )
-            }
-        }
-        merge(calendars, RemoteCollection.CALENDAR)
-        merge(books, RemoteCollection.CONTACTS)
-        return true
-    }
+    /**
+     * Runs [block] while no sync runs and none can start (the lock of the runner is held, and it can be taken again by [run] inside).
+     * Stop syncing needs this: the final sync and the removal of the phone's copies must not have a sync in between that adds a copy again.
+     */
+    fun <T> exclusive(block: () -> T): T = synchronized(lock) { block() }
 
     /** The calendars and address books that were chosen. */
     fun chosen(context: Context, account: String): List<CollectionEntity> =
         DeviceSyncDatabase.get(context).dao().collections(account).filter { it.chosen }
 
-    /** What is waiting on the phone: rows that were changed or deleted and not yet sent. */
+    /** What is waiting on the phone: changes that can still be sent and have not been (see [WaitingCount]). */
     fun waitingCount(context: Context, accountName: String): Int {
         val app = context.applicationContext
         return try {
             val scope = ProviderScope(accountName, MainApp.getAccountType(app))
-            val calendar = CalendarProviderStore(app.contentResolver, scope)
-            var n = 0
-            for (id in calendar.calendarIds().keys) n += calendar.rows(id).count { !it.isException && (it.dirty || it.deleted) }
-            n += ContactsProviderStore(app.contentResolver, scope).rows().count { it.dirty || it.deleted }
-            n
+            WaitingCount.of(
+                CalendarProviderStore(app.contentResolver, scope), ContactsProviderStore(app.contentResolver, scope),
+                DeviceSyncDatabase.get(app).dao().collections(accountName)
+            )
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "waiting count failed: ${e.javaClass.simpleName}")
             0
@@ -146,6 +128,8 @@ object DeviceSyncRunner {
         if (state.backupDoneUtc <= 0) return SyncOutcome.failed("backup_pending")
         val connection = connect(app, accountName, flags) ?: return SyncOutcome.failed("no_account")
         return synchronized(lock) {
+            // Stop syncing may have switched sync off while this one waited for the lock.
+            if (!DeviceSyncSettings.get(app, accountName).enabled) return@synchronized SyncOutcome.EMPTY
             val env = connection.env
             val outcome = try {
                 runLocked(app, env, connection.safety, kinds)
@@ -163,16 +147,30 @@ object DeviceSyncRunner {
     }
 
     private fun runLocked(app: Context, env: SyncEnv, safety: RemovedContactsCopy, kinds: Set<String>): SyncOutcome {
-        if (!refreshCollections(env)) return SyncOutcome.failed("offline")
+        val refresh = CollectionRefresh.run(env)
+        if (!refresh.ok) return SyncOutcome.failed("offline")
         val scope = ProviderScope(env.account, MainApp.getAccountType(app))
+        val calendarStore = CalendarProviderStore(app.contentResolver, scope)
+        val contactsStore = ContactsProviderStore(app.contentResolver, scope)
+        // NoGantt's copy calendar holds copies of tasks: if it was chosen once, its copy leaves the phone now (design 10).
+        for (c in env.dao.collections(env.account)) {
+            if (c.chosen && c.offReason == RemoteCollection.OFF_TASK_COPY) CollectionRemoval.takeAway(env.dao, env.account, c, calendarStore, contactsStore)
+        }
         var total = SyncOutcome.EMPTY
-        val chosen = env.dao.collections(env.account).filter { it.chosen }
+        val chosen = CollectionRefresh.live(env.dao.collections(env.account))
         if (RemoteCollection.CALENDAR in kinds) {
-            val engine = CalendarSyncEngine(env, CalendarProviderStore(app.contentResolver, scope))
-            for (c in chosen.filter { it.kind == RemoteCollection.CALENDAR }) total = total.plus(engine.sync(c))
+            if (!refresh.calendarsKnown) {
+                // The server could not say which calendar holds the copies of tasks (or the list failed): no calendar is synced blind.
+                total = total.plus(SyncOutcome.failed("calendars_unknown"))
+            } else {
+                val engine = CalendarSyncEngine(env, calendarStore)
+                for (c in chosen.filter { it.kind == RemoteCollection.CALENDAR }) total = total.plus(engine.sync(c))
+            }
         }
         if (RemoteCollection.CONTACTS in kinds) {
-            val engine = ContactsSyncEngine(env, ContactsProviderStore(app.contentResolver, scope), safety)
+            // a contact made on the phone goes to the first writable address book that was chosen
+            val newBook = chosen.firstOrNull { it.kind == RemoteCollection.CONTACTS && !it.readOnly }?.href
+            val engine = ContactsSyncEngine(env.withNewContactsBook(newBook), contactsStore, safety)
             for (c in chosen.filter { it.kind == RemoteCollection.CONTACTS }) total = total.plus(engine.sync(c))
         }
         return total

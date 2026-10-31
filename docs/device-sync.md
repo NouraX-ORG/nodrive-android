@@ -18,7 +18,8 @@ through these steps (`DeviceSyncActivity`, Compose):
 1. an explanation ("Changes go both ways. Tasks stay in NoAgenda.");
 2. the calendar and contacts permissions (a refusal shows "Open settings");
 3. **choose** the calendars and address books (subscriptions, the birthday calendar and read-only address books are off by default and say
-   why; the board app's calendars, NoGantt's copy calendar and lists with only to-dos are never offered);
+   why; the board app's calendars, NoGantt's copy calendar and lists with only to-dos are never offered; a calendar that was chosen and
+   that the server no longer lists says "No longer in NoDrive" and is taken off the phone when it is unticked);
 4. **the backup**: upstream's "Contacts and calendar backup" saves the phone's contacts and calendars into NoDrive first (`.Contacts-Backup`,
    `.Calendar-Backup`). The first sync does not start until a new file of each is on the server (at most 15 minutes);
 5. **the first sync, which only adds** ("Nothing is deleted");
@@ -41,9 +42,10 @@ that could bypass the backup and the first-sync rules.
 | Server side | `dav/DeviceDav.kt` (`sync-collection`, `multiget`), `dav/CardDavClient.kt` (collections, `If-Match` / `If-None-Match`), `DeviceSyncWritePolicy.kt` |
 | The phone's providers (the **only** writers) | `ProviderScope.kt` (always the sync adapter, with **our** account name and type), `calendar/CalendarProviderStore.kt`, `contacts/ContactsProviderStore.kt` |
 | iCalendar / vCard <-> rows | `calendar/EventMapper.kt`, `calendar/EventDocument.kt`, `contacts/ContactMapper.kt`, `contacts/VCardText.kt` |
-| Rules (plain Kotlin, unit-tested) | `SyncPlans.kt`: first sync, conflicts, delete guard |
+| Rules (plain Kotlin, unit-tested) | `SyncPlans.kt`: conflicts, delete guard (the first-sync rules live in the two engines and are tested there) |
+| The list of calendars and address books, what is waiting, taking a copy away | `CollectionRefresh.kt` (`CollectionRefresh`, `WaitingCount`, `CollectionRemoval`) |
 | Own database | `store/DeviceSyncDatabase.kt` (`nodrive_devicesync.db`, schema exported in `app/schemas`) |
-| Backup before the first sync | `BackupGate.kt` |
+| Backup before the first sync | `BackupGate.kt` (`BackupFlow` decides, `BackupGate` talks to the phone and the server) |
 | Switching on and off, stop | `DeviceSyncControl.kt` |
 
 - **Identity.** Events: `_SYNC_ID` = the object's address, `SYNC_DATA1` = ETag, `UID_2445` = UID. Contacts: `SOURCE_ID` = address, `SYNC1` =
@@ -54,6 +56,14 @@ that could bypass the backup and the first-sync rules.
 - **Reminders.** `VALARM` with a relative trigger before the start becomes a `Reminders` row (alert); edited on the phone, the alarms of
   that event are rewritten.
 - **Groups.** The server's contact groups are `CATEGORIES` on each card; they map to the phone's `Groups` and `GroupMembership`.
+- **Phone data that the card has no place for stays.** When the server's version of a contact is written to the phone, only the kinds of data
+  that the sync manages are written again. The phone's photo (when the card has none), other kinds of event, a SIP address and the data
+  that other apps add are kept. A photo set on the phone is sent when the card has none, and `RELATED` is sent both ways. Guests that
+  were added to an event on the phone are put back when the server's version of the event is written.
+- **Read-only copies are read only on the phone too.** A change that an app makes in one anyway can never be sent, so the server's version
+  is put back and the phone's edit is kept in "Not saved" first (a delete is simply undone).
+- **A phone copy that was made again starts over.** If the phone's Calendar Storage or Contacts Storage was cleared (or the calendar was
+  added again), the collection is read again from the start with the first-sync rules, which only add.
 - **Resumable.** The sync token is stored only after a complete pass; objects already added are recognised by address, so a sync that the
   system cut off carries on next time.
 
@@ -73,7 +83,13 @@ that could bypass the backup and the first-sync rules.
   **edit** against a server **delete**, or the other way round: the **edit wins**. Nothing is lost silently.
 - **Stop syncing** (or taking one calendar away) first runs a final sync. If a phone change can not be sent (no network, a conflict),
   nothing is removed: "Some changes on this phone haven't reached NoDrive yet." Only then are **our account's** phone calendars and
-  contacts removed (they are copies; everything stays on the server).
+  contacts removed (they are copies; everything stays on the server). The final sync and the removal run under one lock, so a sync that
+  the phone starts in between can not add an empty copy again. Only a change that can still be sent counts as waiting: a change in a
+  calendar that the server deleted, in a read-only copy, or a new contact that is empty does not hold Stop up.
+- **NoGantt's copy calendar** (copies of tasks) never reaches the phone. It is read the way NoAgenda reads it and fails closed: when the
+  server can not say which calendar it is, no calendar is offered or synced until it can. A copy calendar that was chosen once leaves the phone.
+- **A write needs an ETag.** A change or a delete is only sent with `If-Match`; without a known ETag nothing is sent and the next sync reads
+  the object again.
 - Other accounts' rows are never touched: every provider address carries our account name and type, and `DeviceSyncSafetyTest` fails if any
   other file writes to a provider, if a `DELETE` leaves the app anywhere but the DAV client, or if a file of the Drive could be replaced or
   deleted (`DeviceSyncWritePolicy`). The test also keeps `contacts_backup_expire` at -1 in the nodrive build.
@@ -101,18 +117,34 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   every other line byte for byte is what the plan asks of events and the safe choice for contacts; ez-vcard would rewrite the whole card.
 - The status screen's "Sync now" asks the phone's sync system first (so the adapters are the ones that run) and, if nothing happens within
   25 seconds, runs the same sync in the app's own process.
-- The photo of a contact only travels from the server to the phone (a photo changed on the phone is not sent), attendees and the organiser
-  of an event only travel from the server to the phone (a phone edit never changes them).
+- The photo of a contact travels from the phone to the server only when the card has none. A photo that the card already has is never replaced
+  from the phone: the phone keeps its own re-encoded copy, so the bytes can not be compared, and a photo changed on the phone while the card has
+  one is overwritten by the next server edit of that card. Attendees and the organiser of an event only travel from the server to the phone (a
+  phone edit never changes them).
+- The phone's finer relation types (father, mother, manager) go to the nearest vCard kind; custom labels of a phone number or address are sent as
+  the nearest standard type (the label text is not kept).
+- With several writable address books chosen, a contact made on the phone goes to the first of them (by name); the others never get it.
+- **Not built (listed so nothing is silent):** the NoAgenda overflow-menu entry of plan 4.1 (the screen is reached from Settings and from the
+  phone's account settings); a change made on the phone while it is being sent is cleared with the send (a window of a few milliseconds);
+  the backup gate takes the first new calendar backup file as done (upstream writes one file per calendar).
+- The status screen shows how many events or contacts each chosen collection holds (plan 4.7) and the date of a sync that was not today.
 - The backup gate saves only what exists: with no contacts (or no calendars) on the phone, that backup is not made.
 
 ## Tests
 
 - **Unit tests** (JVM): `EventMapperTest` (every field both ways, all day, time zones, repeat and exceptions, reminders, what a phone edit
-  keeps byte for byte), `ContactMapperTest` (every field, groups, unknown lines, vCard 3.0 kept), `SyncPlansTest` (first sync only adds,
-  conflict rules, delete guard thresholds), `DeviceSyncSafetyTest` (the guard over the sources, the write policy).
+  keeps byte for byte), `ContactMapperTest` (every field, groups, relations, photo rules, unknown lines, vCard 3.0 kept), `SyncPlansTest`
+  (conflict rules, delete guard thresholds), `DeviceSyncSafetyTest` (the guard over the sources, the write policy). The engines are tested
+  against a server and a phone in memory (`DeviceSyncFakes.kt`): `CalendarEngineTest` and `ContactsEngineTest` (the first sync only adds, edit
+  against delete in both directions, discarding local deletions, the delete guard, the removed-contacts copy before a delete and a failed
+  copy holding the deletes back, read-only copies, an empty contact, one default address book, a phone copy that was made again, a photo
+  and a relation sent, no write without an ETag), `CollectionRefreshTest` (the copy calendar fails closed, collections that are gone) and
+  `BackupFlowTest` (offline, a failed job and a timeout all stop the first sync).
 - **Emulator tests** (`androidTestNodrive/.../devicesync/`, throwaway server, Ali's account; CI job "Device calendar and contacts sync on the
-  emulator", `tools/ci/devicesync-device.sh`): `DeviceSyncSettingsIT`, `DeviceSyncFirstSyncIT`, `DeviceSyncTwoWayIT`,
-  `DeviceSyncReminderIT`, `DeviceSyncContactsIT`, `DeviceSyncStopIT`. Screenshots in light and dark mode:
+  emulator", `tools/ci/devicesync-device.sh`): `DeviceSyncSettingsIT` (also: the phone knows our settings activity as a class name),
+  `DeviceSyncFirstSyncIT`, `DeviceSyncTwoWayIT`, `DeviceSyncReminderIT`, `DeviceSyncContactsIT`, `DeviceSyncSafetyIT` (a calendar deleted
+  on the server then Stop; a photo set on the phone and an edit of the card on the server; an account whose NoGantt copy calendar is on),
+  `DeviceSyncStopIT`. Screenshots in light and dark mode:
   `devicesync-{settings,intro,permissions,choose,backup,first-sync,status}-{light,dark}.png`. Then `tools/ci/devicesync-server-check.py` asks the
   server itself (backup files, the removed-contacts file, the trash bin, the cards).
 

@@ -29,8 +29,12 @@ class SyncEnv(
     val dao: DeviceSyncDao,
     val zone: ZoneId,
     val clock: () -> Instant = { Instant.now() },
-    val flags: SyncFlags = SyncFlags()
-)
+    val flags: SyncFlags = SyncFlags(),
+    /** The address book that gets the contacts made on the phone (several can be chosen, a new contact goes to one); null = any. */
+    val newContactsBook: String? = null
+) {
+    fun withNewContactsBook(href: String?) = SyncEnv(account, http, dav, dao, zone, clock, flags, href)
+}
 
 /** The same collection row with some fields changed. */
 fun CollectionEntity.with(
