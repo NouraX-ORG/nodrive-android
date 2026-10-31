@@ -111,13 +111,20 @@ data_on() {
 run_it() {
     local log="$OUT/devicesync-it-$3-$1.log"
     "$ADB" shell input keyevent KEYCODE_WAKEUP > /dev/null 2>&1 || true
-    "$ADB" shell am instrument -w -e class "$2" \
+    # -r (raw): one INSTRUMENTATION_STATUS_CODE per test. 0 = passed; -1 error, -2 failure, -3 ignored, -4 assumption not met (a test that
+    # skipped itself, for example for a missing server, is not a pass: the plain "OK (n tests)" line counts it as one).
+    "$ADB" shell am instrument -w -r -e class "$2" \
         -e NODRIVE_AG_URL "${NODRIVE_AG_DEVICE_URL:-}" \
         -e NODRIVE_AG_ALI_TOKEN "${NODRIVE_AG_ALI_TOKEN:-}" -e NODRIVE_AG_MARA_TOKEN "${NODRIVE_AG_MARA_TOKEN:-}" \
         -e NODRIVE_AG_SARA_TOKEN "${NODRIVE_AG_SARA_TOKEN:-}" -e NODRIVE_AG_OLAF_TOKEN "${NODRIVE_AG_OLAF_TOKEN:-}" \
         -e NODRIVE_BK_LOOK "$1" "$RUNNER" 2>&1 | tr -d '\r' > "$log"
-    if grep -q "^OK ($4 test" "$log"; then echo "devicesync IT $3 ($1): $(grep '^OK (' "$log")"; else
-        echo "devicesync IT $3 ($1): FAIL (expected OK ($4 tests))"; grep -v "^INSTRUMENTATION_" "$log" | tail -n 70 | cut -c1-400
+    local passed skipped
+    passed=$(grep -c '^INSTRUMENTATION_STATUS_CODE: 0$' "$log" || true)
+    skipped=$(grep -cE '^INSTRUMENTATION_STATUS_CODE: (-1|-2|-3|-4)$' "$log" || true)
+    if [ "$passed" = "$4" ] && [ "$skipped" = "0" ] && grep -q '^INSTRUMENTATION_CODE: -1$' "$log"; then
+        echo "devicesync IT $3 ($1): OK ($passed tests passed, 0 failed or skipped)"; else
+        echo "devicesync IT $3 ($1): FAIL (expected $4 passed, got $passed passed, $skipped failed or skipped)"
+        grep -vE "^INSTRUMENTATION_(STATUS: (numtests|id|current|class)=|STATUS_CODE: 1$)" "$log" | tail -n 70 | cut -c1-400
         "$ADB" logcat -d -b crash 2> /dev/null | tail -n 30 | cut -c1-300
         "$ADB" logcat -d 2> /dev/null | grep -E "DeviceSync(Backup|Runner|Calendar|Contacts|Control|Model)|BackupWork|SaveCalendar|FileUploadWorker|TransferManager" | tail -n 80 | cut -c1-300; status=1; fi
 }
@@ -153,6 +160,7 @@ if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; th
     fi
     data_on && echo "devicesync: network is back" || { echo "devicesync: FAIL the network did not come back"; status=1; }
     run_it light "$STOP#a3WithTheNetworkBackAFinalSyncSendsTheChangeAndThenOnlyOurCopiesAreRemoved" stop-a3 1
+    run_it light "$STOP#b1AConflictRefusesStopAndTheNotSavedEntryStaysListed" stop-b1 1
 
     # what the server really holds, asked as the user with plain HTTP (not through the app)
     python3 tools/ci/devicesync-server-check.py "$OUT/devicesync-server-check.md" > "$OUT/devicesync-server-check.log" 2>&1 \

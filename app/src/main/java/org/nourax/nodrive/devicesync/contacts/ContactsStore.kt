@@ -20,8 +20,11 @@ interface ContactsStore {
     /** Adds the contact as a new raw contact; returns its id. */
     fun insert(href: String, etag: String, parsed: ParsedContact): Long
 
-    /** Puts the server's version into an existing raw contact. Data the sync does not manage (a photo the card has none of, ...) stays. */
-    fun replace(id: Long, href: String, etag: String, parsed: ParsedContact)
+    /**
+     * Puts the server's version into an existing raw contact. Data the sync does not manage (a photo the card has none of, ...) stays,
+     * except that [dropPhoto] (the server had a photo before and the card has none now) takes the phone's photo away too.
+     */
+    fun replace(id: Long, href: String, etag: String, parsed: ParsedContact, dropPhoto: Boolean = false)
 
     /** Removes the raw contact from the phone for good. */
     fun delete(id: Long)

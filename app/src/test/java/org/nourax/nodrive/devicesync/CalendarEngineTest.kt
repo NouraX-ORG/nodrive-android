@@ -275,10 +275,53 @@ class CalendarEngineTest {
         assertTrue("it stays chosen until the person lets go of it", gone.chosen)
         assertEquals("it can not be sent, so it does not wait", 0, WaitingCount.of(store, FakeContactsStore(), dao.collections(account)))
         assertTrue("it is not synced any more", CollectionRefresh.live(dao.collections(account)).isEmpty())
+        // but taking it away would lose the edit: the Stop question and the untick question say so
+        assertEquals("the lost edit is counted", 1, WaitingCount.lost(store, FakeContactsStore(), dao.collections(account)))
+        assertEquals(1, WaitingCount.lost(store, FakeContactsStore(), dao.collections(account), setOf(work)))
+        assertEquals(0, WaitingCount.lost(store, FakeContactsStore(), dao.collections(account), setOf("/other/")))
 
         CollectionRemoval.takeAway(dao, account, gone, store, FakeContactsStore())
         assertTrue("its phone copy is gone", store.calendars.isEmpty())
         assertNull("and it is forgotten for good", dao.collection(account, work))
+    }
+
+    // ---- a conflict and Stop syncing
+
+    @Test
+    fun aConflictKeepsAnEntryInNotSavedAndStopIsRefusedUntilThePersonDealtWithIt() {
+        putOnServer("a.ics", "ua", "Meeting")
+        assertTrue(sync().ok)
+        store.appEdit(checkNotNull(store.byTitle("Meeting")).id) { it.copy(title = "Meeting (phone)") }
+        putOnServer("a.ics", "ua", "Meeting (server)")
+
+        val outcome = sync()
+
+        assertTrue("a conflict is not a failed sync", outcome.ok)
+        assertEquals(1, outcome.notSaved)
+        assertEquals("the phone is clean again, nothing waits", 0, WaitingCount.of(store, FakeContactsStore(), dao.collections(account)))
+        // this is what Stop looks at: the final sync's outcome, the waiting count and the entries of "Not saved"
+        val refusal = checkNotNull(StopRule.refusal(outcome, 0, dao.notSaved(account).size))
+        assertEquals(1, refusal.notSaved)
+        assertNotNull("still refused on the next Stop, the final sync has nothing new", StopRule.refusal(SyncOutcome.EMPTY, 0, dao.notSaved(account).size))
+        // the person decides ("Keep the NoDrive version"): Stop may go on
+        dao.deleteNotSaved(dao.notSaved(account).single().id)
+        assertNull(StopRule.refusal(SyncOutcome.EMPTY, 0, dao.notSaved(account).size))
+    }
+
+    // ---- a changed occurrence
+
+    @Test
+    fun aChangedOccurrenceAloneCountsAsOneWaitingChangeOfItsEvent() {
+        choose()
+        val cal = store.ensureCalendar(work, "Work", 0, false)
+        store.insertObject(cal, work + "r.ics", "\"v1\"", ParsedObject(phoneEvent("ur", "Weekly"), listOf(phoneEvent("ur", "Weekly moved"))))
+        assertEquals(0, WaitingCount.of(store, FakeContactsStore(), dao.collections(account)))
+
+        store.appEdit(store.rowList.first { it.isException }.id) { it }
+
+        assertEquals("the master is clean, but its occurrence was changed", 1, WaitingCount.of(store, FakeContactsStore(), dao.collections(account)))
+        store.appEdit(store.rowList.first { !it.isException }.id) { it }
+        assertEquals("the event counts once", 1, WaitingCount.of(store, FakeContactsStore(), dao.collections(account)))
     }
 
     private companion object {

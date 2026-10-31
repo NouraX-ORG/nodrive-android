@@ -73,6 +73,14 @@
     <string name="nodrive_device_sync_cancel">Cancel</string>
     <string name="nodrive_device_sync_stop_question">Stop syncing and remove NoDrive calendars and contacts from this phone? Everything stays in your NoDrive.</string>
     <string name="nodrive_device_sync_stop_refused">Some changes on this phone haven\'t reached NoDrive yet. Connect to the internet and try again.</string>
+    <string name="nodrive_device_sync_stop_refused_not_saved">Some changes on this phone weren\'t saved because they also changed in NoDrive. Look at Not saved first.</string>
+    <plurals name="nodrive_device_sync_lost_on_removal">
+        <item quantity="one">%d change on this phone that was never sent will be lost: its calendar or address book is no longer in NoDrive.</item>
+        <item quantity="other">%d changes on this phone that were never sent will be lost: their calendars or address books are no longer in NoDrive.</item>
+    </plurals>
+    <string name="nodrive_device_sync_remove_from_phone">Remove from this phone</string>
+    <string name="nodrive_device_sync_calendars_unknown">NoDrive can\'t check your calendars right now. Contacts still sync.</string>
+    <string name="nodrive_device_sync_last_failed">The last sync didn\'t finish. NoDrive will try again.</string>
     <string name="nodrive_device_sync_auto_sync_off">Auto-sync is off on this phone. Changes are synced when you tap Sync now.</string>
     <plurals name="nodrive_device_sync_waiting">
         <item quantity="one">%d change waiting to be sent</item>

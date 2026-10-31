@@ -56,6 +56,8 @@ class DeviceSyncActions(
     val openSettings: () -> Unit,
     val toggle: (String) -> Unit,
     val chooseDone: () -> Unit,
+    val confirmUntick: () -> Unit,
+    val cancelUntick: () -> Unit,
     val retryChoices: () -> Unit,
     val retryBackup: () -> Unit,
     val finishFirstSync: () -> Unit,
@@ -90,10 +92,21 @@ fun DeviceSyncScreen(model: DeviceSyncModel, actions: DeviceSyncActions) {
             }
         }
     }
+    if (ui.untickLost > 0) UntickQuestion(ui.untickLost, actions)
     if (ui.stopQuestion) {
         AlertDialog(
             onDismissRequest = actions.cancelStop,
-            text = { Text(stringResource(R.string.nodrive_device_sync_stop_question)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.nodrive_device_sync_stop_question))
+                    if (ui.stopLost > 0) {
+                        Text(
+                            pluralStringResource(R.plurals.nodrive_device_sync_lost_on_removal, ui.stopLost, ui.stopLost),
+                            modifier = Modifier.padding(top = 8.dp).testTag("ds_stop_lost")
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = actions.confirmStop, modifier = Modifier.testTag("ds_stop_confirm")) {
                     Text(stringResource(R.string.nodrive_device_sync_stop_and_remove))
@@ -106,6 +119,24 @@ fun DeviceSyncScreen(model: DeviceSyncModel, actions: DeviceSyncActions) {
             }
         )
     }
+}
+
+@Composable
+private fun UntickQuestion(lost: Int, actions: DeviceSyncActions) {
+    AlertDialog(
+        onDismissRequest = actions.cancelUntick,
+        text = { Text(pluralStringResource(R.plurals.nodrive_device_sync_lost_on_removal, lost, lost), modifier = Modifier.testTag("ds_untick_lost")) },
+        confirmButton = {
+            TextButton(onClick = actions.confirmUntick, modifier = Modifier.testTag("ds_untick_confirm")) {
+                Text(stringResource(R.string.nodrive_device_sync_remove_from_phone))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = actions.cancelUntick, modifier = Modifier.testTag("ds_untick_cancel")) {
+                Text(stringResource(R.string.nodrive_device_sync_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -183,8 +214,12 @@ private fun Choose(ui: DeviceSyncUi, actions: DeviceSyncActions) {
                 Text(stringResource(R.string.nodrive_device_sync_try_again))
             }
         }
-        ui.items.isEmpty() -> Body(stringResource(R.string.nodrive_device_sync_choose_none), "ds_choose_none")
+        ui.items.isEmpty() -> {
+            if (ui.chooseCalendarsUnknown) Body(stringResource(R.string.nodrive_device_sync_calendars_unknown), "ds_choose_calendars_unknown")
+            Body(stringResource(R.string.nodrive_device_sync_choose_none), "ds_choose_none")
+        }
         else -> {
+            if (ui.chooseCalendarsUnknown) Body(stringResource(R.string.nodrive_device_sync_calendars_unknown), "ds_choose_calendars_unknown")
             Group(ui.items.filter { it.kind == RemoteCollection.CALENDAR }, R.string.nodrive_device_sync_choose_calendars, actions)
             Group(ui.items.filter { it.kind == RemoteCollection.CONTACTS }, R.string.nodrive_device_sync_choose_contacts, actions)
             Spacer(Modifier.height(8.dp))
@@ -295,7 +330,9 @@ private fun Status(ui: DeviceSyncUi, actions: DeviceSyncActions) {
     Body(if (ui.syncing) stringResource(R.string.nodrive_device_sync_syncing) else lastText, "ds_last_sync")
     Body(stringResource(R.string.nodrive_device_sync_on_summary, calendarCount(ui.calendarsOnPhone), bookCount(ui.addressBooksOnPhone)), "ds_counts")
     for (c in ui.collectionCounts) {
-        val n = if (c.kind == RemoteCollection.CONTACTS) {
+        val n = if (c.gone) {
+            stringResource(R.string.nodrive_device_sync_off_gone)
+        } else if (c.kind == RemoteCollection.CONTACTS) {
             pluralStringResource(R.plurals.nodrive_device_sync_n_contacts, c.count, c.count)
         } else {
             pluralStringResource(R.plurals.nodrive_device_sync_n_events, c.count, c.count)
@@ -315,7 +352,13 @@ private fun Status(ui: DeviceSyncUi, actions: DeviceSyncActions) {
     } else if (ui.noCalendarStorage) {
         Body(stringResource(R.string.nodrive_device_sync_no_calendar_storage), "ds_no_storage")
     }
+    if (ui.calendarsUnknown) {
+        Body(stringResource(R.string.nodrive_device_sync_calendars_unknown), "ds_calendars_unknown")
+    } else if (ui.lastFailed && !ui.noPermission && !ui.noCalendarStorage) {
+        Body(stringResource(R.string.nodrive_device_sync_last_failed), "ds_last_failed")
+    }
     if (ui.stopRefused) Body(stringResource(R.string.nodrive_device_sync_stop_refused), "ds_stop_refused")
+    if (ui.stopRefusedNotSaved) Body(stringResource(R.string.nodrive_device_sync_stop_refused_not_saved), "ds_stop_refused_not_saved")
     if (ui.applyFailed) Body(stringResource(R.string.nodrive_device_sync_apply_failed), "ds_apply_failed")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = actions.syncNow, enabled = !ui.syncing, modifier = Modifier.testTag("ds_sync_now")) {

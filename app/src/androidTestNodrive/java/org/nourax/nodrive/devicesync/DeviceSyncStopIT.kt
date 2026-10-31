@@ -14,6 +14,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.nourax.nodrive.devicesync.store.DeviceSyncDatabase
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -23,6 +24,9 @@ import java.time.temporal.ChronoUnit
  *  a1  sync is on and a phone change is waiting;
  *  a2  no network: stopping is refused, nothing is removed from the phone;
  *  a3  network back: a final sync sends the change, then only our calendars and contacts are removed; the server still has everything.
+ * and, on its own:
+ *  b1  a phone edit and a server edit of one event meet during Stop's final sync: Stop is refused, nothing is removed, and the phone
+ *      version waits in "Not saved" (it can still be reached). Only after the person decides does Stop go through.
  */
 class DeviceSyncStopIT {
     @get:Rule
@@ -85,5 +89,50 @@ class DeviceSyncStopIT {
         runCatching { support.serverDelete(path) }
         support.cleanUp()
         support.agenda.reset()
+    }
+
+    @Test
+    fun b1AConflictRefusesStopAndTheNotSavedEntryStaysListed() {
+        support.grantPermissions()
+        support.agenda.reset()
+        support.signInAsAli()
+        DeviceSyncAccounts.forget(support.context, support.account.name)
+        val conflictName = "ds-stop-conflict.ics"
+        val conflictPath = "remote.php/dav/calendars/ali/work/$conflictName"
+        val account = support.account.name
+        try {
+            val start = Instant.now().plus(70, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MINUTES)
+            support.putServerEvent("work", conflictName, support.icsOf("ds-stop-conflict-uid", "Stop conflict event", start, start.plus(1, ChronoUnit.HOURS)))
+            support.switchOn("/work/")
+            assertTrue(support.sync(setOf("calendar")).ok)
+            val calendar = support.calendarIdEndingWith("/work/")
+            support.appSetTitle(checkNotNull(support.event(calendar, "Stop conflict event")).id, "Stop conflict event (phone)")
+            // the server changes the same event before the phone has sent its edit
+            val old = support.serverText(conflictPath)
+            support.putServerEvent("work", conflictName, old.replace("SUMMARY:Stop conflict event", "SUMMARY:Stop conflict event\r\nLOCATION:Server room"))
+
+            val result = DeviceSyncControl.stop(support.context, account)
+
+            assertTrue("refused: $result", result is StopResult.Refused)
+            assertTrue("the refusal points to Not saved", (result as StopResult.Refused).notSaved >= 1)
+            assertTrue("the phone calendars are still there", support.calendarStore().calendarIds().isNotEmpty())
+            assertTrue("sync is still on", DeviceSyncSettings.get(support.context, account).enabled)
+            val saved = DeviceSyncDatabase.get(support.context).dao().notSaved(account)
+            assertEquals("the phone version is still listed", 1, saved.size)
+            assertEquals("Stop conflict event (phone)", saved[0].title)
+            // a second Stop is refused the same way: the entry is still there
+            assertTrue(DeviceSyncControl.stop(support.context, account) is StopResult.Refused)
+
+            // the person keeps the NoDrive version: nothing stands in the way any more
+            DeviceSyncRunner.keepServerVersion(support.context, saved[0].id)
+            assertEquals(StopResult.Done, DeviceSyncControl.stop(support.context, account))
+            assertTrue("no phone calendar of ours is left", support.calendarStore().calendarIds().isEmpty())
+            assertFalse(DeviceSyncSettings.get(support.context, account).enabled)
+            assertTrue("the server still has the event", support.serverText(conflictPath).contains("LOCATION:Server room"))
+        } finally {
+            runCatching { support.serverDelete(conflictPath) }
+            support.cleanUp()
+            support.agenda.reset()
+        }
     }
 }

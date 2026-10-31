@@ -122,7 +122,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
             description = s(CalendarContract.Events.DESCRIPTION).orEmpty(),
             allDay = allDay,
             startMs = start,
-            endMs = end ?: start,
+            endMs = end,
             timeZone = if (allDay) "UTC" else s(CalendarContract.Events.EVENT_TIMEZONE).orEmpty().ifEmpty { "UTC" },
             rrule = s(CalendarContract.Events.RRULE).orEmpty(),
             rdate = dates(s(CalendarContract.Events.RDATE)),

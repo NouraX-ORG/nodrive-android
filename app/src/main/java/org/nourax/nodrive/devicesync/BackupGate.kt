@@ -16,6 +16,7 @@ import com.nextcloud.client.jobs.BackgroundJobManager
 import com.nextcloud.client.jobs.JobInfo
 import com.owncloud.android.MainApp
 import com.owncloud.android.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -32,10 +33,10 @@ interface BackupSteps {
     /** The status of the last listing that could not be read (for the reason of a failure). */
     val lastStatus: Int
 
-    /** True when the phone has contacts of another account to save. */
+    /** True when the phone has contacts of another account to save. Throws when the phone's contacts can not be read. */
     fun phoneHasContacts(): Boolean
 
-    /** True when the phone has calendars of another account to save. */
+    /** True when the phone has calendars of another account to save. Throws when the phone's calendars can not be read. */
     fun phoneHasCalendars(): Boolean
 
     /** The names in the folder of one of the two backups; empty when it is not there. Null when the server could not be asked. */
@@ -58,10 +59,18 @@ class BackupFlow(
     private val clock: () -> Long = { System.currentTimeMillis() }
 ) {
     /** Runs the backup; [progress] is told what is going on (a string resource). */
+    @Suppress("TooGenericExceptionCaught")
     suspend fun run(progress: (Int) -> Unit = {}): BackupGate.Result {
         // everything that reads the phone or the server runs off the main thread
-        val wantContacts = withContext(Dispatchers.IO) { steps.phoneHasContacts() }
-        val wantCalendars = withContext(Dispatchers.IO) { steps.phoneHasCalendars() }
+        val (wantContacts, wantCalendars) = try {
+            withContext(Dispatchers.IO) { steps.phoneHasContacts() } to withContext(Dispatchers.IO) { steps.phoneHasCalendars() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RuntimeException) {
+            // A phone that can not be read is not "nothing to save": the first sync does not start without its backup.
+            AgendaLog.w(TAG, "backup gate: the phone could not be read: ${e.javaClass.simpleName}")
+            return BackupGate.Result.Failed("phone_unreadable")
+        }
         if (!wantContacts && !wantCalendars) return BackupGate.Result.Done
         val beforeContacts = if (wantContacts) names(true) ?: return BackupGate.Result.Failed("offline_${steps.lastStatus}") else emptySet()
         val beforeCalendars = if (wantCalendars) names(false) ?: return BackupGate.Result.Failed("offline_${steps.lastStatus}") else emptySet()
@@ -122,28 +131,23 @@ class BackupGate(
     private fun filesPath(folderResource: Int): String =
         "remote.php/dav/files/${DavSync.encodeSegment(davUser)}" + context.getString(folderResource).trimEnd('/') + "/"
 
-    override fun phoneHasContacts(): Boolean = try {
+    // A read error is thrown (not "nothing on the phone"): [BackupFlow] turns it into a failed backup, so the person can try again.
+    override fun phoneHasContacts(): Boolean {
         val type = MainApp.getAccountType(context)
-        context.contentResolver.query(
+        return context.contentResolver.query(
             ContactsContract.RawContacts.CONTENT_URI, arrayOf(ContactsContract.RawContacts._ID),
             ContactsContract.RawContacts.DELETED + " = 0 AND (" + ContactsContract.RawContacts.ACCOUNT_TYPE + " IS NULL OR " +
                 ContactsContract.RawContacts.ACCOUNT_TYPE + " != ?)",
             arrayOf(type), null
         )?.use { it.count > 0 } ?: false
-    } catch (e: RuntimeException) {
-        AgendaLog.w(TAG, "contacts not readable: ${e.javaClass.simpleName}")
-        false
     }
 
-    override fun phoneHasCalendars(): Boolean = try {
+    override fun phoneHasCalendars(): Boolean {
         val type = MainApp.getAccountType(context)
-        context.contentResolver.query(
+        return context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI, arrayOf(CalendarContract.Calendars._ID),
             CalendarContract.Calendars.ACCOUNT_TYPE + " != ?", arrayOf(type), null
         )?.use { it.count > 0 } ?: false
-    } catch (e: RuntimeException) {
-        AgendaLog.w(TAG, "calendars not readable: ${e.javaClass.simpleName}")
-        false
     }
 
     override fun names(contacts: Boolean): Set<String>? {

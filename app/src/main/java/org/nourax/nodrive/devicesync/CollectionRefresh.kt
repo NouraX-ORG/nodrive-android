@@ -6,6 +6,7 @@
  */
 package org.nourax.nodrive.devicesync
 
+import org.nourax.nodrive.devicesync.calendar.CalendarRow
 import org.nourax.nodrive.devicesync.calendar.CalendarStore
 import org.nourax.nodrive.devicesync.contacts.ContactsStore
 import org.nourax.nodrive.devicesync.dav.DavSync
@@ -93,24 +94,51 @@ object CollectionRemoval {
 object WaitingCount {
     /**
      * Only a change that can still be sent counts: one in a calendar or address book that is chosen, still on the server and writable.
-     * A change in a read-only copy is put back by the sync, one in a collection that is gone can not be sent, and a new contact that
-     * is empty (or that has no writable address book to go to) is never sent.
+     * A change in a read-only copy is put back by the sync, one in a collection that is gone can not be sent (see [lost]), and a new
+     * contact that is empty (or that has no writable address book to go to) is never sent. It does not depend on the list of the
+     * server: it is the same while the server can not be asked.
      */
     fun of(calendars: CalendarStore, contacts: ContactsStore, collections: List<CollectionEntity>): Int {
         val writable = CollectionRefresh.live(collections).filter { !it.readOnly }
-        var n = 0
-        val calendarHrefs = writable.filter { it.kind == RemoteCollection.CALENDAR }.map { it.href }.toSet()
-        for ((id, href) in calendars.calendarIds()) {
-            if (href !in calendarHrefs) continue
-            n += calendars.rows(id).count { !it.isException && (it.dirty || it.deleted) }
-        }
         val books = writable.filter { it.kind == RemoteCollection.CONTACTS }.map { it.href }
-        if (books.isNotEmpty()) {
+        return count(calendars, contacts, writable.filter { it.kind == RemoteCollection.CALENDAR }.map { it.href }.toSet(), books, books.isNotEmpty())
+    }
+
+    /**
+     * The unsent phone changes that taking the collections away would take with them: those in a chosen calendar or address book that the
+     * server no longer lists (a deleted or unshared one). They can not be sent, and removing the copy removes them. [hrefs] limits it to
+     * some collections (null = all).
+     */
+    fun lost(calendars: CalendarStore, contacts: ContactsStore, collections: List<CollectionEntity>, hrefs: Set<String>? = null): Int {
+        val gone = collections.filter { it.chosen && it.offReason == RemoteCollection.OFF_GONE && (hrefs == null || it.href in hrefs) }
+        return count(
+            calendars, contacts, gone.filter { it.kind == RemoteCollection.CALENDAR }.map { it.href }.toSet(),
+            gone.filter { it.kind == RemoteCollection.CONTACTS }.map { it.href }, false
+        )
+    }
+
+    /** An event counts once: when it, or one of its changed occurrences, was changed or deleted (the sync sends them together). */
+    private fun changed(rows: List<CalendarRow>, master: CalendarRow): Boolean =
+        master.dirty || master.deleted || rows.any {
+            it.isException && (it.dirty || it.deleted) &&
+                (it.originalId == master.id || (master.syncId != null && it.originalSyncId == master.syncId))
+        }
+
+    private fun count(calendars: CalendarStore, contacts: ContactsStore, calendarHrefs: Set<String>, books: List<String>, newContacts: Boolean): Int {
+        var n = 0
+        if (calendarHrefs.isNotEmpty()) {
+            for ((id, href) in calendars.calendarIds()) {
+                if (href !in calendarHrefs) continue
+                val rows = calendars.rows(id)
+                n += rows.count { !it.isException && changed(rows, it) }
+            }
+        }
+        if (books.isNotEmpty() || newContacts) {
             for (row in contacts.rows()) {
                 if (!(row.dirty || row.deleted)) continue
                 val sid = row.syncId
                 if (sid == null) {
-                    if (!row.deleted && !row.contact.isBlank()) n++
+                    if (newContacts && !row.deleted && !row.isBlank()) n++
                 } else if (books.any { sid.startsWith(it) }) {
                     n++
                 }

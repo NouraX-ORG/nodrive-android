@@ -424,8 +424,10 @@ class FakeContactsStore : ContactsStore {
         return id
     }
 
-    override fun replace(id: Long, href: String, etag: String, parsed: ParsedContact) = change(id) {
-        ContactRow(id, href, etag, false, false, parsed.contact)
+    /** Like the real provider: the phone's own photo stays when the card has none, unless the server dropped its photo. */
+    override fun replace(id: Long, href: String, etag: String, parsed: ParsedContact, dropPhoto: Boolean) = change(id) {
+        val photo = parsed.contact.photo ?: if (dropPhoto) null else it.contact.photo
+        ContactRow(id, href, etag, false, false, parsed.contact.copy(photo = photo), it.otherData)
     }
 
     override fun delete(id: Long) {
@@ -439,22 +441,22 @@ class FakeContactsStore : ContactsStore {
     }
 
     override fun markSent(id: Long, href: String?, etag: String, uid: String?) = change(id) {
-        ContactRow(id, href ?: it.syncId, etag, false, false, if (uid != null) it.contact.copy(uid = uid) else it.contact)
+        ContactRow(id, href ?: it.syncId, etag, false, false, if (uid != null) it.contact.copy(uid = uid) else it.contact, it.otherData)
     }
 
-    override fun link(id: Long, href: String, etag: String) = change(id) { ContactRow(id, href, etag, it.dirty, it.deleted, it.contact) }
+    override fun link(id: Long, href: String, etag: String) = change(id) { ContactRow(id, href, etag, it.dirty, it.deleted, it.contact, it.otherData) }
 
     // ---- what the person does in the Contacts app
 
     fun appEdit(id: Long, edit: (PhoneContact) -> PhoneContact) = change(id) {
-        ContactRow(id, it.syncId, it.etag, true, it.deleted, edit(it.contact))
+        ContactRow(id, it.syncId, it.etag, true, it.deleted, edit(it.contact), it.otherData)
     }
 
-    fun appDelete(id: Long) = change(id) { ContactRow(id, it.syncId, it.etag, true, true, it.contact) }
+    fun appDelete(id: Long) = change(id) { ContactRow(id, it.syncId, it.etag, true, true, it.contact, it.otherData) }
 
-    fun appInsert(contact: PhoneContact): Long {
+    fun appInsert(contact: PhoneContact, otherData: Boolean = false): Long {
         val id = nextId++
-        rowList += ContactRow(id, null, "", true, false, contact)
+        rowList += ContactRow(id, null, "", true, false, contact, otherData)
         return id
     }
 

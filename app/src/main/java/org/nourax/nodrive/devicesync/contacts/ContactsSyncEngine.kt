@@ -154,13 +154,13 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsSt
         }
         when (ConflictPlan.decide(row.dirty && !row.deleted, row.deleted, ServerState.CHANGED)) {
             Decision.APPLY_SERVER -> {
-                store.replace(row.id, href, etag, parsed)
+                store.replace(row.id, href, etag, parsed, photoRemoved(known?.original, parsed))
                 putObject(p, href, etag, uid, data, row.id)
                 p.changed++
             }
             Decision.SERVER_WINS_KEEP_PHONE_VERSION -> {
                 keepPhoneVersion(p, href, known, row)
-                store.replace(row.id, href, etag, parsed)
+                store.replace(row.id, href, etag, parsed, photoRemoved(known?.original, parsed))
                 putObject(p, href, etag, uid, data, row.id)
                 p.changed++
             }
@@ -285,13 +285,17 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsSt
                 continue
             }
             if (row.deleted) {
-                if (obj == null || row.syncId == null) store.delete(row.id) else deletions += Deletion(row, obj)
+                if (obj == null) store.delete(row.id) else deletions += Deletion(row, obj)
                 continue
             }
             if (obj == null) create(p, row) else edit(p, row, obj)
         }
         if (deletions.isNotEmpty()) deleteOnServer(p, deletions)
     }
+
+    /** The previous server version of the card had a photo and the new one has none: it was removed on the server (the phone's goes too). */
+    private fun photoRemoved(previous: String?, now: ParsedContact): Boolean =
+        now.photo == null && !previous.isNullOrEmpty() && ContactMapper.parse(previous)?.photo != null
 
     private fun newHref(p: Pass): String = p.col.href.trimEnd('/') + "/" + UUID.randomUUID().toString() + ".vcf"
 
@@ -302,7 +306,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsSt
     }
 
     private fun create(p: Pass, row: ContactRow) {
-        if (row.contact.isBlank()) {
+        if (row.isBlank()) {
             // a card that was started and left empty (a Contacts app that was left open) is not sent; it is cleared, so it does not wait
             store.markSent(row.id, null, "", null)
             return
@@ -371,7 +375,7 @@ class ContactsSyncEngine(private val env: SyncEnv, private val store: ContactsSt
             putObject(p, href, etag, obj.uid, got.text(), row.id)
             return
         }
-        store.replace(row.id, href, etag, parsed)
+        store.replace(row.id, href, etag, parsed, photoRemoved(obj.original, parsed))
         putObject(p, href, etag, parsed.contact.uid, got.text(), row.id)
         p.changed++
     }

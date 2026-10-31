@@ -48,7 +48,7 @@ class CollectionItem(
 class NotSavedItem(val id: Long, val kind: String, val title: String)
 
 /** One chosen calendar or address book with how many objects it holds on this phone. */
-class CollectionCount(val href: String, val kind: String, val name: String, val count: Int)
+class CollectionCount(val href: String, val kind: String, val name: String, val count: Int, val gone: Boolean = false)
 
 data class DeviceSyncUi(
     val step: Step = Step.INTRO,
@@ -72,11 +72,22 @@ data class DeviceSyncUi(
     val autoSyncOff: Boolean = false,
     val notSaved: List<NotSavedItem> = emptyList(),
     val stopQuestion: Boolean = false,
+    /** Unsent phone changes that Stop would lose: they are in a calendar or address book that is no longer in NoDrive. */
+    val stopLost: Int = 0,
+    /** The same for unticking calendars or address books on the choose screen (the question is asked before they are taken away). */
+    val untickLost: Int = 0,
     val stopRefused: Boolean = false,
+    /** Stop was refused because a phone version is in "Not saved" (the text points the person to that list). */
+    val stopRefusedNotSaved: Boolean = false,
     val applyFailed: Boolean = false,
     val noCalendarStorage: Boolean = false,
     /** The phone's calendar or contacts permission was taken away: nothing can be synced until it is given again. */
     val noPermission: Boolean = false,
+    /** The last sync did not finish for a reason other than the ones that have their own text. */
+    val lastFailed: Boolean = false,
+    /** The calendars could not be checked (NoGantt's copy calendar is not known): none are offered or synced, contacts still are. */
+    val calendarsUnknown: Boolean = false,
+    val chooseCalendarsUnknown: Boolean = false,
     val collectionCounts: List<CollectionCount> = emptyList()
 )
 
@@ -116,7 +127,8 @@ class DeviceSyncModel(
     fun loadChoices(changing: Boolean = false) {
         mutable.update { it.copy(step = Step.CHOOSE, loading = true, offline = false, changing = changing) }
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) { DeviceSyncRunner.discover(context, account) }
+            val result = withContext(Dispatchers.IO) { DeviceSyncRunner.discoverResult(context, account) }
+            val ok = result?.ok == true
             // NoGantt's copy calendar is never offered
             val rows = withContext(Dispatchers.IO) {
                 DeviceSyncDatabase.get(context).dao().collections(account).filter { it.offReason != RemoteCollection.OFF_TASK_COPY }
@@ -129,7 +141,11 @@ class DeviceSyncModel(
                     it.readOnly, it.offReason, if (anyChosen) it.chosen else it.offReason.isEmpty()
                 )
             }
-            mutable.update { it.copy(loading = false, offline = !ok && rows.isEmpty(), items = items) }
+            mutable.update {
+                it.copy(
+                    loading = false, offline = !ok && rows.isEmpty(), items = items, chooseCalendarsUnknown = ok && result?.calendarsKnown == false
+                )
+            }
         }
     }
 
@@ -137,8 +153,32 @@ class DeviceSyncModel(
         ui.copy(items = ui.items.map { if (it.href == href) CollectionItem(it.href, it.kind, it.name, it.color, it.readOnly, it.offReason, !it.checked) else it })
     }
 
-    /** "Continue" on the choose screen. */
+    /** "Continue" on the choose screen. Unticking a collection that is no longer in NoDrive asks first when that loses unsent changes. */
     fun chooseDone() {
+        val items = mutable.value.items
+        if (items.none { it.checked }) return
+        if (!mutable.value.changing) {
+            applyChoice()
+            return
+        }
+        viewModelScope.launch {
+            val before = withContext(Dispatchers.IO) {
+                DeviceSyncDatabase.get(context).dao().collections(account).filter { it.chosen }.map { it.href }.toSet()
+            }
+            val removed = items.filter { !it.checked && it.href in before }.map { it.href }.toSet()
+            val lost = if (removed.isEmpty()) 0 else withContext(Dispatchers.IO) { DeviceSyncRunner.lostCount(context, account, removed) }
+            if (lost > 0) mutable.update { it.copy(untickLost = lost) } else applyChoice()
+        }
+    }
+
+    fun confirmUntick() {
+        mutable.update { it.copy(untickLost = 0) }
+        applyChoice()
+    }
+
+    fun cancelUntick() = mutable.update { it.copy(untickLost = 0) }
+
+    private fun applyChoice() {
         val items = mutable.value.items
         if (items.none { it.checked }) return
         val changing = mutable.value.changing
@@ -154,11 +194,15 @@ class DeviceSyncModel(
             // taking a collection away asks the phone to send its changes first; the others are simply added
             withContext(Dispatchers.IO) { for (i in items) if (i.checked) DeviceSyncSettings.setChosen(context, account, i.href, true) }
             var refused = false
+            var refusedNotSaved = false
             for (href in items.filter { !it.checked && it.href in before }.map { it.href }) {
                 val result = withContext(Dispatchers.IO) { DeviceSyncControl.stop(context, account, href) }
-                if (result is StopResult.Refused) refused = true
+                if (result is StopResult.Refused) {
+                    refused = refused || result.waiting > 0
+                    refusedNotSaved = refusedNotSaved || result.notSaved > 0
+                }
             }
-            mutable.update { it.copy(step = Step.STATUS, stopRefused = refused) }
+            mutable.update { it.copy(step = Step.STATUS, stopRefused = refused, stopRefusedNotSaved = refusedNotSaved) }
             refreshStatus()
             syncNow()
         }
@@ -236,8 +280,8 @@ class DeviceSyncModel(
             }
             val perCollection = withContext(Dispatchers.IO) {
                 DeviceSyncDatabase.get(context).dao().collections(account)
-                    .filter { it.chosen && it.offReason != RemoteCollection.OFF_GONE }
-                    .map { CollectionCount(it.href, it.kind, it.name, it.objectCount) }
+                    .filter { it.chosen && it.offReason != RemoteCollection.OFF_TASK_COPY }
+                    .map { CollectionCount(it.href, it.kind, it.name, it.objectCount, it.offReason == RemoteCollection.OFF_GONE) }
             }
             val waiting = withContext(Dispatchers.IO) { DeviceSyncRunner.waitingCount(context, account) }
             mutable.update {
@@ -250,6 +294,8 @@ class DeviceSyncModel(
                     addressBooksOnPhone = snapshot.third.second,
                     noCalendarStorage = snapshot.first.lastMessage == "no_calendar_storage",
                     noPermission = snapshot.first.lastMessage == "no_permission" || permissionMissing(),
+                    calendarsUnknown = snapshot.first.lastMessage == "calendars_unknown",
+                    lastFailed = snapshot.first.lastMessage.isNotEmpty() && snapshot.first.lastMessage !in OWN_TEXT,
                     collectionCounts = perCollection
                 )
             }
@@ -297,16 +343,23 @@ class DeviceSyncModel(
 
     // ---- stop ------------------------------------------------------------------------------
 
-    fun askStop() = mutable.update { it.copy(stopQuestion = true, stopRefused = false) }
+    /** Asks "Stop syncing?", with what would be lost: unsent changes of calendars and address books that are no longer in NoDrive. */
+    fun askStop() {
+        mutable.update { it.copy(stopQuestion = true, stopRefused = false, stopRefusedNotSaved = false, stopLost = 0) }
+        viewModelScope.launch {
+            val lost = withContext(Dispatchers.IO) { DeviceSyncRunner.lostCount(context, account) }
+            mutable.update { it.copy(stopLost = lost) }
+        }
+    }
 
-    fun cancelStop() = mutable.update { it.copy(stopQuestion = false) }
+    fun cancelStop() = mutable.update { it.copy(stopQuestion = false, stopLost = 0) }
 
     fun confirmStop() {
         mutable.update { it.copy(stopQuestion = false, syncing = true) }
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { DeviceSyncControl.stop(context, account) }
             if (result is StopResult.Refused) {
-                mutable.update { it.copy(syncing = false, stopRefused = true) }
+                mutable.update { it.copy(syncing = false, stopRefused = result.waiting > 0, stopRefusedNotSaved = result.notSaved > 0) }
                 refreshStatus()
             } else {
                 mutable.value = DeviceSyncUi(step = Step.INTRO)
@@ -314,7 +367,7 @@ class DeviceSyncModel(
         }
     }
 
-    fun clearNotices() = mutable.update { it.copy(stopRefused = false, applyFailed = false) }
+    fun clearNotices() = mutable.update { it.copy(stopRefused = false, stopRefusedNotSaved = false, applyFailed = false) }
 
     class Factory(
         private val context: Context,
@@ -331,5 +384,8 @@ class DeviceSyncModel(
         const val BACKUP_PAUSE_MS = 1500L
         const val SYNC_STEP_MS = 1000L
         const val SYNC_WAIT_STEPS = 25
+
+        /** The messages of a failed sync that the status screen shows with a text of their own. */
+        val OWN_TEXT = setOf("no_calendar_storage", "no_permission", "calendars_unknown")
     }
 }

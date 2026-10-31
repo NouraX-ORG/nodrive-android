@@ -87,9 +87,12 @@ object DeviceSyncRunner {
     }
 
     /** Asks the server for the calendars and address books and keeps their rows (what is chosen stays chosen). False when it could not ask. */
-    fun discover(context: Context, accountName: String): Boolean {
-        val connection = connect(context, accountName) ?: return false
-        return synchronized(lock) { CollectionRefresh.run(connection.env).ok }
+    fun discover(context: Context, accountName: String): Boolean = discoverResult(context, accountName)?.ok == true
+
+    /** Like [discover], with what could be read (the calendars can be unknown while the address books are not). Null when there is no connection. */
+    fun discoverResult(context: Context, accountName: String): RefreshResult? {
+        val connection = connect(context, accountName) ?: return null
+        return synchronized(lock) { CollectionRefresh.run(connection.env) }
     }
 
     /**
@@ -113,6 +116,21 @@ object DeviceSyncRunner {
             )
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "waiting count failed: ${e.javaClass.simpleName}")
+            0
+        }
+    }
+
+    /** The unsent phone changes that removing the copies of [hrefs] (null = all) would take with them: see [WaitingCount.lost]. */
+    fun lostCount(context: Context, accountName: String, hrefs: Set<String>? = null): Int {
+        val app = context.applicationContext
+        return try {
+            val scope = ProviderScope(accountName, MainApp.getAccountType(app))
+            WaitingCount.lost(
+                CalendarProviderStore(app.contentResolver, scope), ContactsProviderStore(app.contentResolver, scope),
+                DeviceSyncDatabase.get(app).dao().collections(accountName), hrefs
+            )
+        } catch (e: RuntimeException) {
+            AgendaLog.w(TAG, "lost count failed: ${e.javaClass.simpleName}")
             0
         }
     }

@@ -26,13 +26,22 @@ class BackupFlowTest {
         var contactsJobOk = true
         var calendarJobOk = true
 
+        /** Reading the phone throws this (a revoked permission, a provider that died). */
+        var readFails: RuntimeException? = null
+
         /** After this many listings of a folder, a new file is there (never, when negative). */
         var newFileAfter = 1
         private val listings = HashMap<Boolean, Int>()
 
-        override fun phoneHasContacts() = contacts
+        override fun phoneHasContacts(): Boolean {
+            readFails?.let { throw it }
+            return contacts
+        }
 
-        override fun phoneHasCalendars() = calendars
+        override fun phoneHasCalendars(): Boolean {
+            readFails?.let { throw it }
+            return calendars
+        }
 
         override fun names(contacts: Boolean): Set<String>? {
             if (listingStatus != 0) {
@@ -60,6 +69,13 @@ class BackupFlowTest {
         val steps = FakeSteps(contacts = false, calendars = false)
         assertTrue(run(steps) is BackupGate.Result.Done)
         assertTrue(steps.jobs.isEmpty())
+    }
+
+    @Test
+    fun aPhoneThatCanNotBeReadIsNotNothingToSaveTheBackupFailsAndNoJobRuns() {
+        val steps = FakeSteps().also { it.readFails = SecurityException("no permission") }
+        assertEquals("phone_unreadable", failure(run(steps)))
+        assertTrue("no backup job was started", steps.jobs.isEmpty())
     }
 
     @Test

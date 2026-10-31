@@ -22,8 +22,13 @@ class ContactRow(
     val etag: String,
     val dirty: Boolean,
     val deleted: Boolean,
-    val contact: PhoneContact
-)
+    val contact: PhoneContact,
+    /** The raw contact holds a data row of a kind the sync does not read (a SIP address, a custom date, another app's data). */
+    val otherData: Boolean = false
+) {
+    /** Nothing in it that could be sent: no value of [contact] and no data row of an unread kind (that is content, it is never called empty). */
+    fun isBlank(): Boolean = !otherData && contact.isBlank()
+}
 
 /**
  * Reads and writes the phone's contacts of the account through [ProviderScope]: the only class that writes to the Contacts provider.
@@ -53,6 +58,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
         val relations = ArrayList<TypedValue>()
         var hasPhoto = false
         var photoThumb: ByteArray? = null
+
+        /** A data row of a kind that [PhoneContact] has no field for. */
+        var otherData = false
     }
 
     // ---- groups and settings ---------------------------------------------------------------
@@ -153,7 +161,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                         when (s(c, CommonDataKinds.Event.TYPE).toIntOrNull()) {
                             CommonDataKinds.Event.TYPE_BIRTHDAY -> b.birthday = date
                             CommonDataKinds.Event.TYPE_ANNIVERSARY -> b.anniversary = date
-                            else -> Unit
+                            else -> b.otherData = true
                         }
                     }
                     CommonDataKinds.Nickname.CONTENT_ITEM_TYPE -> b.nicknames += s(c, CommonDataKinds.Nickname.NAME).trim()
@@ -166,6 +174,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                         b.hasPhoto = true
                         b.photoThumb = c.getColumnIndexOrThrow(CommonDataKinds.Photo.PHOTO).let { if (c.isNull(it)) null else c.getBlob(it) }
                     }
+                    else -> b.otherData = true
                 }
             }
         }
@@ -214,7 +223,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                     relations = b.relations.filter { it.value.isNotEmpty() },
                     photo = photo?.let { PhotoBytes(it) }
                 )
-                out += ContactRow(id, c.getString(1), c.getString(2).orEmpty(), dirty, deleted, contact)
+                out += ContactRow(id, c.getString(1), c.getString(2).orEmpty(), dirty, deleted, contact, b.otherData)
             }
         }
         return out
@@ -322,14 +331,15 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
 
     /**
      * Puts the server's version into an existing raw contact: the data rows of the kinds the sync manages are written again. Everything
-     * else stays as it is: a photo, when the card has none (the phone's own photo is never removed by a server edit), the other kinds of
+     * else stays as it is: a photo, when the card has none (it goes only when the server had a photo and dropped it), the other kinds of
      * event (a death, a custom date), a SIP address, and the data rows that other apps add (their own mime types).
      */
-    override fun replace(id: Long, href: String, etag: String, parsed: ParsedContact) {
+    override fun replace(id: Long, href: String, etag: String, parsed: ParsedContact, dropPhoto: Boolean) {
         val groupIds = ensureGroups(parsed.contact.groups)
         val ops = ArrayList<ContentProviderOperation>()
         val managed = ArrayList(MANAGED_MIME_TYPES)
-        if (parsed.photo != null) managed += CommonDataKinds.Photo.CONTENT_ITEM_TYPE
+        // the phone's photo goes when the card has a new one, or when the server dropped the one it had (a photo removed on the web)
+        if (parsed.photo != null || dropPhoto) managed += CommonDataKinds.Photo.CONTENT_ITEM_TYPE
         val selection = ContactsContract.Data.RAW_CONTACT_ID + " = ? AND (" + ContactsContract.Data.MIMETYPE + " IN (" +
             managed.joinToString(",") { "?" } + ") OR (" + ContactsContract.Data.MIMETYPE + " = ? AND " + CommonDataKinds.Event.TYPE + " IN (?,?)))"
         val args = ArrayList<String>()

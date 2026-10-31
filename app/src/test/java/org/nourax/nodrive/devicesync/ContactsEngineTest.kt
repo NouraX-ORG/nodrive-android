@@ -8,6 +8,7 @@ package org.nourax.nodrive.devicesync
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nourax.nodrive.devicesync.contacts.ContactMapper
@@ -294,6 +295,38 @@ class ContactsEngineTest {
         val parsed = checkNotNull(ContactMapper.parse(server.text(book + "a.vcf")!!))
         assertEquals("the server's photo is as it was", PhotoBytes(original), parsed.contact.photo)
         assertEquals("the real change went through", listOf("Hp"), parsed.contact.nicknames)
+    }
+
+    @Test
+    fun aPhotoRemovedOnTheServerGoesFromThePhoneAndDoesNotComeBack() {
+        val original = byteArrayOf(1, 2, 3, 4, 5)
+        putCard("a.vcf", "ua", "Had Photo", book, "PHOTO;ENCODING=b;TYPE=JPEG:" + java.util.Base64.getEncoder().encodeToString(original))
+        assertTrue(sync().ok)
+        assertEquals(PhotoBytes(original), checkNotNull(store.byName("Had Photo")).contact.photo)
+        // the photo is removed on the web
+        putCard("a.vcf", "ua", "Had Photo")
+        assertTrue(sync().ok)
+        assertNull("the phone's photo went too", checkNotNull(store.byName("Had Photo")).contact.photo)
+        // a later phone edit does not send it again
+        store.appEdit(checkNotNull(store.byName("Had Photo")).id) { it.copy(nicknames = listOf("Hp")) }
+        assertTrue(sync().ok)
+        val text = server.text(book + "a.vcf")!!
+        assertFalse("no photo on the card: $text", text.contains("PHOTO"))
+        assertTrue(text.contains("NICKNAME:Hp"))
+    }
+
+    @Test
+    fun aPhoneContactWithOnlyDataOfAKindThatIsNotReadIsNotCalledEmpty() {
+        assertTrue(sync().ok)
+        // a SIP address, a custom date or another app's data: the mapper has no field for it, but it is content
+        store.appInsert(PhoneContact(), otherData = true)
+        assertEquals("it waits to be sent", 1, WaitingCount.of(FakeCalendarStore(), store, dao.collections(account)))
+
+        val outcome = sync()
+
+        assertTrue(outcome.message, outcome.ok)
+        assertEquals("it was sent, not cleared as empty", 1, server.writes().size)
+        assertEquals(1, outcome.sentToServer)
     }
 
     // ---- no write without an ETag

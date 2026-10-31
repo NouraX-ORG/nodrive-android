@@ -15,14 +15,32 @@ import org.nourax.nodrive.agenda.AgendaLog
 import org.nourax.nodrive.devicesync.calendar.CalendarProviderStore
 import org.nourax.nodrive.devicesync.contacts.ContactsProviderStore
 import org.nourax.nodrive.devicesync.model.RemoteCollection
+import org.nourax.nodrive.devicesync.model.SyncOutcome
 import org.nourax.nodrive.devicesync.store.DeviceSyncDatabase
 
 /** The result of "Stop syncing" or of taking one calendar or address book away. */
 sealed class StopResult {
     object Done : StopResult()
 
-    /** A phone change could not be sent (offline, conflict): nothing was removed (plan 4.6). */
-    class Refused(val waiting: Int) : StopResult()
+    /**
+     * Nothing was removed (plan 4.6): [waiting] phone changes could not be sent (offline, an error), or [notSaved] phone versions lost a
+     * conflict and wait in "Not saved" (the person decides what to do with them first).
+     */
+    class Refused(val waiting: Int, val notSaved: Int) : StopResult()
+}
+
+/** When "Stop syncing" must not remove anything (plan 4.6). A seam for the tests: it knows nothing of Android. */
+object StopRule {
+    /**
+     * Null when nothing stands in the way. The reasons to refuse are the person's own data only: [waiting] phone changes that were not
+     * sent (offline, an error) and [notSaved] phone versions that lost a conflict and still wait in "Not saved". How the final sync itself
+     * ended does not matter: a sync that fails for a lasting reason with nothing waiting (the calendar list can not be read, the server
+     * answers an error) must not hold the removal up for ever. Anything the sync could not send is still counted in [waiting].
+     */
+    fun refusal(outcome: SyncOutcome, waiting: Int, notSaved: Int): StopResult.Refused? {
+        val unsent = maxOf(waiting, outcome.waiting)
+        return if (unsent > 0 || notSaved > 0) StopResult.Refused(unsent, notSaved) else null
+    }
 }
 
 /** Switching on and off, and the phone's sync settings of the NoDrive account. */
@@ -73,8 +91,11 @@ object DeviceSyncControl {
 
     /**
      * Stop syncing, or take one chosen collection away. First a final sync sends every change of the phone. If one can not be sent
-     * (no network, a conflict), nothing is removed. Only after that are our account's phone calendars and contacts removed: they are
-     * copies of what stays on the server (plan 4.6).
+     * (no network, an error), or a phone version lost a conflict and is still in "Not saved", nothing is removed. Only after that are
+     * our account's phone calendars and contacts removed: they are copies of what stays on the server (plan 4.6).
+     *
+     * The refusal is about the person's unsent changes, never about the sync's own health: a sync that fails for a lasting reason (the
+     * calendar list can not be read, the server answers an error) with nothing waiting does not hold the removal up.
      * @param href the one collection to take away, or null for everything (sync is then switched off).
      */
     fun stop(context: Context, accountName: String, href: String? = null): StopResult =
@@ -84,10 +105,9 @@ object DeviceSyncControl {
     private fun stopLocked(app: Context, accountName: String, href: String?): StopResult {
         val dao = DeviceSyncDatabase.get(app).dao()
         val outcome = DeviceSyncRunner.run(app, accountName, setOf(RemoteCollection.CALENDAR, RemoteCollection.CONTACTS))
-        val waiting = DeviceSyncRunner.waitingCount(app, accountName)
-        if (!outcome.ok || waiting > 0) {
-            return StopResult.Refused(waiting.coerceAtLeast(outcome.waiting).coerceAtLeast(1))
-        }
+        // a phone version that lost a conflict (also one from before) must be looked at first: after Stop the list is not reachable
+        val notSaved = dao.notSaved(accountName).count { href == null || it.collection == href }
+        StopRule.refusal(outcome, DeviceSyncRunner.waitingCount(app, accountName), notSaved)?.let { return it }
         val scope = ProviderScope(accountName, MainApp.getAccountType(app))
         val calendars = CalendarProviderStore(app.contentResolver, scope)
         val contacts = ContactsProviderStore(app.contentResolver, scope)

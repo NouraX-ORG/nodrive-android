@@ -64,6 +64,8 @@ class DeviceSyncActivity : ToolbarActivity() {
             },
             toggle = model::toggle,
             chooseDone = model::chooseDone,
+            confirmUntick = model::confirmUntick,
+            cancelUntick = model::cancelUntick,
             retryChoices = { model.loadChoices() },
             retryBackup = model::startBackup,
             finishFirstSync = model::finishFirstSync,

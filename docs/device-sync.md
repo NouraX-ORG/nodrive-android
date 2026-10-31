@@ -58,8 +58,11 @@ that could bypass the backup and the first-sync rules.
 - **Groups.** The server's contact groups are `CATEGORIES` on each card; they map to the phone's `Groups` and `GroupMembership`.
 - **Phone data that the card has no place for stays.** When the server's version of a contact is written to the phone, only the kinds of data
   that the sync manages are written again. The phone's photo (when the card has none), other kinds of event, a SIP address and the data
-  that other apps add are kept. A photo set on the phone is sent when the card has none, and `RELATED` is sent both ways. Guests that
-  were added to an event on the phone are put back when the server's version of the event is written.
+  that other apps add are kept. A photo set on the phone is sent when the card has none, and `RELATED` is sent both ways. A photo that was
+  removed on the server (the card had one, now has none) is removed from the phone too, so it does not come back with the next phone edit.
+  Guests that were added to an event on the phone are put back when the server's version of the event is written. A new phone contact whose
+  only content is a data row of a kind the sync does not read (a SIP address, a custom date, another app's data) is not called empty: it is
+  sent, so Stop can not remove it unseen.
 - **Read-only copies are read only on the phone too.** A change that an app makes in one anyway can never be sent, so the server's version
   is put back and the phone's edit is kept in "Not saved" first (a delete is simply undone).
 - **A phone copy that was made again starts over.** If the phone's Calendar Storage or Contacts Storage was cleared (or the calendar was
@@ -81,13 +84,33 @@ that could bypass the backup and the first-sync rules.
 - **Conflicts.** A phone change and a server change to the same object: the **server wins on the phone** and the phone version is kept in
   "Not saved" with a notification. "Apply my change again" puts only what the phone changed on top of the server's newer version. A phone
   **edit** against a server **delete**, or the other way round: the **edit wins**. Nothing is lost silently.
-- **Stop syncing** (or taking one calendar away) first runs a final sync. If a phone change can not be sent (no network, a conflict),
-  nothing is removed: "Some changes on this phone haven't reached NoDrive yet." Only then are **our account's** phone calendars and
-  contacts removed (they are copies; everything stays on the server). The final sync and the removal run under one lock, so a sync that
-  the phone starts in between can not add an empty copy again. Only a change that can still be sent counts as waiting: a change in a
-  calendar that the server deleted, in a read-only copy, or a new contact that is empty does not hold Stop up.
+- **Stop syncing** (or taking one calendar away) first runs a final sync. Nothing is removed while a phone change could not be sent
+  (no network, an error): "Some changes on this phone haven't reached NoDrive yet." Nothing is removed either while a phone version that
+  lost a conflict still waits in "Not saved" (`StopRule`, `notSaved` of the account, or of that one collection): "Some changes on this phone
+  weren't saved ... Look at Not saved first." After Stop the "Not saved" list can not be reached, so the person decides first ("Apply my
+  change again" or "Keep the NoDrive version"). Only then are **our account's** phone calendars and contacts removed (they are copies;
+  everything stays on the server). The final sync and the removal run under one lock, so a sync that the phone starts in between can not
+  add an empty copy again.
+  - **The refusal is about the person's unsent changes, never about the sync's own health.** A sync that fails for a lasting reason with
+    nothing waiting (the calendar list can not be read, the server answers an error) does not hold Stop up. A dirty row in a chosen calendar
+    is counted whether or not the server can be asked (a changed occurrence of a repeating event counts for its event).
+  - Only a change that can still be sent counts as waiting: a change in a calendar that the server deleted, in a read-only copy, or a new
+    contact that is empty does not hold Stop up. Unsent changes in a calendar or address book that the server no longer lists **are lost
+    with the phone copy**; the Stop question and the question when such a collection is unticked name how many ("%d changes on this phone
+    that were never sent will be lost ..."). A copy calendar of NoGantt that is taken off the phone by the sync goes without a question
+    (it holds copies of tasks that are never sent).
 - **NoGantt's copy calendar** (copies of tasks) never reaches the phone. It is read the way NoAgenda reads it and fails closed: when the
-  server can not say which calendar it is, no calendar is offered or synced until it can. A copy calendar that was chosen once leaves the phone.
+  server can not say which calendar it is, no calendar is offered or synced until it can (contacts still sync). A copy calendar that was
+  chosen once leaves the phone. **Decision on purpose:** a `412 "App is not enabled"` (the server's answer to a person outside a
+  group-restricted NoGantt) is **not** read as "there is no copy calendar": such a person may still have the copy calendar from the time
+  they were in the group, and it would be offered with tasks in it. It stays "unknown": no calendar is offered or synced, the choose screen
+  says "NoDrive can't check your calendars right now. Contacts still sync." and so does the status screen. A server that restricts NoGantt to
+  some groups must tell the client teams first (see the server notes). Only 404 (NoGantt is not on the server) and a well-formed answer count as known.
+- **The status screen says why** when a sync keeps failing: the calendars can not be checked, or "The last sync didn't finish. NoDrive will
+  try again." (any other failure code, for example `server_403`, `safety_copy_not_saved_*`, `multiget_*`). A chosen calendar or address book
+  that is no longer in NoDrive is listed with "No longer in NoDrive. Untick it to take it off this phone."
+- **The backup gate fails closed.** A phone whose contacts or calendars can not be read is not "nothing to save": the backup fails with Try
+  again and the first sync does not start.
 - **A write needs an ETag.** A change or a delete is only sent with `If-Match`; without a known ETag nothing is sent and the next sync reads
   the object again.
 - Other accounts' rows are never touched: every provider address carries our account name and type, and `DeviceSyncSafetyTest` fails if any
@@ -124,6 +147,9 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 - The phone's finer relation types (father, mother, manager) go to the nearest vCard kind; custom labels of a phone number or address are sent as
   the nearest standard type (the label text is not kept).
 - With several writable address books chosen, a contact made on the phone goes to the first of them (by name); the others never get it.
+- **Commit trailer.** Commit `a58e3c1a98` and the commits of this fix round end with `Co-Authored-By: Claude Sonnet 5.5`, not the
+  `Claude Opus 5.5` of the round rule: the session that wrote them is Sonnet 5.5 and the session's attribution rule names that model. The
+  eleven earlier commits say Opus 5.5. Noted here for the merge.
 - **Not built (listed so nothing is silent):** the NoAgenda overflow-menu entry of plan 4.1 (the screen is reached from Settings and from the
   phone's account settings); a change made on the phone while it is being sent is cleared with the send (a window of a few milliseconds);
   the backup gate takes the first new calendar backup file as done (upstream writes one file per calendar).
@@ -139,12 +165,15 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   against delete in both directions, discarding local deletions, the delete guard, the removed-contacts copy before a delete and a failed
   copy holding the deletes back, read-only copies, an empty contact, one default address book, a phone copy that was made again, a photo
   and a relation sent, no write without an ETag), `CollectionRefreshTest` (the copy calendar fails closed, collections that are gone) and
-  `BackupFlowTest` (offline, a failed job and a timeout all stop the first sync).
+  `BackupFlowTest` (offline, a failed job, a timeout and a phone that can not be read all stop the first sync) and `StopRuleTest` (Stop refuses
+  for unsent changes and for "Not saved" only; a failing task-sync, 412 or 500, does not hold it up).
 - **Emulator tests** (`androidTestNodrive/.../devicesync/`, throwaway server, Ali's account; CI job "Device calendar and contacts sync on the
   emulator", `tools/ci/devicesync-device.sh`): `DeviceSyncSettingsIT` (also: the phone knows our settings activity as a class name),
   `DeviceSyncFirstSyncIT`, `DeviceSyncTwoWayIT`, `DeviceSyncReminderIT`, `DeviceSyncContactsIT`, `DeviceSyncSafetyIT` (a calendar deleted
   on the server then Stop; a photo set on the phone and an edit of the card on the server; an account whose NoGantt copy calendar is on),
-  `DeviceSyncStopIT`. Screenshots in light and dark mode:
+  `DeviceSyncStopIT` (also: a phone edit and a server edit of one event, then Stop is refused and the entry is still in "Not saved").
+  `run_it` of the CI script reads the raw output of `am instrument -r` and counts a test that skipped itself (an unmet assumption) as a
+  failure, so a missing server can not pass silently. Screenshots in light and dark mode:
   `devicesync-{settings,intro,permissions,choose,backup,first-sync,status}-{light,dark}.png`. Then `tools/ci/devicesync-server-check.py` asks the
   server itself (backup files, the removed-contacts file, the trash bin, the cards).
 
@@ -163,10 +192,14 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 8. Tasks never appear in the phone's calendar.
 9. Delete one contact on the phone: a file `removed-contacts-...` appears in `.Contacts-Backup` before it is gone on the web.
 10. Stop syncing: the NoDrive calendars and contacts leave the phone, NoDrive still has them. With the network off, stopping is refused.
+11. Change one event on the phone and the same event on the web, then Stop syncing: stopping is refused with "Look at Not saved first", and
+    the phone's version is listed under "Not saved" ("Apply my change again" or "Keep the NoDrive version"). After you decide, Stop works.
 
 ## Server-side notes (for the Workspace session; this workflow changed no server)
 
 - Keep the calendar trash bin on, with its default retention: a phone delete of an event relies on it.
+- If NoGantt is ever limited to some groups, people outside them get 412 on `task-sync`: device calendar sync (not contacts, not Stop) is off
+  for them, with a reason on screen. Tell the client teams before restricting the app.
 - Address books have no trash bin. A server-side contacts trash or versioning would add safety on top of the removed-contacts file.
 - Removing the NoDrive account from the phone removes the phone copies (Android does that for every account); changes not yet sent go with
   them. The status screen shows how many are waiting, so the person can sync first.
