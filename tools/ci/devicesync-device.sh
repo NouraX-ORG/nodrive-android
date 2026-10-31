@@ -15,7 +15,7 @@
 #                          lands in the calendar trash bin; 25 deletes are held back by the guard.
 #   DeviceSyncReminderIT   a server alarm is a phone reminder that the phone's Calendar fires (or schedules).
 #   DeviceSyncContactsIT   a contacts round trip: group and photo, a changed number keeps the unknown line, a new contact, a delete that
-#                          first saves the card in .Contacts-Backup.
+#                          first saves the card in .Contacts-Backup, a phonetic name and a Skype handle that survive a server edit.
 #   DeviceSyncContactsEditorIT  the phone's own Contacts app (the real editor, driven with UI Automator): a number changed there is saved in
 #                          the NoDrive contact (dirty, no copy in another account) and reaches the server card; the editor for a new contact
 #                          offers NoDrive. Its screens and window dumps are kept as phonecontacts-*.png/xml.
@@ -150,7 +150,7 @@ if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; th
     done
     night no
     run_it light "$TWOWAY" two-way 6
-    run_it light "$CONTACTS" contacts 1
+    run_it light "$CONTACTS" contacts 2
     run_it light "$EDITOR" contacts-editor 2
     run_it light "$REMINDER" reminder 1
     "$ADB" shell cat "/sdcard/Android/data/$PKG/files/devicesync-reminder-proof.txt" 2> /dev/null | tr -d '\r' > "$OUT/devicesync-reminder-proof.txt" || true
