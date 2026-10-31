@@ -162,7 +162,7 @@ class DeviceSyncTwoWayIT {
         assertTrue(outcome.message, outcome.ok)
         assertEquals(404, support.serverStatus("remote.php/dav/calendars/ali/work/$name"))
         val trash = support.trashed()
-        assertTrue("the object is in the trash bin: $trash / ${support.lastListing}", trash.any { it.contains("ds-delete-$id") })
+        assertTrue("the object is in the trash bin: ${support.lastListing}", trash.contains("SUMMARY:Delete me $id"))
     }
 
     @Test

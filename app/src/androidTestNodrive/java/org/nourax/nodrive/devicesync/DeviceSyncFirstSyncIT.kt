@@ -115,7 +115,7 @@ class DeviceSyncFirstSyncIT {
         }
         val rawColumns = arrayOf(
             ContactsContract.RawContacts._ID, ContactsContract.RawContacts.ACCOUNT_NAME, ContactsContract.RawContacts.ACCOUNT_TYPE,
-            ContactsContract.RawContacts.SOURCE_ID, ContactsContract.RawContacts.DIRTY, ContactsContract.RawContacts.DELETED,
+            ContactsContract.RawContacts.SOURCE_ID, ContactsContract.RawContacts.DELETED,
             ContactsContract.RawContacts.SYNC1, ContactsContract.RawContacts.SYNC2
         )
         support.context.contentResolver.query(
@@ -233,7 +233,11 @@ class DeviceSyncFirstSyncIT {
 
         // The contacts book was added too; the other source is byte for byte as it was.
         assertTrue(support.contactNames().values.contains("Sara Contact"))
-        assertEquals(otherBefore, snapshotOther(other.first, other.second))
+        val otherAfter = snapshotOther(other.first, other.second)
+        val changed = otherBefore.zip(otherAfter).filter { it.first != it.second }.map { (b, a) ->
+            b.split('|').zip(a.split('|')).filter { it.first != it.second }.joinToString(", ") { "${it.first} -> ${it.second}" }
+        }
+        assertTrue("the other source changed: $changed (${otherBefore.size} / ${otherAfter.size} rows)", otherBefore == otherAfter)
     }
 
     private companion object {

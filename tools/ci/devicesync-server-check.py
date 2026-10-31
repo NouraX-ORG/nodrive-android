@@ -62,11 +62,11 @@ def main():
     row("phone-only event added to the server", status == 200 and "SUMMARY:Phone only event" in work, "export status %d" % status)
     # The trash bin does not list its objects with a plain PROPFIND (501); its objects are found with a CalDAV calendar-query.
     query = (b'<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" '
-             b'xmlns:nc="http://nextcloud.com/ns"><d:prop><d:getetag/><nc:deleted-at/></d:prop>'
+             b'xmlns:nc="http://nextcloud.com/ns"><d:prop><d:getetag/><nc:deleted-at/><c:calendar-data/></d:prop>'
              b'<c:filter><c:comp-filter name="VCALENDAR"/></c:filter></c:calendar-query>')
     status, text = call("REPORT", "remote.php/dav/calendars/ali/trashbin/objects/", query, {"Depth": "1", "Content-Type": "application/xml"})
     trash = re.findall(r"<d:href>([^<]*)</d:href>", text, re.I) if status == 207 else []
-    row("a phone delete is in the calendar trash bin", any("ds-delete-" in h for h in trash), "%d object(s) in the trash bin" % len(trash))
+    row("a phone delete is in the calendar trash bin", "SUMMARY:Delete me " in text, "%d object(s) in the trash bin" % len(trash))
     cards = {h.rsplit("/", 1)[-1]: call("GET", h.lstrip("/"))[1] for h in listing("remote.php/dav/addressbooks/users/ali/contacts/")}
     unknown = cards.get("ds-unknown.vcf", "")
     row("phone number change reached the card and kept the unknown line", "+49 30 9999999" in unknown and "X-NOURAX-TEST:keep this" in unknown,
