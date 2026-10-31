@@ -98,12 +98,15 @@ class DeviceSyncFirstSyncIT {
         return calendarId to support.insertLocalContact("Other account person $id")
     }
 
-    /** Everything of the other source's calendar and contact as text, to compare before and after. */
+    /**
+     * Everything of the other source's calendar and contact as text, to compare before and after. The providers' own DIRTY flag of a local
+     * source is left out: the phone's providers set it themselves; every data column and every sync column must be as it was.
+     */
     private fun snapshotOther(calendarId: Long, contactId: Long): List<String> {
         val out = ArrayList<String>()
         val eventColumns = arrayOf(
             CalendarContract.Events._ID, CalendarContract.Events.TITLE, CalendarContract.Events.DTSTART, CalendarContract.Events.DTEND,
-            CalendarContract.Events.EVENT_TIMEZONE, CalendarContract.Events.DIRTY, CalendarContract.Events.DELETED, CalendarContract.Events._SYNC_ID,
+            CalendarContract.Events.EVENT_TIMEZONE, CalendarContract.Events.DELETED, CalendarContract.Events._SYNC_ID,
             CalendarContract.Events.CALENDAR_ID, CalendarContract.Events.ALL_DAY
         )
         support.context.contentResolver.query(
