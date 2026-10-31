@@ -520,7 +520,7 @@ dependencies {
     // UIAutomator - for cross-app UI tests, and to grant screen is turned on in Espresso tests
     // androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0"
     // NoDrive: the device sync test that edits a contact in the phone's own Contacts app drives that app (the artifact is already in gradle/verification-metadata.xml)
-    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
+    androidTestImplementation(libs.uiautomator)
     // fix conflict in dependencies; see http://g.co/androidstudio/app-test-app-conflict for details
     // androidTestImplementation("com.android.support:support-annotations:${supportLibraryVersion}"
     androidTestImplementation(libs.screengrab)
