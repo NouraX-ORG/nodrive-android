@@ -42,6 +42,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
         var middle = ""
         var prefix = ""
         var suffix = ""
+        var phoneticGiven = ""
+        var phoneticMiddle = ""
+        var phoneticFamily = ""
         val phones = ArrayList<TypedValue>()
         val emails = ArrayList<TypedValue>()
         val addresses = ArrayList<PhoneAddress>()
@@ -139,6 +142,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                         b.middle = s(c, CommonDataKinds.StructuredName.MIDDLE_NAME)
                         b.prefix = s(c, CommonDataKinds.StructuredName.PREFIX)
                         b.suffix = s(c, CommonDataKinds.StructuredName.SUFFIX)
+                        b.phoneticGiven = s(c, CommonDataKinds.StructuredName.PHONETIC_GIVEN_NAME)
+                        b.phoneticMiddle = s(c, CommonDataKinds.StructuredName.PHONETIC_MIDDLE_NAME)
+                        b.phoneticFamily = s(c, CommonDataKinds.StructuredName.PHONETIC_FAMILY_NAME)
                     }
                     CommonDataKinds.Phone.CONTENT_ITEM_TYPE ->
                         b.phones += TypedValue(s(c, CommonDataKinds.Phone.NUMBER).trim(), s(c, CommonDataKinds.Phone.TYPE).toIntOrNull() ?: 7)
@@ -165,7 +171,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                         }
                     }
                     CommonDataKinds.Nickname.CONTENT_ITEM_TYPE -> b.nicknames += s(c, CommonDataKinds.Nickname.NAME).trim()
-                    CommonDataKinds.Im.CONTENT_ITEM_TYPE -> b.impps += s(c, CommonDataKinds.Im.DATA).trim()
+                    CommonDataKinds.Im.CONTENT_ITEM_TYPE -> b.impps += ContactMapper.imppOf(
+                        s(c, CommonDataKinds.Im.PROTOCOL).toIntOrNull(), s(c, CommonDataKinds.Im.CUSTOM_PROTOCOL), s(c, CommonDataKinds.Im.DATA)
+                    )
                     CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE ->
                         s(c, CommonDataKinds.GroupMembership.GROUP_ROW_ID).toLongOrNull()?.let { b.groupIds += it }
                     CommonDataKinds.Relation.CONTENT_ITEM_TYPE ->
@@ -214,6 +222,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                 val contact = PhoneContact(
                     uid = c.getString(3).orEmpty(),
                     displayName = b.display, given = b.given, family = b.family, middle = b.middle, prefix = b.prefix, suffix = b.suffix,
+                    phoneticGiven = b.phoneticGiven, phoneticMiddle = b.phoneticMiddle, phoneticFamily = b.phoneticFamily,
                     phones = b.phones.filter { it.value.isNotEmpty() }, emails = b.emails.filter { it.value.isNotEmpty() },
                     addresses = b.addresses.filter { it != PhoneAddress(type = it.type) },
                     company = b.company, department = b.department, title = b.title, note = b.note,
@@ -246,6 +255,9 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
             put(CommonDataKinds.StructuredName.MIDDLE_NAME, contact.middle)
             put(CommonDataKinds.StructuredName.PREFIX, contact.prefix)
             put(CommonDataKinds.StructuredName.SUFFIX, contact.suffix)
+            put(CommonDataKinds.StructuredName.PHONETIC_GIVEN_NAME, contact.phoneticGiven)
+            put(CommonDataKinds.StructuredName.PHONETIC_MIDDLE_NAME, contact.phoneticMiddle)
+            put(CommonDataKinds.StructuredName.PHONETIC_FAMILY_NAME, contact.phoneticFamily)
         }
         for (p in contact.phones) row(CommonDataKinds.Phone.CONTENT_ITEM_TYPE) {
             put(CommonDataKinds.Phone.NUMBER, p.value)
@@ -289,9 +301,10 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
             put(CommonDataKinds.Nickname.TYPE, CommonDataKinds.Nickname.TYPE_DEFAULT)
         }
         for (i in contact.impps) row(CommonDataKinds.Im.CONTENT_ITEM_TYPE) {
-            put(CommonDataKinds.Im.DATA, i)
-            put(CommonDataKinds.Im.PROTOCOL, CommonDataKinds.Im.PROTOCOL_CUSTOM)
-            put(CommonDataKinds.Im.CUSTOM_PROTOCOL, "IMPP")
+            val im = ContactMapper.imRowOf(i)
+            put(CommonDataKinds.Im.DATA, im.data)
+            put(CommonDataKinds.Im.PROTOCOL, im.protocol)
+            if (im.protocol == CommonDataKinds.Im.PROTOCOL_CUSTOM) put(CommonDataKinds.Im.CUSTOM_PROTOCOL, im.label)
         }
         for (r in contact.relations) row(CommonDataKinds.Relation.CONTENT_ITEM_TYPE) {
             put(CommonDataKinds.Relation.NAME, r.value)

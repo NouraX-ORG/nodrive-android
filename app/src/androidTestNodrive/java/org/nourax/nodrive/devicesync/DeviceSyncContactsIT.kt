@@ -141,4 +141,55 @@ class DeviceSyncContactsIT {
         assertFalse(support.contactsStore().rows().any { it.contact.displayName == name })
         assertEquals(1, saved.size - backupBefore.size)
     }
+
+    /**
+     * What the phone's Contacts editor offers for a NoDrive contact must reach the card and must survive a later edit of the card
+     * (final review 2, S1): a phonetic name and an IM with a protocol, written the way the editor writes them (as an app, so the raw contact
+     * becomes dirty), then a server edit of the same card, and the phone still has both.
+     */
+    @Test
+    fun aPhoneticNameAndAnImProtocolReachTheCardAndSurviveALaterServerEdit() {
+        support.switchOn("/contacts/")
+        assertTrue(support.sync(setOf("contacts")).ok)
+        val rawId = rawIdOf("Family Member")
+        val resolver = support.context.contentResolver
+        resolver.update(
+            ContactsContract.Data.CONTENT_URI, ContentValues().apply {
+                put(CommonDataKinds.StructuredName.PHONETIC_FAMILY_NAME, "Kah-ya")
+                put(CommonDataKinds.StructuredName.PHONETIC_GIVEN_NAME, "Fah")
+            },
+            ContactsContract.Data.RAW_CONTACT_ID + " = ? AND " + ContactsContract.Data.MIMETYPE + " = ?",
+            arrayOf(rawId.toString(), CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+        )
+        resolver.insert(ContactsContract.Data.CONTENT_URI, ContentValues().apply {
+            put(ContactsContract.Data.RAW_CONTACT_ID, rawId)
+            put(ContactsContract.Data.MIMETYPE, CommonDataKinds.Im.CONTENT_ITEM_TYPE)
+            put(CommonDataKinds.Im.DATA, "bob.skype")
+            put(CommonDataKinds.Im.PROTOCOL, CommonDataKinds.Im.PROTOCOL_SKYPE)
+        })
+        assertTrue(support.contactsStore().rows().first { it.id == rawId }.dirty)
+        assertTrue(support.sync(setOf("contacts")).ok)
+        val card = checkNotNull(cardOf("Family Member"))
+        assertTrue("the phonetic family name is on the card: $card", card.contains("X-PHONETIC-LAST-NAME:Kah-ya"))
+        assertTrue("the phonetic given name is on the card: $card", card.contains("X-PHONETIC-FIRST-NAME:Fah"))
+        assertTrue("the Skype handle is a skype: address: $card", card.contains("IMPP:skype:bob.skype"))
+
+        // the card is edited elsewhere (the web): the phone version is written again
+        val href = support.listing(book).first { support.serverText(it.trimStart('/')).contains("FN:Family Member") }.trimStart('/')
+        val edited = support.serverText(href).replace("END:VCARD", "NOTE:edited on the server
+END:VCARD")
+        val status = support.dav("PUT", href, edited, "text/vcard; charset=utf-8")
+        assertTrue("the server accepted the edit: $status", status in 200..299)
+        assertTrue(support.sync(setOf("contacts")).ok)
+
+        val after = support.contactsStore().rows().first { it.id == rawId }
+        assertEquals("edited on the server", after.contact.note)
+        assertEquals("Kah-ya", after.contact.phoneticFamily)
+        assertEquals("Fah", after.contact.phoneticGiven)
+        assertEquals(listOf("skype:bob.skype"), after.contact.impps)
+        val im = dataRows(rawId, CommonDataKinds.Im.CONTENT_ITEM_TYPE).single()
+        assertEquals("the phone row is still a Skype row", CommonDataKinds.Im.PROTOCOL_SKYPE.toString(), im[CommonDataKinds.Im.PROTOCOL])
+        assertEquals("bob.skype", im[CommonDataKinds.Im.DATA])
+        assertFalse("the write from the server did not make it dirty", after.dirty)
+    }
 }

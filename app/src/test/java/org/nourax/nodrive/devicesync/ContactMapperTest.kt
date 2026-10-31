@@ -12,6 +12,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nourax.nodrive.devicesync.contacts.ContactMapper
+import org.nourax.nodrive.devicesync.contacts.ImRow
 import org.nourax.nodrive.devicesync.contacts.PhoneAddress
 import org.nourax.nodrive.devicesync.contacts.PhoneContact
 import org.nourax.nodrive.devicesync.contacts.PhotoBytes
@@ -185,5 +186,69 @@ class ContactMapperTest {
         val merged = ContactMapper.rebase(base, base.copy(title = "CEO"), base.copy(note = "server note"))
         assertEquals("CEO", merged.title)
         assertEquals("server note", merged.note)
+    }
+
+    @Test
+    fun phoneticNamesAreReadFromTheCard() {
+        val c = checkNotNull(ContactMapper.parse(card("VERSION:3.0", "FN:Sara Contact", "N:Contact;Sara;;;", "X-PHONETIC-FIRST-NAME:Sah-rah",
+            "X-PHONETIC-MIDDLE-NAME:Mah", "X-PHONETIC-LAST-NAME:Kon-takt"))).contact
+        assertEquals("Sah-rah", c.phoneticGiven)
+        assertEquals("Mah", c.phoneticMiddle)
+        assertEquals("Kon-takt", c.phoneticFamily)
+        assertFalse(PhoneContact(phoneticFamily = "Kah").isBlank())
+    }
+
+    @Test
+    fun aPhoneticNameTypedOnThePhoneIsPatchedIntoTheCardAndAnUnchangedOneIsKeptByteForByte() {
+        val base = checkNotNull(ContactMapper.parse(full)).contact
+        val sent = ContactMapper.patch(full, base, base.copy(phoneticFamily = "Kon-takt", phoneticGiven = "Sah-rah"), now)
+        assertTrue(sent, sent.contains("X-PHONETIC-LAST-NAME:Kon-takt"))
+        assertTrue(sent, sent.contains("X-PHONETIC-FIRST-NAME:Sah-rah"))
+        assertFalse(sent, sent.contains("X-PHONETIC-MIDDLE-NAME"))
+        assertTrue("every other line stays", sent.contains("X-NOURAX-TEST:keep this") && sent.contains("PHOTO;ENCODING=b;TYPE=PNG:$png"))
+        // the card is read back as the phone holds it: nothing differs, so nothing is rewritten
+        val again = checkNotNull(ContactMapper.parse(sent)).contact
+        assertEquals(sent, ContactMapper.patch(sent, again, again, now))
+        // one part is cleared on the phone: only its line goes
+        val cleared = ContactMapper.patch(sent, again, again.copy(phoneticGiven = ""), now)
+        assertFalse(cleared, cleared.contains("X-PHONETIC-FIRST-NAME"))
+        assertTrue(cleared, cleared.contains("X-PHONETIC-LAST-NAME:Kon-takt"))
+        // a new card made on the phone carries them too
+        val created = ContactMapper.create("n1", PhoneContact(displayName = "New", phoneticFamily = "Nyoo"), now)
+        assertTrue(created, created.contains("X-PHONETIC-LAST-NAME:Nyoo"))
+    }
+
+    @Test
+    fun rebaseKeepsAPhoneticNameThePhoneTypedOnTopOfTheServersNewerCard() {
+        val base = checkNotNull(ContactMapper.parse(full)).contact
+        val merged = ContactMapper.rebase(base, base.copy(phoneticFamily = "Kah"), base.copy(title = "CEO"))
+        assertEquals("Kah", merged.phoneticFamily)
+        assertEquals("CEO", merged.title)
+    }
+
+    @Test
+    fun anImProtocolIsASchemeOnTheCardAndComesBackAsTheSameProtocol() {
+        // phone to card
+        assertEquals("skype:bob", ContactMapper.imppOf(3, "", "bob"))
+        assertEquals("xmpp:bob@example.test", ContactMapper.imppOf(7, "", "bob@example.test"))
+        assertEquals("gtalk:bob@example.test", ContactMapper.imppOf(5, "", "bob@example.test"))
+        assertEquals("skype:bob", ContactMapper.imppOf(3, "", "skype:bob"))
+        assertEquals("telegram:bob", ContactMapper.imppOf(-1, "telegram", "bob"))
+        assertEquals("bob", ContactMapper.imppOf(-1, "IMPP", "bob"))
+        assertEquals("bob", ContactMapper.imppOf(-1, "", "bob"))
+        assertEquals("a label that is not a scheme is not used", "bob", ContactMapper.imppOf(-1, "My own chat", "bob"))
+        assertEquals("", ContactMapper.imppOf(3, "", "  "))
+        // card to phone
+        assertEquals(ImRow(3, "", "bob"), ContactMapper.imRowOf("skype:bob"))
+        assertEquals(ImRow(7, "", "bob@example.test"), ContactMapper.imRowOf("xmpp:bob@example.test"))
+        assertEquals(ImRow(5, "", "bob@example.test"), ContactMapper.imRowOf("GTALK:bob@example.test"))
+        assertEquals(ImRow(-1, "telegram", "bob"), ContactMapper.imRowOf("telegram:bob"))
+        assertEquals("no scheme: written as it was before", ImRow(-1, "IMPP", "bob"), ContactMapper.imRowOf("bob"))
+        assertEquals("a web address stays whole", ImRow(-1, "IMPP", "https://chat.example.test/bob"), ContactMapper.imRowOf("https://chat.example.test/bob"))
+        // and back: every card text is the same after a round trip through the phone's row
+        for (raw in listOf("skype:bob", "xmpp:bob@example.test", "gtalk:bob@example.test", "telegram:bob", "bob", "https://chat.example.test/bob", "sip:bob@example.test")) {
+            val row = ContactMapper.imRowOf(raw)
+            assertEquals(raw, raw, ContactMapper.imppOf(row.protocol, row.label, row.data))
+        }
     }
 }

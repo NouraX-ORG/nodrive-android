@@ -34,7 +34,8 @@ import java.util.regex.Pattern
  * type decides whether that app treats the account as writable: without an edit schema it is read only, and an edit is silently saved into
  * a new contact of the default account instead. The other contacts tests edit through the content provider and could never see that.
  *
- * Needs the throwaway server (the contact is made there) and an app on the phone that can edit contacts (the emulator's Contacts app).
+ * Needs the throwaway server (the contact is made there) and an app on the phone that can edit contacts (on the CI emulator image that is Google Contacts, `com.google.android.contacts`; the
+ * window dumps of the run show it; AOSP Contacts and Samsung Contacts are not run in CI).
  */
 class DeviceSyncContactsEditorIT {
     @get:Rule

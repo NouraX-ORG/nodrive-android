@@ -24,6 +24,9 @@ data class PhoneAddress(
     val type: Int = 3
 )
 
+/** One instant-messaging row of the phone: Android's protocol number (-1 custom), the custom label, and the address. */
+data class ImRow(val protocol: Int, val label: String, val data: String)
+
 /** The bytes of a photo; two photos are equal when their bytes are. */
 class PhotoBytes(val bytes: ByteArray) {
     override fun equals(other: Any?): Boolean = other is PhotoBytes && bytes.contentEquals(other.bytes)
@@ -43,6 +46,10 @@ data class PhoneContact(
     val middle: String = "",
     val prefix: String = "",
     val suffix: String = "",
+    /** The phonetic name parts (the phone's "Phonetic name" fields; `X-PHONETIC-FIRST-NAME` and its two siblings on the card). */
+    val phoneticGiven: String = "",
+    val phoneticMiddle: String = "",
+    val phoneticFamily: String = "",
     val phones: List<TypedValue> = emptyList(),
     /** E-mail types: 1 home, 2 work, 3 other, 4 mobile. */
     val emails: List<TypedValue> = emptyList(),
@@ -154,6 +161,36 @@ object ContactMapper {
         else -> ""
     }
 
+    // The IM protocols of the phone, as the URI scheme of an RFC 6350 `IMPP` line (3 Skype, 5 Google Talk, 7 Jabber, and the older ones).
+    private val IM_SCHEMES = mapOf(0 to "aim", 1 to "msnim", 2 to "ymsgr", 3 to "skype", 4 to "qq", 5 to "gtalk", 6 to "icq", 7 to "xmpp")
+    private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*$")
+    private const val IM_CUSTOM = -1
+    private const val IM_PLAIN_LABEL = "IMPP"
+
+    /**
+     * The `IMPP` text of an IM row of the phone: a known protocol (Skype, Jabber, Google Talk...) becomes its URI scheme, a custom label
+     * that can be a scheme becomes one, anything else is the address as it is (the label "IMPP" is what a scheme-less line is written as).
+     */
+    fun imppOf(protocol: Int?, label: String, data: String): String {
+        val d = data.trim()
+        if (d.isEmpty()) return ""
+        val scheme = IM_SCHEMES[protocol]
+        if (scheme != null) return if (d.startsWith("$scheme:", ignoreCase = true)) d else "$scheme:$d"
+        val l = label.trim()
+        if (l.isEmpty() || l == IM_PLAIN_LABEL || !SCHEME.matches(l) || d.startsWith("$l:", ignoreCase = true)) return d
+        return "$l:$d"
+    }
+
+    /** The IM row to write for an `IMPP` text, [imppOf] the other way (a line with no scheme, or a hierarchical URI, stays whole as "IMPP"). */
+    fun imRowOf(raw: String): ImRow {
+        val text = raw.trim()
+        val scheme = text.substringBefore(':', "")
+        val rest = text.substringAfter(':', "")
+        if (scheme.isEmpty() || rest.isEmpty() || !SCHEME.matches(scheme) || rest.startsWith("//")) return ImRow(IM_CUSTOM, IM_PLAIN_LABEL, text)
+        val known = IM_SCHEMES.entries.firstOrNull { it.value.equals(scheme, ignoreCase = true) }
+        return if (known != null) ImRow(known.key, "", rest) else ImRow(IM_CUSTOM, scheme, rest)
+    }
+
     private fun photoOf(props: List<VProp>): ByteArray? {
         val prop = props.firstOrNull { it.name == "PHOTO" } ?: return null
         val raw = prop.raw.trim()
@@ -189,6 +226,9 @@ object ContactMapper {
             middle = part(2),
             prefix = part(3),
             suffix = part(4),
+            phoneticGiven = props.firstOrNull { it.name == "X-PHONETIC-FIRST-NAME" }?.text()?.trim().orEmpty(),
+            phoneticMiddle = props.firstOrNull { it.name == "X-PHONETIC-MIDDLE-NAME" }?.text()?.trim().orEmpty(),
+            phoneticFamily = props.firstOrNull { it.name == "X-PHONETIC-LAST-NAME" }?.text()?.trim().orEmpty(),
             phones = props.filter { it.name == "TEL" }.map { TypedValue(it.text().trim().removePrefix("tel:"), phoneType(it.types)) }
                 .filter { it.value.isNotEmpty() },
             emails = props.filter { it.name == "EMAIL" }.map { TypedValue(it.text().trim(), emailType(it.types)) }.filter { it.value.isNotEmpty() },
@@ -270,6 +310,15 @@ object ContactMapper {
             p.set("N", "N:" + listOf(now.family, now.given, now.middle, now.prefix, now.suffix).joinToString(";") { esc(it) })
             changed = true
         }
+        for ((name, before, after) in listOf(
+            Triple("X-PHONETIC-FIRST-NAME", base.phoneticGiven, now.phoneticGiven),
+            Triple("X-PHONETIC-MIDDLE-NAME", base.phoneticMiddle, now.phoneticMiddle),
+            Triple("X-PHONETIC-LAST-NAME", base.phoneticFamily, now.phoneticFamily)
+        )) {
+            if (before == after) continue
+            if (after.isEmpty()) p.remove(name) else p.set(name, "$name:" + esc(after))
+            changed = true
+        }
         changed = list(p, "TEL", base.phones, now.phones, { TypedValue(it.text().trim().removePrefix("tel:"), phoneType(it.types)) },
             { "TEL" + phoneTypeParam(it.type) + ":" + esc(it.value) }) || changed
         changed = list(p, "EMAIL", base.emails, now.emails, { TypedValue(it.text().trim(), emailType(it.types)) },
@@ -337,6 +386,9 @@ object ContactMapper {
             middle = pick(base.middle, phone.middle, server.middle),
             prefix = pick(base.prefix, phone.prefix, server.prefix),
             suffix = pick(base.suffix, phone.suffix, server.suffix),
+            phoneticGiven = pick(base.phoneticGiven, phone.phoneticGiven, server.phoneticGiven),
+            phoneticMiddle = pick(base.phoneticMiddle, phone.phoneticMiddle, server.phoneticMiddle),
+            phoneticFamily = pick(base.phoneticFamily, phone.phoneticFamily, server.phoneticFamily),
             phones = pick(base.phones, phone.phones, server.phones),
             emails = pick(base.emails, phone.emails, server.emails),
             addresses = pick(base.addresses, phone.addresses, server.addresses),

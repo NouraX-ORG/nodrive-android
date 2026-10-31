@@ -69,11 +69,19 @@ that could bypass the backup and the first-sync rules.
   (usually Google), the NoDrive raw contact never becomes dirty and nothing reaches NoDrive. The schema lists exactly the kinds that the
   mapper reads and writes (name with every `supports*` flag, photo, phone, email, postal address, organisation, nickname, note, website,
   IM, birthday and anniversary, relationship, group membership) with the types the mapper keeps, so the editor offers nothing that would
-  never reach the server (no other date types, no SIP address, no custom labels). `DeviceSyncContactsEditorIT` drives the real editor with UI
+  never reach the server or would not come back as it was (no other date types, no SIP address, no finer relation types such as mother,
+  sister or partner, only one birthday). Two things that the editor offers anyway, or in a changed form, are mapped on purpose:
+  the **phonetic name** (AOSP forces it on with the name kind) travels as `X-PHONETIC-FIRST-NAME`, `X-PHONETIC-MIDDLE-NAME` and
+  `X-PHONETIC-LAST-NAME` (the extension Apple Contacts uses), and an **IM protocol or custom IM label** travels as the URI scheme of the
+  `IMPP` line (Skype `skype:`, Jabber `xmpp:`, Google Talk `gtalk:`, a custom label that can be a scheme, for example `telegram:`) and
+  comes back as the same protocol; a line without a scheme (and a web address) stays whole, as before. A custom label that is not a valid
+  scheme (for example with spaces) is not kept: the address is. `DeviceSyncContactsIT` writes a phonetic name and a Skype handle the way
+  the editor does, checks the card, edits the card on the server and checks that the phone still holds both. `DeviceSyncContactsEditorIT` drives the real editor with UI
   Automator: it opens `ACTION_EDIT` on a synced NoDrive contact, changes the number, saves, and checks that the NoDrive raw contact is
   dirty, that no raw contact of that name appeared in another account, and that after a sync the server card has the new number and still
   has its `X-NOURAX-TEST` line; it also opens `ACTION_INSERT` and checks that NoDrive is offered as a place to save a new contact. The
-  test uses the emulator's Contacts app; the owner's real phone may run another one (see owner row 7).
+  test runs in the CI emulator image's Google Contacts app (`com.google.android.contacts`, shown by the window dumps of the run); AOSP
+  Contacts and Samsung Contacts are not run in CI, and the owner's real phone may run another one (see owner row 7).
 - **Read-only copies are read only on the phone too.** A change that an app makes in one anyway can never be sent, so the server's version
   is put back and the phone's edit is kept in "Not saved" first (a delete is simply undone).
 - **A phone copy that was made again starts over.** If the phone's Calendar Storage or Contacts Storage was cleared (or the calendar was
@@ -165,8 +173,10 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   from the phone: the phone keeps its own re-encoded copy, so the bytes can not be compared, and a photo changed on the phone while the card has
   one is overwritten by the next server edit of that card. Attendees and the organiser of an event only travel from the server to the phone (a
   phone edit never changes them).
-- The phone's finer relation types (father, mother, manager) go to the nearest vCard kind; custom labels of a phone number or address are sent as
-  the nearest standard type (the label text is not kept).
+- The phone's finer relation types (father, mother, sister, partner, manager) go to the nearest vCard kind. The editor of the NoDrive account
+  no longer offers them (spouse, child, parent, brother, friend and relative are the ones that come back as they were), but a contact
+  from another source can carry one; custom labels of a phone number or address are sent as the nearest standard type (the label text is
+  not kept).
 - With several writable address books chosen, a contact made on the phone goes to the first of them (by name); the others never get it.
 - **Known limit (N3 of review 3, not built).** A phone change that the server rejects for good (a 4xx other than 404 and 412, for example 403
   on a private event of a shared calendar, or 400/415 for data the server's validator refuses) stays waiting and keeps Stop refused ("Sync
@@ -225,7 +235,7 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 6. **Edit a tagged event in the phone's own Calendar app** and check its agent in NoAgenda (design 4.2, with the phone's real app).
 7. A contact edited in the phone's Contacts app appears on the web with its group. Check on the real phone that the edit stays in the NoDrive
    account (the contact is not copied into Google or another account) and that "new contact" offers NoDrive as a place to save. The CI
-   emulator proves this for the AOSP Contacts app only; the Google Contacts and Samsung Contacts apps are not tested in CI.
+   emulator proves this for Google Contacts (the app of the CI emulator image); AOSP Contacts and Samsung Contacts are not tested in CI.
 8. Tasks never appear in the phone's calendar.
 9. Delete one contact on the phone: a file `removed-contacts-...` appears in `.Contacts-Backup` before it is gone on the web.
 10. Stop syncing: the NoDrive calendars and contacts leave the phone, NoDrive still has them. With the network off, stopping is refused.

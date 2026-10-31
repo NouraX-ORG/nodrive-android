@@ -10,10 +10,14 @@
 
   The EditSchema is what makes the account writable there: the Contacts app (AOSP, and the apps built on it) treats an account type
   without one as read only, and a contact edited in a read only account is copied into the default account (for example Google) instead
-  of being saved here. Every kind below is one that ContactMapper reads from the phone and writes to the card, with the types it keeps.
-  A kind or a type that is not listed is not offered by the editor, so nothing can be typed there that would never reach the server.
-  The kinds, attributes and types are the ones of AOSP's BaseAccountType (the name kind needs every support flag and a maximum of 1;
-  a kind that has types needs at least one type; a kind that has no types must not have any).
+  of being saved here. Every kind below is one that ContactMapper reads from the phone and writes to the card, with the types it keeps
+  (the relationship types are only those that come back as they were: the finer ones, such as mother or partner, are not offered; an IM
+  protocol and a custom IM label go to the card as a URI scheme and come back as one). A kind or a type that is not listed is not
+  offered by the editor, so nothing can be typed there that would never reach the server. The phonetic name fields that AOSP's name kind
+  forces on (all three support flags are mandatory) are mapped too: they travel as X-PHONETIC-FIRST-NAME, -MIDDLE-NAME and -LAST-NAME.
+  Every kind that must hold at most one row says so (maxOccurs overrides the editor's own limit: the birthday needs it, or the editor
+  would offer several). The kinds, attributes and types are the ones of AOSP's BaseAccountType (the name kind needs every support flag and
+  a maximum of 1; a kind that has types needs at least one type; a kind that has no types must not have any).
 -->
 <ContactsAccountType>
     <EditSchema>
@@ -58,21 +62,16 @@
             <Type type="google_talk" />
         </DataKind>
         <DataKind kind="event">
-            <Type type="birthday" yearOptional="true" />
+            <Type type="birthday" maxOccurs="1" yearOptional="true" />
             <Type type="anniversary" maxOccurs="1" yearOptional="true" />
         </DataKind>
         <DataKind kind="relationship">
             <Type type="spouse" />
             <Type type="child" />
             <Type type="parent" />
-            <Type type="father" />
-            <Type type="mother" />
             <Type type="brother" />
-            <Type type="sister" />
             <Type type="friend" />
             <Type type="relative" />
-            <Type type="partner" />
-            <Type type="domestic_partner" />
         </DataKind>
         <DataKind kind="group_membership" maxOccurs="1" />
     </EditSchema>

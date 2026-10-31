@@ -283,6 +283,25 @@ class ContactsEngineTest {
     }
 
     @Test
+    fun aPhoneticNameSetOnThePhoneReachesTheCardAndSurvivesALaterServerEdit() {
+        putCard("a.vcf", "ua", "Phonetic Wanted")
+        assertTrue(sync().ok)
+        store.appEdit(checkNotNull(store.byName("Phonetic Wanted")).id) { it.copy(phoneticFamily = "Kah", phoneticGiven = "Fo") }
+
+        assertTrue(sync().ok)
+
+        val text = server.text(book + "a.vcf")!!
+        assertTrue("the phonetic names are on the card: $text", text.contains("X-PHONETIC-LAST-NAME:Kah") && text.contains("X-PHONETIC-FIRST-NAME:Fo"))
+        // the card is edited elsewhere: the phone keeps what the card now says, which still holds the phonetic names
+        server.serverPut(book + "a.vcf", text.replace("+49 30 111", "+49 30 222"))
+        assertTrue(sync().ok)
+        val after = checkNotNull(store.byName("Phonetic Wanted")).contact
+        assertEquals("Kah", after.phoneticFamily)
+        assertEquals("Fo", after.phoneticGiven)
+        assertEquals(listOf(TypedValue("+49 30 222", 2)), after.phones)
+    }
+
+    @Test
     fun aPhotoThatTheCardAlreadyHasIsNeverReplacedByThePhonesCopyOfIt() {
         val original = byteArrayOf(1, 2, 3, 4, 5)
         putCard("a.vcf", "ua", "Has Photo", book, "PHOTO;ENCODING=b;TYPE=JPEG:" + java.util.Base64.getEncoder().encodeToString(original))
