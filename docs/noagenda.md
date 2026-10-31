@@ -6,7 +6,7 @@
 
 Binding spec: `plans/noagenda-decisions.md` (approved 2026-10-28). Platform plan: `plans/noagenda-android-plan.md`, section 1
 ("agenda-core"). This page describes what is built in the first step, how it is tested and what the next steps will add. The edit
-step (editing, offline queue, conflicts) and the Timeline are described below; the phone's own Calendar and Contacts sync comes in its own branch.
+step (editing, offline queue, conflicts) and the Timeline are described below; the phone's own Calendar and Contacts sync is described in `docs/device-sync.md`.
 
 ## What the user gets
 

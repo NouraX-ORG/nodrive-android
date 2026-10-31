@@ -4,6 +4,9 @@
 -->
 # Calendar and contacts on this phone (device sync)
 
+**Status:** merged to `main`. CI results, screens and the owner tests are in `docs/testing.md` (owner tests 67 to 78; final code `825e73090c`,
+[run 41206181615](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41206181615)).
+
 Binding spec: `plans/noagenda-decisions.md`, section 10 (approved 2026-10-28). Platform plan: `plans/noagenda-android-plan.md`, section 4
 ("device-sync"). Branch: `feature/device-calendar-sync`.
 
@@ -182,14 +185,16 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   on a private event of a shared calendar, or 400/415 for data the server's validator refuses) stays waiting and keeps Stop refused ("Sync
   again, then try once more."). The data is safe. Putting the server version back and keeping the phone version in "Not saved" for these is a
   to-do for a later round (it needs a rule for a rejected new event as well, which has no server version to put back).
-- **Commit trailer.** Commit `a58e3c1a98` and the commits of the fix rounds after it (including the final-fix rounds) end with `Co-Authored-By: Claude Sonnet 5.5`, not the
+- **Commit trailer.** Commit `a58e3c1a98` and the commits of the fix rounds after it, up to and including `5ccbbde124`, end with `Co-Authored-By: Claude Sonnet 5.5`, not the
   `Claude Opus 5.5` of the round rule: the session that wrote them is Sonnet 5.5 and the session's attribution rule names that model. The
-  eleven earlier commits say Opus 5.5. Noted here for the merge.
+  eleven earlier commits and the last two (`03207ac9a4`, `825e73090c`) say Opus 5.5. No history was rewritten.
 - **A provider that does not answer is "could not look", never "no rows".** `CalendarProviderStore.rows` and `ContactsProviderStore.rows` throw
   when the provider returns a null cursor (a provider process that died mid-call). Stop refuses on that (as for any unreadable phone) and a
   sync run fails instead of reading an empty phone. A null cursor for the list of calendars still means "no calendar storage on this phone",
   so a phone without a calendar provider is not refused for ever. When the waiting count can not be read, the status screen says "NoDrive
   can't count the waiting changes right now." instead of showing nothing.
+- **Review nits not fixed (final review 3):** a custom IM label with spaces is dropped and the comment in the structure file says otherwise (N1); `IMPP` schemes are compared as written, so one
+  rewrite of a server line in another case happens (N4); the editor is not driven for phonetic names (N2). None loses an address or a name.
 - **Not built (listed so nothing is silent):** the NoAgenda overflow-menu entry of plan 4.1 (the screen is reached from Settings and from the
   phone's account settings); a change made on the phone while it is being sent is cleared with the send (a window of a few milliseconds);
   the backup gate takes the first new calendar backup file as done (upstream writes one file per calendar).
@@ -233,7 +238,7 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 4. Make an event in the phone's Calendar app: it appears in NoAgenda and on the web. Make one on the web: it appears on the phone.
 5. An alarm of a NoDrive event rings on the phone.
 6. **Edit a tagged event in the phone's own Calendar app** and check its agent in NoAgenda (design 4.2, with the phone's real app).
-7. A contact edited in the phone's Contacts app appears on the web with its group. Check on the real phone that the edit stays in the NoDrive
+7. A contact edited in the phone's Contacts app appears on the web with its group. Type a phonetic name and check that it appears on the web and that only one birthday can be added. Check on the real phone that the edit stays in the NoDrive
    account (the contact is not copied into Google or another account) and that "new contact" offers NoDrive as a place to save. The CI
    emulator proves this for Google Contacts (the app of the CI emulator image); AOSP Contacts and Samsung Contacts are not tested in CI.
 8. Tasks never appear in the phone's calendar.

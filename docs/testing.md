@@ -34,6 +34,7 @@
   `agenda-device` job runs the screens on canned data in light and dark, the real app against the same server, the side-menu entry and the
   offline case on the emulator. See `docs/noagenda.md`. The phone test of the real Drive is owner tests 35 to 44 (section 4). NoAgenda editing, the offline queue and edit conflicts are proven the same way (final code: [run 41022109522](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41022109522), 1173 unit tests, 12 server phases, 57 screens); owner tests 45 to 57. The first NoAgenda run with the final code is [run 40952577428](https://github.com/NouraX-ORG/nodrive-android/actions/runs/40952577428); the `agenda-*.png` images are from it.
   The Timeline (bars, arrows, diamonds, busy time, date changes from the detail sheet) is proven the same way ([run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057), 1232 unit tests, 3 Timeline server phases, 73 screens); owner tests 58 to 66.
+- **The phone's own Calendar and Contacts sync is proven in CI on the emulator** against the same kind of throwaway server ([run 41206181615](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41206181615), 104 device-sync unit tests, 30 emulator test runs in a separate job, 20 screens): off until switched on, the backup before the first sync, a first sync that only adds, changes both ways, alarms, contacts (also phonetic names and chat addresses), the phone's real Contacts app, and the Stop rules. See `docs/device-sync.md`. The phone test of the real Drive is owner tests 67 to 78 (section 4).
 - **The DAVx5 entry is gone** from Settings > More (CI: the screen sweep finds no DAVx5 or DAVdroid
   text on 78 screens).
 
@@ -192,6 +193,30 @@ NoAgenda editing and conflicts (`feature/noagenda-edit`):
 | Final code of the Timeline branch after the second review (approved): all 7 jobs green | CI | pass | [Run 41098819057](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41098819057): Branding gate (UNCLASSIFIED 0), Lint, Server login proof, NoAgenda API checks, NoAgenda on the emulator, Emulator tests and screenshots, APK and unit tests. Attempt 1 failed only in the older `AgendaEditOfflineIT` a2 and a3 (a known flake, see the to-dos); attempt 2 passed everything |
 | The Timeline adds no request of its own, no delete, no upstream file change, no new "Nextcloud" text | CI | pass | Every date change is an ordinary edit command (same queue, same version checks). `git diff --name-only origin/main...HEAD` shows only `org/nourax`, `nodrive_agenda` and `tools/ci` paths; the branding gate passed |
 | Not covered by a test yet (Timeline review 2, nit 2): the range picker keeping the length, no "Dates" heading for a milestone, no "My team" chip on the Timeline, opening a bar by its name, the refused-dates message | CI | open | See the to-dos for the NoAgenda Timeline |
+
+Device calendar and contacts sync (`feature/device-calendar-sync`, final code `825e73090c`, [run 41206181615](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41206181615), all 8 jobs green):
+
+| Feature | Who | Result | Evidence |
+|---|---|---|---|
+| Off until the person switches it on; the NoDrive account shows no Calendar or Contacts switch in the phone's account settings; the Settings row "Calendar and contacts on this phone" says Off | CI | pass | Job "Device calendar and contacts sync on the emulator": `devicesync IT settings (light): OK (5 tests passed, 0 failed or skipped)`, same for dark; screens `devicesync-settings-*`, `devicesync-intro-*` |
+| The backup comes before the first sync, and the first sync only adds: nothing on the phone or the server is deleted or overwritten | CI | pass | `devicesync IT first-sync` light and dark: 1 test each, 0 failed; `tools/ci/devicesync-server-check.py`: "calendar backup before the first sync PASS (4 files in .Calendar-Backup)", "contacts backup ... PASS (2 files)", "seeded cards still there PASS (5 cards)"; unit tests `BackupFlowTest` (9), `CalendarEngineTest` (14), `ContactsEngineTest` (17) |
+| Calendar both ways: an event made on the phone reaches the server, a server event reaches the phone, every field, repeats, time zones, an edit keeps every other line byte for byte | CI | pass | `devicesync IT two-way (light): OK (6 tests passed)`; "phone-only event added to the server PASS (export status 200)"; `EventMapperTest` (15), `CalendarEngineTest` (14) |
+| Alarms of a NoDrive event become phone reminders | CI | pass | `devicesync IT reminder (light): OK (1 tests passed)` and "the provider's EVENT_REMINDER broadcast reached the test" |
+| Contacts both ways, with groups and photos; phonetic names and chat addresses (Skype, Jabber, Google Talk) reach the card and survive a later edit of the card on the server; only one birthday | CI | pass | `devicesync IT contacts (light): OK (2 tests passed)` (`aPhoneticNameAndAnImProtocolReachTheCardAndSurviveALaterServerEdit` is one of them); "phone number change reached the card and kept the unknown line PASS"; `ContactMapperTest` (17), `ContactsEngineTest` (17) |
+| The phone's own Contacts app (Google Contacts, the app of the CI emulator image) edits a NoDrive contact in the NoDrive account, and "new contact" offers NoDrive as a place to save | CI | pass | `devicesync IT contacts-editor (light): OK (2 tests passed)`; screens [edited and saved](screenshots/android/phonecontacts-edit-saved.png) and [new contact](screenshots/android/phonecontacts-insert-opened.png) |
+| Safety: a conflict keeps both versions (the server wins on the phone, the phone's change waits in "Not saved"), an edit beats a delete, the delete guard, a contact is saved to `removed-contacts-...` before it is deleted, a phone delete of an event lands in the calendar trash bin, other accounts' rows are never touched, no file is ever deleted | CI | pass | `devicesync IT safety (light): OK (3 tests passed)`; `DeviceSyncSafetyTest` (10), `SyncPlansTest` (5); "removed contact saved before the delete PASS", "a phone delete is in the calendar trash bin PASS (36 objects)", "the other tests' data is cleaned up PASS" |
+| Stop syncing: removes only the NoDrive copies from the phone; refused with no network, while a change is waiting, while a "Not saved" entry waits, and when the phone's calendars or contacts can not be read | CI | pass | `devicesync IT stop-a1, stop-a2, stop-a3, stop-b1 (light)`: 1 test each, 0 failed; `StopRuleTest` (8); screens `devicesync-status-stop-question-*`, `devicesync-status-unreadable-*`, `devicesync-status-reasons-*` |
+| Device-sync unit tests | CI | pass | JUnit XML of the run: BackupFlowTest 9, CalendarEngineTest 14, CollectionRefreshTest 9, ContactMapperTest 17, ContactsEngineTest 17, DeviceSyncSafetyTest 10, EventMapperTest 15, StopRuleTest 8, SyncPlansTest 5: 104 tests, 0 failed. The whole suite: 1336 tests, 0 failed |
+| Every device-sync screen is the right brightness in light and dark; no password, token or throwaway value in any log, report or screen | CI | pass | "devicesync pixel check: 20 screenshots, 0 with the wrong brightness"; "no throwaway value found in: build/device app/build/reports ..." |
+| The branding gate stays green; no new "Nextcloud" text; no GPL-3.0-only code (DAVx5 and its libraries are not used) | CI | pass | Branding gate: 8 pins PASS, "Hits: 882 (internal 254, legal 628, UNCLASSIFIED 0)"; the new texts are in `app/src/main/res/values/nodrive_device_sync.xml`; licence table in `docs/device-sync.md` |
+| Only the account's own server is asked; `drive.nourax.org` is never contacted | CI | pass | `drive.nourax.org` "blocked" in the emulator job's network check; "PASS - no Nextcloud GmbH host" |
+| Final code after the independent reviews (final review 3 approved; findings S1 and N1 to N3 of final review 2 fixed) | CI | pass | [Run 41206181615](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41206181615) (`825e73090c`): Branding gate, APK and unit tests, Lint, Server login proof, Emulator tests and screenshots, NoAgenda API checks, NoAgenda on the emulator, Device calendar and contacts sync on the emulator. Two earlier runs of the branch failed for explained reasons (a test string that did not compile, then a test count and a Docker Hub 502 outage) |
+| A change that the server rejects for good (a 4xx other than 404 and 412) stays waiting and keeps Stop refused | CI | open | Known limit, data safe; see the to-dos for device sync |
+| The phone's real Contacts app is tested for Google Contacts only (AOSP Contacts and Samsung Contacts are not run in CI) | CI | open | Owner test 73 |
+| Device sync on the real Drive: switch on, backup first, the first sync, the phone's Calendar and Contacts apps | owner | pending | Owner tests 67 to 69 |
+| Events and contacts both ways, alarms, a tagged event edited in the phone's Calendar app | owner | pending | Owner tests 70 to 73 |
+| Tasks never appear in the phone's calendar | owner | pending | Owner test 74 |
+| A deleted contact is saved to the Drive first; Stop syncing and its refusals; "Not saved" | owner | pending | Owner tests 75 to 78 |
 
 ## 2. What CI does not cover
 
@@ -354,6 +379,24 @@ Sixteen new `agenda-*.png` from the Timeline run ([run 41098819057](https://gith
 | A change waiting offline | [light](screenshots/android/agenda-timeline-waiting-light.png) | [dark](screenshots/android/agenda-timeline-waiting-dark.png) |
 | Nothing dated in the range | [light](screenshots/android/agenda-timeline-empty-light.png) | [dark](screenshots/android/agenda-timeline-empty-dark.png) |
 | Against the throwaway server | [light](screenshots/android/agenda-live-timeline-light.png) | [dark](screenshots/android/agenda-live-timeline-dark.png) |
+
+### Device sync screens
+
+Twenty `devicesync-*.png` (light and dark) and two `phonecontacts-*.png` from [run 41206181615](https://github.com/NouraX-ORG/nodrive-android/actions/runs/41206181615) (`DeviceSyncSettingsIT`, `DeviceSyncFirstSyncIT`, `DeviceSyncContactsEditorIT`).
+
+| Screen | Light | Dark |
+|---|---|---|
+| Settings > More row and the switch | [light](screenshots/android/devicesync-settings-light.png) | [dark](screenshots/android/devicesync-settings-dark.png) |
+| Introduction ("Changes go both ways. Tasks stay in NoAgenda.") | [light](screenshots/android/devicesync-intro-light.png) | [dark](screenshots/android/devicesync-intro-dark.png) |
+| Permissions | [light](screenshots/android/devicesync-permissions-light.png) | [dark](screenshots/android/devicesync-permissions-dark.png) |
+| Choose calendars and address books | [light](screenshots/android/devicesync-choose-light.png) | [dark](screenshots/android/devicesync-choose-dark.png) |
+| The backup before the first sync | [light](screenshots/android/devicesync-backup-light.png) | [dark](screenshots/android/devicesync-backup-dark.png) |
+| The first sync ("Nothing is deleted") | [light](screenshots/android/devicesync-first-sync-light.png) | [dark](screenshots/android/devicesync-first-sync-dark.png) |
+| Status screen | [light](screenshots/android/devicesync-status-light.png) | [dark](screenshots/android/devicesync-status-dark.png) |
+| Status screen with reasons (calendars can't be checked, "Not saved", the last sync did not finish) | [light](screenshots/android/devicesync-status-reasons-light.png) | [dark](screenshots/android/devicesync-status-reasons-dark.png) |
+| Status screen, the phone can not be read ("Open settings") | [light](screenshots/android/devicesync-status-unreadable-light.png) | [dark](screenshots/android/devicesync-status-unreadable-dark.png) |
+| The Stop question | [light](screenshots/android/devicesync-status-stop-question-light.png) | [dark](screenshots/android/devicesync-status-stop-question-dark.png) |
+| The phone's own Contacts app (Google Contacts) | [a NoDrive contact edited and saved](screenshots/android/phonecontacts-edit-saved.png) | [new contact offers NoDrive](screenshots/android/phonecontacts-insert-opened.png) |
 
 ## 4. Owner tests (at home, on the owner's Android phone)
 
@@ -555,9 +598,37 @@ Use a test task in a test project. Changing dates changes the real task in NoGan
 | 65 | Offline | Switch on airplane mode and move a task, then switch it off | The bar shows **Waiting to send**; it can't be moved again until it is sent; a short time after the network is back NoGantt has the new dates |
 | 66 | Side menu and dark mode | On the Timeline, swipe from the left edge; then tap the menu button; switch the phone to dark mode | The edge swipe scrolls the chart and does not open the menu (so sideways scrolling is not fought); the menu button opens it; the other tabs still open it with the swipe. Every Timeline screen is readable in dark mode |
 
+### Tests 67 to 78: Device calendar and contacts sync
+
+This feature is off until you switch it on, and it changes the phone's Calendar and Contacts apps. Use a test event and a test contact. Nothing is deleted on the phone or on the Drive without you asking. The NoDrive account must be signed in.
+
+| # | What | Do this | Pass when |
+|---|---|---|---|
+| 67 | Off at first | Open Settings > More and look at **Calendar and contacts on this phone**. Then open the phone's own Settings > Accounts > NoDrive | The row says **Off**. The account shows no Calendar or Contacts switch |
+| 68 | Switch on | Tap the row and follow the steps: allow Calendar and Contacts, choose a calendar and an address book, wait for the backup | Before anything is added to the phone, your NoDrive has `.Calendar-Backup` and `.Contacts-Backup` with new files. The first sync says **Nothing is deleted**. The row now says **On** with the counts |
+| 69 | The phone's apps | Open the phone's Calendar app and Contacts app | The NoDrive calendars show with their colours. The NoDrive contacts show with their groups and photos |
+| 70 | Events both ways | Make an event in the phone's Calendar app. Then make one on the web (the Calendar page). Wait a minute or tap **Sync now** | The phone's event is in NoAgenda and on the web. The web event is on the phone |
+| 71 | An alarm | Give an event on the web an alarm a few minutes ahead. Sync | The alarm rings on the phone |
+| 72 | A tagged event | Edit an event that has an agent in the phone's own Calendar app (change the title). Sync, then open NoAgenda | The event still shows the same agent |
+| 73 | Contacts both ways | Change a contact in the phone's own Contacts app (also type a **phonetic name**, and check that only **one** birthday can be added). Check on the web. Then make a **new contact** | The change and the phonetic name are on the web with the contact's group. The edit stays in the NoDrive account (no copy in Google or another account). **New contact** offers NoDrive as a place to save |
+| 74 | Tasks stay out | Look at the phone's Calendar app for a NoGantt task or a to-do | No task appears |
+| 75 | A deleted contact | Delete one test contact on the phone. Sync | A file `removed-contacts-...` is in `.Contacts-Backup` on your NoDrive. The contact is then gone from the web |
+| 76 | Stop syncing | Open the status screen, tap **Stop syncing**, answer the question. Try it once with the network off | With the network on, the NoDrive calendars and contacts leave the phone and NoDrive still has them. With the network off, stopping is refused and nothing is removed |
+| 77 | The phone can not be read | Take the Contacts permission away in the phone's settings, turn the network off, change a calendar event, then tap **Stop syncing** | It is refused ("NoDrive can't reach the calendars and contacts of this phone ...") with an **Open settings** button, and the edit stays |
+| 78 | A change on both sides | Change one event on the phone and the same event on the web. Sync, then **Stop syncing** | Stopping is refused with **Look at Not saved first**. The phone's version is listed under **Not saved** (**Apply my change again** or **Keep the NoDrive version**). After you decide, Stop works |
+
+### Device sync: what the owner should know
+
+- **It is two-way and off by default.** Switching it on makes a backup first, then adds what each side lacks. A conflict never loses data: the server's version wins on the phone and the phone's version waits in **Not saved**. An edit beats a delete.
+- **Contacts have no trash bin on the server**, so a contact you delete on the phone is first saved in a `removed-contacts-...` file in `.Contacts-Backup` (test 75).
+- **Chat addresses and phonetic names** go to the card as standard lines (phonetic names as `X-PHONETIC-...`). A custom chat label with spaces is not kept (the address is). The phone's contacts editor does not offer the finer relation types (mother, sister, partner).
+- **Which Contacts app.** CI runs Google Contacts. AOSP Contacts and Samsung Contacts are not run in CI; test 73 is the check on the real phone.
+- **A change the server refuses for good** (for example a private event of a shared calendar) stays waiting and keeps Stop refused. The data is safe. This is on the to-do list.
+- **Removing the account** from the phone removes the phone copies (Android does that for every account). The status screen shows how many changes are waiting, so sync first.
+
 ### NoAgenda: what the owner should know
 
-- **Tests 35 to 44 only look.** They change nothing. Tests 45 to 57 edit real items on your Drive, so use a test event, to-do, task and card. NoAgenda never deletes a task or a card, and deletes an event or a to-do only after the question (the event goes to the calendar's trash bin). The Timeline (tests 58 to 66) changes dates the same way as editing does. The phone's own Calendar and Contacts sync is the next step.
+- **Tests 35 to 44 only look.** They change nothing. Tests 45 to 57 edit real items on your Drive, so use a test event, to-do, task and card. NoAgenda never deletes a task or a card, and deletes an event or a to-do only after the question (the event goes to the calendar's trash bin). The Timeline (tests 58 to 66) changes dates the same way as editing does. The phone's own Calendar and Contacts sync is tests 67 to 78.
 - **Editing.** A change you make is shown at once and sent in the background; offline it waits and is sent in order. If somebody changed the same item meanwhile, their change stays and you choose **Apply my change again** or **Keep the other change**; after a server error you can choose **Send again**. While the Drive is being updated (maintenance), your changes wait and are sent afterwards.
 - **The Timeline has no dragging on a phone.** A tap on a bar or its name opens the sheet, and the dates are changed there. A task moved by whole days is sent with NoGantt's own move (`adjust_lag`), so the tasks that come after it move too, and the message names them. Milestones, finished items and repeating to-dos can not be moved there; there are no team rows on the Timeline (use My team on the other tabs).
 - **The agent list is a file.** NoAgenda reads `NoAgenda/agent-registry.json` in your own NoDrive (the format of `plans/agent-registry.placeholder.json`). Without it everything shows as **Self**; **Sources** says so. The Nourax agents app will replace the file later.
@@ -605,6 +676,17 @@ NoAgenda (design section 11; the Workspace session does these, the app changes n
 | S21 | Deck's card update (`PUT .../stacks/{stackId}/cards/{id}`) sets the card's list from the `stackId` in the address (`CardService::update`, `setStackId`), whatever list the card is in | NoAgenda always writes to the stack of the card it has just read, and refuses a card that is on another board. A Deck that ignored the address' stack, or answered 409 when it differs from the card's own, would make every client safer |
 | S22 | Nextcloud answers 503 in maintenance mode (every upgrade) | Nothing to change. NoAgenda treats 502, 503, 504 and `Retry-After` as "wait" and does not count them, so queued edits are sent after the window; announcing upgrade windows helps people who edit offline |
 | S23 | NoGantt's task update with `adjust_lag` both snaps a whole-day move to working days and changes the lags of dependencies when they are not sent in the same call (`TaskService.php`) | The Timeline sends `adjust_lag` only for a move by whole days, and shows "Also moved" and Undo. Whoever documents NoGantt's API for clients should say this. CI proves the move, the dependent task and the weekend snap |
+
+Device calendar and contacts sync (the Workspace session does these, the app changes no server):
+
+| # | What | Why |
+|---|---|---|
+| S24 | The web Contacts app and any server tool that rewrites cards must keep unknown `X-` lines | Phonetic names travel as `X-PHONETIC-FIRST-NAME`, `X-PHONETIC-MIDDLE-NAME`, `X-PHONETIC-LAST-NAME`; if they are dropped, phonetic names vanish from the phones at the next sync. Worth a check on the real server before rollout |
+| S25 | Keep the calendar trash bin on, with its default retention (also S16) | A phone delete of an event relies on it. When a phone edit wins against a server delete, Nextcloud removes the trashed copy for good (expected: "edit beats delete") |
+| S26 | Address books have no trash bin | A server-side contacts trash or versioning would add safety on top of the app's `removed-contacts-...` file |
+| S27 | If NoGantt is limited to some groups, those outside get 412 on `task-sync` and device calendar sync stays off for them, with a reason on screen | Tell the client teams before restricting the app |
+| S28 | The system address book can be chosen (off by default, read only): keep user enumeration limited to the person's own groups | So that people of other organisations never reach a phone |
+| S29 | Device sync uses the account's existing app password; revoking it in the web settings also stops device sync (expected). A long sync-token retention keeps syncs cheap | When tokens are pruned the app lists a collection in full again (handled) |
 
 ## 6. To-dos for later
 
@@ -725,3 +807,17 @@ From the independent reviews (`plans/round3-android-agenda-timeline-review-2.md`
 - **Translations** of `app/src/main/res/values/nodrive_agenda_timeline.xml`.
 - **Phone check of the pickers and of the sideways scroll** (owner tests 61 and 66).
 - **Commit trailers:** 7 of the 9 commits say `Claude Sonnet 5.5`; no rewrite (same as the edit branch).
+
+### To-dos for device sync
+
+From the independent reviews (`plans/round3-android-device-sync-final-review-3.md`, approved). None of them blocks the owner:
+
+- **N1 (review 3):** a custom chat label that is not a URI scheme (with spaces) is dropped, and the comment in `nodrive_contacts_structure.xml` says it is not. Fix: correct the comment, or carry the label as `X-SERVICE-TYPE` on the `IMPP` line.
+- **N2:** the real editor is not driven for a phonetic name or the one-birthday limit (provider test and AOSP source cover it). Owner test 73 checks it. Samsung Contacts may not honour `maxOccurs`.
+- **N4:** `IMPP` schemes are written to the phone in lower case and compared as written, so a server line like `GTALK:` or one with `X-SERVICE-TYPE` is rewritten once when that contact is next edited on the phone (the address is never lost). Fix: compare the scheme in lower case in `parse()` and `list()`.
+- **N5 (limit, not built):** a phone change that the server rejects for good stays waiting and keeps Stop refused. Put the server version back and keep the phone version in "Not saved".
+- **Not built:** the NoAgenda overflow-menu entry of plan 4.1 (the screen is reached from Settings and from the phone's account settings); a change made on the phone while it is being sent is cleared with the send (a window of a few milliseconds); the backup gate takes the first new calendar backup file as done.
+- **Photos:** a photo that the card already has is never replaced from the phone; attendees and the organiser only travel from the server to the phone.
+- **Other Contacts apps:** run the editor test in AOSP Contacts and Samsung Contacts when an image is available.
+- **Commit trailers:** the fix-round commits up to `5ccbbde124` say `Claude Sonnet 5.5`, the last two `Claude Opus 5.5`; no rewrite.
+- **Translations** of `app/src/main/res/values/nodrive_device_sync.xml`.
