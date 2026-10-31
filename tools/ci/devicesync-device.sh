@@ -16,6 +16,9 @@
 #   DeviceSyncReminderIT   a server alarm is a phone reminder that the phone's Calendar fires (or schedules).
 #   DeviceSyncContactsIT   a contacts round trip: group and photo, a changed number keeps the unknown line, a new contact, a delete that
 #                          first saves the card in .Contacts-Backup.
+#   DeviceSyncContactsEditorIT  the phone's own Contacts app (the real editor, driven with UI Automator): a number changed there is saved in
+#                          the NoDrive contact (dirty, no copy in another account) and reaches the server card; the editor for a new contact
+#                          offers NoDrive. Its screens and window dumps are kept as phonecontacts-*.png/xml.
 #   DeviceSyncSafetyIT     a calendar deleted on the server does not hold "Stop syncing" up; a photo set on the phone survives a server edit
 #                          and reaches the server; NoGantt's copy calendar of an account that has it on is never offered and a chosen one
 #                          leaves the phone.
@@ -35,6 +38,7 @@ FIRST=org.nourax.nodrive.devicesync.DeviceSyncFirstSyncIT
 TWOWAY=org.nourax.nodrive.devicesync.DeviceSyncTwoWayIT
 REMINDER=org.nourax.nodrive.devicesync.DeviceSyncReminderIT
 CONTACTS=org.nourax.nodrive.devicesync.DeviceSyncContactsIT
+EDITOR=org.nourax.nodrive.devicesync.DeviceSyncContactsEditorIT
 STOP=org.nourax.nodrive.devicesync.DeviceSyncStopIT
 SAFETY=org.nourax.nodrive.devicesync.DeviceSyncSafetyIT
 SHOTS="$OUT/screens/devicesync"
@@ -147,6 +151,7 @@ if [ -n "${NODRIVE_AG_DEVICE_URL:-}" ] && [ -n "${NODRIVE_AG_ALI_TOKEN:-}" ]; th
     night no
     run_it light "$TWOWAY" two-way 6
     run_it light "$CONTACTS" contacts 1
+    run_it light "$EDITOR" contacts-editor 2
     run_it light "$REMINDER" reminder 1
     "$ADB" shell cat "/sdcard/Android/data/$PKG/files/devicesync-reminder-proof.txt" 2> /dev/null | tr -d '\r' > "$OUT/devicesync-reminder-proof.txt" || true
     echo "devicesync: reminder proof: $(cat "$OUT/devicesync-reminder-proof.txt" 2> /dev/null)"
@@ -175,6 +180,13 @@ fi
 # ---- 3. the screenshots
 for f in $("$ADB" shell ls "/sdcard/Android/data/$PKG/files/" 2> /dev/null | tr -d '\r' | grep '^devicesync-.*\.png$'); do
     "$ADB" pull "/sdcard/Android/data/$PKG/files/$f" "$SHOTS/$f" > /dev/null
+done
+# the screens of the phone's own Contacts app and the dumps of its windows (not checked for brightness: they are not our screens)
+for f in $("$ADB" shell ls "/sdcard/Android/data/$PKG/files/" 2> /dev/null | tr -d '\r' | grep '^phonecontacts-'); do
+    "$ADB" pull "/sdcard/Android/data/$PKG/files/$f" "$SHOTS/$f" > /dev/null
+done
+for f in phonecontacts-edit-opened.png phonecontacts-edit-saved.png phonecontacts-insert-opened.png; do
+    if [ -s "$SHOTS/$f" ]; then echo "devicesync screenshot: $f"; else echo "devicesync screenshot MISSING: $f"; status=1; fi
 done
 for name in settings intro permissions choose backup first-sync status status-reasons status-unreadable status-stop-question; do
     for look in light dark; do

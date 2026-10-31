@@ -344,6 +344,7 @@ private fun Status(ui: DeviceSyncUi, actions: DeviceSyncActions) {
     }
     if (ui.autoSyncOff) Body(stringResource(R.string.nodrive_device_sync_auto_sync_off), "ds_auto_sync_off")
     if (ui.waiting > 0) Body(pluralStringResource(R.plurals.nodrive_device_sync_waiting, ui.waiting, ui.waiting), "ds_waiting")
+    if (ui.waitingUnknown && !ui.noPermission) Body(stringResource(R.string.nodrive_device_sync_waiting_unknown), "ds_waiting_unknown")
     if (ui.noPermission) {
         Body(stringResource(R.string.nodrive_device_sync_permissions_denied), "ds_no_permission")
         Button(onClick = actions.openSettings, modifier = Modifier.padding(bottom = 12.dp).testTag("ds_open_settings")) {

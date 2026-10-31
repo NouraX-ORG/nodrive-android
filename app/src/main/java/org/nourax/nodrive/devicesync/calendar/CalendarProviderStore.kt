@@ -170,7 +170,7 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
             scope.accountSelection(CalendarContract.Events.ACCOUNT_NAME, CalendarContract.Events.ACCOUNT_TYPE) + " AND " +
                 CalendarContract.Events.CALENDAR_ID + " = ?",
             scope.accountArgs + calendarId.toString(), null
-        )?.use { while (it.moveToNext()) out += rowOf(it) }
+        )?.use { while (it.moveToNext()) out += rowOf(it) } ?: throw IllegalStateException(NO_ANSWER) // null = could not look, never "no rows"
         return out
     }
 
@@ -367,5 +367,6 @@ class CalendarProviderStore(private val resolver: ContentResolver, private val s
 
     private companion object {
         const val DAY_MS = 86_400_000L
+        const val NO_ANSWER = "the phone's calendar did not answer"
     }
 }

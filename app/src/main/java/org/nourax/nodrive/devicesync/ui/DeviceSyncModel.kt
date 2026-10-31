@@ -69,6 +69,8 @@ data class DeviceSyncUi(
     val lastSyncUtc: Long = 0,
     val syncing: Boolean = false,
     val waiting: Int = 0,
+    /** The phone could not be read for the count (a provider error): the count is not known, which is not the same as nothing waiting. */
+    val waitingUnknown: Boolean = false,
     val autoSyncOff: Boolean = false,
     val notSaved: List<NotSavedItem> = emptyList(),
     val stopQuestion: Boolean = false,
@@ -289,11 +291,12 @@ class DeviceSyncModel(
                     .filter { it.chosen && it.offReason != RemoteCollection.OFF_TASK_COPY }
                     .map { CollectionCount(it.href, it.kind, it.name, it.objectCount, it.offReason == RemoteCollection.OFF_GONE) }
             }
-            val waiting = withContext(Dispatchers.IO) { DeviceSyncRunner.waitingCount(context, account) }
+            val waiting = withContext(Dispatchers.IO) { DeviceSyncRunner.waitingCountOrNull(context, account) }
             mutable.update {
                 it.copy(
                     lastSyncUtc = snapshot.first.lastSyncUtc,
-                    waiting = waiting,
+                    waiting = waiting ?: 0,
+                    waitingUnknown = waiting == null,
                     autoSyncOff = !DeviceSyncControl.autoSyncOn(),
                     notSaved = snapshot.second.map { n -> NotSavedItem(n.id, n.kind, n.title) },
                     calendarsOnPhone = snapshot.third.first,

@@ -87,6 +87,7 @@
         <item quantity="one">%d change waiting to be sent</item>
         <item quantity="other">%d changes waiting to be sent</item>
     </plurals>
+    <string name="nodrive_device_sync_waiting_unknown">NoDrive can\'t count the waiting changes right now.</string>
 
     <!-- "Not saved" -->
     <string name="nodrive_device_sync_not_saved">Not saved</string>

@@ -63,6 +63,17 @@ that could bypass the backup and the first-sync rules.
   Guests that were added to an event on the phone are put back when the server's version of the event is written. A new phone contact whose
   only content is a data row of a kind the sync does not read (a SIP address, a custom date, another app's data) is not called empty: it is
   sent, so Stop can not remove it unseen.
+- **The phone's own Contacts app can edit NoDrive contacts.** The account type's structure file
+  (`res/xml/nodrive_contacts_structure.xml`) carries an `<EditSchema>`. Without one, the AOSP Contacts app (and the Google and Samsung apps
+  that are built on it) treats the account as read only: an edit of a NoDrive contact is then saved as a new contact in the default account
+  (usually Google), the NoDrive raw contact never becomes dirty and nothing reaches NoDrive. The schema lists exactly the kinds that the
+  mapper reads and writes (name with every `supports*` flag, photo, phone, email, postal address, organisation, nickname, note, website,
+  IM, birthday and anniversary, relationship, group membership) with the types the mapper keeps, so the editor offers nothing that would
+  never reach the server (no other date types, no SIP address, no custom labels). `DeviceSyncContactsEditorIT` drives the real editor with UI
+  Automator: it opens `ACTION_EDIT` on a synced NoDrive contact, changes the number, saves, and checks that the NoDrive raw contact is
+  dirty, that no raw contact of that name appeared in another account, and that after a sync the server card has the new number and still
+  has its `X-NOURAX-TEST` line; it also opens `ACTION_INSERT` and checks that NoDrive is offered as a place to save a new contact. The
+  test uses the emulator's Contacts app; the owner's real phone may run another one (see owner row 7).
 - **Read-only copies are read only on the phone too.** A change that an app makes in one anyway can never be sent, so the server's version
   is put back and the phone's edit is kept in "Not saved" first (a delete is simply undone).
 - **A phone copy that was made again starts over.** If the phone's Calendar Storage or Contacts Storage was cleared (or the calendar was
@@ -161,9 +172,14 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   on a private event of a shared calendar, or 400/415 for data the server's validator refuses) stays waiting and keeps Stop refused ("Sync
   again, then try once more."). The data is safe. Putting the server version back and keeping the phone version in "Not saved" for these is a
   to-do for a later round (it needs a rule for a rejected new event as well, which has no server version to put back).
-- **Commit trailer.** Commit `a58e3c1a98` and the commits of the fix rounds after it end with `Co-Authored-By: Claude Sonnet 5.5`, not the
+- **Commit trailer.** Commit `a58e3c1a98` and the commits of the fix rounds after it (including the final-fix rounds) end with `Co-Authored-By: Claude Sonnet 5.5`, not the
   `Claude Opus 5.5` of the round rule: the session that wrote them is Sonnet 5.5 and the session's attribution rule names that model. The
   eleven earlier commits say Opus 5.5. Noted here for the merge.
+- **A provider that does not answer is "could not look", never "no rows".** `CalendarProviderStore.rows` and `ContactsProviderStore.rows` throw
+  when the provider returns a null cursor (a provider process that died mid-call). Stop refuses on that (as for any unreadable phone) and a
+  sync run fails instead of reading an empty phone. A null cursor for the list of calendars still means "no calendar storage on this phone",
+  so a phone without a calendar provider is not refused for ever. When the waiting count can not be read, the status screen says "NoDrive
+  can't count the waiting changes right now." instead of showing nothing.
 - **Not built (listed so nothing is silent):** the NoAgenda overflow-menu entry of plan 4.1 (the screen is reached from Settings and from the
   phone's account settings); a change made on the phone while it is being sent is cleared with the send (a window of a few milliseconds);
   the backup gate takes the first new calendar backup file as done (upstream writes one file per calendar).
@@ -186,10 +202,11 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   emulator", `tools/ci/devicesync-device.sh`): `DeviceSyncSettingsIT` (also: the phone knows our settings activity as a class name),
   `DeviceSyncFirstSyncIT`, `DeviceSyncTwoWayIT`, `DeviceSyncReminderIT`, `DeviceSyncContactsIT`, `DeviceSyncSafetyIT` (a calendar deleted
   on the server then Stop; a photo set on the phone and an edit of the card on the server; an account whose NoGantt copy calendar is on),
-  `DeviceSyncStopIT` (also: a phone edit and a server edit of one event, then Stop is refused and the entry is still in "Not saved");
+  `DeviceSyncStopIT` (also: a phone edit and a server edit of one event, then Stop is refused and the entry is still in "Not saved"),
+  `DeviceSyncContactsEditorIT` (the phone's own Contacts app, see above; its screens and window dumps are kept as `phonecontacts-*`);
   `DeviceSyncSettingsIT` also draws the status screen in states that are hard to bring about (`DeviceSyncModel.showForTest`): the calendars
   that can't be checked, the "Not saved" list with a refusal that points to it, the last sync that didn't finish, the unreadable-phone
-  refusal with "Open settings", and the Stop and untick questions with the lost-changes count.
+  refusal with "Open settings", the "can't count the waiting changes" line, and the Stop and untick questions with the lost-changes count.
   `run_it` of the CI script reads the raw output of `am instrument -r` and counts a test that skipped itself (an unmet assumption) as a
   failure, so a missing server can not pass silently. Screenshots in light and dark mode:
   `devicesync-{settings,intro,permissions,choose,backup,first-sync,status,status-reasons,status-unreadable,status-stop-question}-{light,dark}.png`. Then `tools/ci/devicesync-server-check.py` asks the
@@ -206,7 +223,9 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 4. Make an event in the phone's Calendar app: it appears in NoAgenda and on the web. Make one on the web: it appears on the phone.
 5. An alarm of a NoDrive event rings on the phone.
 6. **Edit a tagged event in the phone's own Calendar app** and check its agent in NoAgenda (design 4.2, with the phone's real app).
-7. A contact edited in the phone's Contacts app appears on the web with its group.
+7. A contact edited in the phone's Contacts app appears on the web with its group. Check on the real phone that the edit stays in the NoDrive
+   account (the contact is not copied into Google or another account) and that "new contact" offers NoDrive as a place to save. The CI
+   emulator proves this for the AOSP Contacts app only; the Google Contacts and Samsung Contacts apps are not tested in CI.
 8. Tasks never appear in the phone's calendar.
 9. Delete one contact on the phone: a file `removed-contacts-...` appears in `.Contacts-Backup` before it is gone on the web.
 10. Stop syncing: the NoDrive calendars and contacts leave the phone, NoDrive still has them. With the network off, stopping is refused.

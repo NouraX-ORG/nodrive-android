@@ -177,7 +177,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                     else -> b.otherData = true
                 }
             }
-        }
+        } ?: throw IllegalStateException(NO_ANSWER)
         return out
     }
 
@@ -225,7 +225,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
                 )
                 out += ContactRow(id, c.getString(1), c.getString(2).orEmpty(), dirty, deleted, contact, b.otherData)
             }
-        }
+        } ?: throw IllegalStateException(NO_ANSWER) // a provider that dies mid-call answers null: that is "could not look", never "no rows"
         return out
     }
 
@@ -376,6 +376,7 @@ class ContactsProviderStore(private val resolver: ContentResolver, private val s
 
     private companion object {
         const val MAX_PHOTO_BYTES = 1_500_000
+        const val NO_ANSWER = "the phone's contacts did not answer"
 
         /** The kinds of data row that the card can say something about (events are looked at by their type). Photo is added when the card has one. */
         val MANAGED_MIME_TYPES = listOf(

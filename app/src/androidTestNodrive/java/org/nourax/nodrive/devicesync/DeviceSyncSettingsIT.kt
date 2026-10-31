@@ -159,7 +159,7 @@ class DeviceSyncSettingsIT {
             show(
                 DeviceSyncUi(
                     step = Step.STATUS, lastSyncUtc = now, calendarsOnPhone = 1, collectionCounts = counts, notSaved = saved,
-                    calendarsUnknown = true, stopRefusedNotSaved = true
+                    calendarsUnknown = true, stopRefusedNotSaved = true, waitingUnknown = true
                 )
             )
             compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("ds_calendars_unknown").fetchSemanticsNodes().isNotEmpty() }
@@ -167,6 +167,8 @@ class DeviceSyncSettingsIT {
             compose.onNodeWithTag("ds_stop_refused_not_saved").assertTextContains("Look at Not saved first", substring = true)
             compose.onNodeWithTag("ds_not_saved_1").assertExists()
             compose.onNodeWithTag("ds_count_old").assertTextContains("No longer", substring = true)
+            compose.onNodeWithTag("ds_waiting_unknown").assertTextContains("can't count the waiting changes", substring = true)
+            assertEquals(0, compose.onAllNodesWithTag("ds_waiting").fetchSemanticsNodes().size)
             assertEquals(0, compose.onAllNodesWithTag("ds_last_failed").fetchSemanticsNodes().size)
             support.agenda.assertNoServerSoftwareName(compose)
             support.agenda.backup.sleepForAnimation()
@@ -185,6 +187,7 @@ class DeviceSyncSettingsIT {
             compose.onNodeWithTag("ds_stop_refused_unreadable").assertTextContains("Nothing was removed", substring = true)
             compose.onNodeWithTag("ds_open_settings_stop").assertExists()
             compose.onNodeWithTag("ds_waiting").assertExists()
+            assertEquals(0, compose.onAllNodesWithTag("ds_waiting_unknown").fetchSemanticsNodes().size)
             assertEquals(0, compose.onAllNodesWithTag("ds_calendars_unknown").fetchSemanticsNodes().size)
             support.agenda.assertNoServerSoftwareName(compose)
             support.agenda.backup.sleepForAnimation()

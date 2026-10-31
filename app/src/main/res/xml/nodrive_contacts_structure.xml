@@ -5,5 +5,75 @@
   ~ SPDX-FileCopyrightText: 2026 Nourax
   ~ SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-<!-- Lets the phone's Contacts app show the NoDrive account and its contacts (no custom editor: the phone's own is used). -->
-<ContactsAccountType />
+<!--
+  Lets the phone's Contacts app show the NoDrive account and its contacts, and edit them (the phone's own editor is used, no custom one).
+
+  The EditSchema is what makes the account writable there: the Contacts app (AOSP, and the apps built on it) treats an account type
+  without one as read only, and a contact edited in a read only account is copied into the default account (for example Google) instead
+  of being saved here. Every kind below is one that ContactMapper reads from the phone and writes to the card, with the types it keeps.
+  A kind or a type that is not listed is not offered by the editor, so nothing can be typed there that would never reach the server.
+  The kinds, attributes and types are the ones of AOSP's BaseAccountType (the name kind needs every support flag and a maximum of 1;
+  a kind that has types needs at least one type; a kind that has no types must not have any).
+-->
+<ContactsAccountType>
+    <EditSchema>
+        <DataKind
+            kind="name"
+            maxOccurs="1"
+            supportsPrefix="true"
+            supportsMiddleName="true"
+            supportsSuffix="true"
+            supportsPhoneticFamilyName="true"
+            supportsPhoneticMiddleName="true"
+            supportsPhoneticGivenName="true" />
+        <DataKind kind="photo" maxOccurs="1" />
+        <DataKind kind="phone">
+            <Type type="mobile" />
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+            <Type type="fax_work" />
+            <Type type="fax_home" />
+            <Type type="pager" />
+        </DataKind>
+        <DataKind kind="email">
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+            <Type type="mobile" />
+        </DataKind>
+        <DataKind kind="postal" needsStructured="true">
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+        </DataKind>
+        <DataKind kind="organization" maxOccurs="1" />
+        <DataKind kind="nickname" maxOccurs="1" />
+        <DataKind kind="note" maxOccurs="1" />
+        <DataKind kind="website" />
+        <DataKind kind="im">
+            <Type type="custom" />
+            <Type type="skype" />
+            <Type type="jabber" />
+            <Type type="google_talk" />
+        </DataKind>
+        <DataKind kind="event">
+            <Type type="birthday" yearOptional="true" />
+            <Type type="anniversary" maxOccurs="1" yearOptional="true" />
+        </DataKind>
+        <DataKind kind="relationship">
+            <Type type="spouse" />
+            <Type type="child" />
+            <Type type="parent" />
+            <Type type="father" />
+            <Type type="mother" />
+            <Type type="brother" />
+            <Type type="sister" />
+            <Type type="friend" />
+            <Type type="relative" />
+            <Type type="partner" />
+            <Type type="domestic_partner" />
+        </DataKind>
+        <DataKind kind="group_membership" maxOccurs="1" />
+    </EditSchema>
+</ContactsAccountType>
