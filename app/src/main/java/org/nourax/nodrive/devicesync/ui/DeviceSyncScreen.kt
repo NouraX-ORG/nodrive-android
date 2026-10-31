@@ -28,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,20 +70,23 @@ class DeviceSyncActions(
 @Composable
 fun DeviceSyncScreen(model: DeviceSyncModel, actions: DeviceSyncActions) {
     val ui by model.state.collectAsState()
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-            .testTag("ds_screen_" + ui.step.name.lowercase())
-    ) {
-        when (ui.step) {
-            Step.INTRO -> Intro(actions)
-            Step.PERMISSIONS -> Permissions(ui, actions)
-            Step.CHOOSE -> Choose(ui, actions)
-            Step.BACKUP -> Backup(ui, actions)
-            Step.FIRST_SYNC -> FirstSync(ui, actions)
-            Step.STATUS -> Status(ui, actions)
+    // The text takes the theme's colour on its background (in dark mode too).
+    Surface(color = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+                .testTag("ds_screen_" + ui.step.name.lowercase())
+        ) {
+            when (ui.step) {
+                Step.INTRO -> Intro(actions)
+                Step.PERMISSIONS -> Permissions(ui, actions)
+                Step.CHOOSE -> Choose(ui, actions)
+                Step.BACKUP -> Backup(ui, actions)
+                Step.FIRST_SYNC -> FirstSync(ui, actions)
+                Step.STATUS -> Status(ui, actions)
+            }
         }
     }
     if (ui.stopQuestion) {
