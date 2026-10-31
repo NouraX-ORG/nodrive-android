@@ -176,8 +176,7 @@ class DeviceSyncContactsIT {
 
         // the card is edited elsewhere (the web): the phone version is written again
         val href = support.listing(book).first { support.serverText(it.trimStart('/')).contains("FN:Family Member") }.trimStart('/')
-        val edited = support.serverText(href).replace("END:VCARD", "NOTE:edited on the server
-END:VCARD")
+        val edited = support.serverText(href).replace("END:VCARD", "NOTE:edited on the server\r\nEND:VCARD")
         val status = support.dav("PUT", href, edited, "text/vcard; charset=utf-8")
         assertTrue("the server accepted the edit: $status", status in 200..299)
         assertTrue(support.sync(setOf("contacts")).ok)
