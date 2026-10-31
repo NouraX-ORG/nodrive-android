@@ -60,6 +60,13 @@ object DeviceSyncSettings {
     }
 }
 
+/** What the status screen says about the last sync: a sync of one kind does not wipe the other kind's reason. */
+object StatusMessage {
+    /** "The calendars can't be checked" stays until a run that includes the calendars says otherwise (a contacts-only run knows nothing of it). */
+    fun next(previous: String, kinds: Set<String>, outcome: SyncOutcome): String =
+        if (previous == "calendars_unknown" && RemoteCollection.CALENDAR !in kinds && outcome.message.isEmpty()) previous else outcome.message
+}
+
 /**
  * One sync of one account, for both the system's sync adapters and the app's own buttons. One sync runs at a time in the process
  * (the lock), so a sync the phone starts after an edit and a "Sync now" never write at the same time.
@@ -105,20 +112,23 @@ object DeviceSyncRunner {
     fun chosen(context: Context, account: String): List<CollectionEntity> =
         DeviceSyncDatabase.get(context).dao().collections(account).filter { it.chosen }
 
-    /** What is waiting on the phone: changes that can still be sent and have not been (see [WaitingCount]). */
-    fun waitingCount(context: Context, accountName: String): Int {
+    /** What is waiting on the phone, or null when the phone could not be read (see [WaitingCount.read]). Stop syncing treats null as a refusal. */
+    fun waitingCountOrNull(context: Context, accountName: String): Int? {
         val app = context.applicationContext
         return try {
             val scope = ProviderScope(accountName, MainApp.getAccountType(app))
-            WaitingCount.of(
+            WaitingCount.read(
                 CalendarProviderStore(app.contentResolver, scope), ContactsProviderStore(app.contentResolver, scope),
                 DeviceSyncDatabase.get(app).dao().collections(accountName)
-            )
+            ).also { if (it == null) AgendaLog.w(TAG, "waiting count: the phone could not be read") }
         } catch (e: RuntimeException) {
             AgendaLog.w(TAG, "waiting count failed: ${e.javaClass.simpleName}")
-            0
+            null
         }
     }
+
+    /** What is waiting on the phone: changes that can still be sent and have not been (see [WaitingCount]). For the screens: 0 when unreadable. */
+    fun waitingCount(context: Context, accountName: String): Int = waitingCountOrNull(context, accountName) ?: 0
 
     /** The unsent phone changes that removing the copies of [hrefs] (null = all) would take with them: see [WaitingCount.lost]. */
     fun lostCount(context: Context, accountName: String, hrefs: Set<String>? = null): Int {
@@ -157,7 +167,8 @@ object DeviceSyncRunner {
             }
             DeviceSyncSettings.update(
                 app, accountName, lastSyncUtc = if (outcome.ok) env.clock().toEpochMilli() else null,
-                lastMessage = outcome.message, waiting = waitingCount(app, accountName)
+                lastMessage = StatusMessage.next(DeviceSyncSettings.get(app, accountName).lastMessage, kinds, outcome),
+                waiting = waitingCount(app, accountName)
             )
             if (outcome.notSaved > 0) DeviceSyncNotifier.notSaved(app, accountName)
             outcome

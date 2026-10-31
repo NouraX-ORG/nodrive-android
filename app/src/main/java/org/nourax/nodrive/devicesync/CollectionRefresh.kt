@@ -105,6 +105,18 @@ object WaitingCount {
     }
 
     /**
+     * Like [of], but null when the phone can not be read (a permission that was taken away, a provider error). Stop syncing needs this:
+     * "nothing waiting" and "could not look" are not the same, and only the first lets it remove the phone's copies.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    fun read(calendars: CalendarStore, contacts: ContactsStore, collections: List<CollectionEntity>): Int? =
+        try {
+            of(calendars, contacts, collections)
+        } catch (e: RuntimeException) {
+            null
+        }
+
+    /**
      * The unsent phone changes that taking the collections away would take with them: those in a chosen calendar or address book that the
      * server no longer lists (a deleted or unshared one). They can not be sent, and removing the copy removes them. [hrefs] limits it to
      * some collections (null = all).

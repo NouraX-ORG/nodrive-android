@@ -253,6 +253,32 @@ class CalendarEngineTest {
         assertNotNull(store.byTitle("Meeting (server)"))
     }
 
+    // ---- a phone that can not be read
+
+    @Test
+    fun aContactsStoreThatCanNotBeReadIsNotNothingWaitingAndStopIsRefusedAndTheEditStays() {
+        server.calendarList = listOf(FakeCollectionSpec(work, "Work"))
+        val books = "/remote.php/dav/addressbooks/users/ali/contacts/"
+        server.bookList = listOf(FakeCollectionSpec(books, "Contacts"))
+        putOnServer("a.ics", "ua", "Meeting")
+        assertTrue(CollectionRefresh.run(env()).ok)
+        dao.putCollection(checkNotNull(dao.collection(account, work)).with(chosen = true))
+        dao.putCollection(checkNotNull(dao.collection(account, books)).with(chosen = true))
+        assertTrue(sync().ok)
+        store.appEdit(checkNotNull(store.byTitle("Meeting")).id) { it.copy(title = "Meeting (phone)") }
+        val contacts = FakeContactsStore()
+        assertEquals("readable: the edit waits", 1, WaitingCount.read(store, contacts, dao.collections(account)))
+
+        contacts.rowsFail = SecurityException("the contacts permission was taken away")
+        assertNull("not readable: unknown, not 0", WaitingCount.read(store, contacts, dao.collections(account)))
+
+        // the final sync of Stop fails (offline) and reports nothing waiting; the unreadable phone is a refusal of its own
+        val refusal = checkNotNull(StopRule.refusal(SyncOutcome.failed("offline"), null, 0))
+        assertTrue(refusal.unreadable)
+        assertNull("a readable phone with nothing waiting is not refused", StopRule.refusal(SyncOutcome.failed("offline"), 0, 0))
+        assertEquals("the edit is still on the phone", "Meeting (phone)", checkNotNull(store.byTitle("Meeting (phone)")).event.title)
+    }
+
     // ---- a calendar that the server no longer has
 
     @Test

@@ -9,6 +9,7 @@ package org.nourax.nodrive.devicesync
 import android.content.ContentResolver
 import android.os.Bundle
 import android.preference.Preference
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -27,9 +28,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.nourax.nodrive.devicesync.model.RemoteCollection
+import org.nourax.nodrive.devicesync.ui.CollectionCount
 import org.nourax.nodrive.devicesync.ui.DeviceSyncActivity
 import org.nourax.nodrive.devicesync.ui.DeviceSyncModel
 import org.nourax.nodrive.devicesync.ui.DeviceSyncSettingsSection
+import org.nourax.nodrive.devicesync.ui.DeviceSyncUi
+import org.nourax.nodrive.devicesync.ui.NotSavedItem
+import org.nourax.nodrive.devicesync.ui.Step
 
 /**
  * Off until the person switches it on: the Settings row says Off, the phone's sync system knows the two adapters but the account is not
@@ -129,6 +135,72 @@ class DeviceSyncSettingsIT {
             support.agenda.backup.sleepForAnimation()
             support.screenshot("permissions")
             assertEquals(0, compose.onAllNodesWithTag("ds_intro_continue").fetchSemanticsNodes().size)
+        }
+    }
+
+    /** The status screen in the states that are hard to bring about for real: each reason and each refusal text, and the two questions. */
+    @Test
+    fun theStatusScreenShowsEachReasonAndEachRefusalAndTheQuestions() {
+        ActivityScenario.launch(DeviceSyncActivity::class.java).use { scenario ->
+            compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("ds_intro_text").fetchSemanticsNodes().isNotEmpty() }
+            fun show(ui: DeviceSyncUi) {
+                scenario.onActivity { activity ->
+                    ViewModelProvider(activity)[support.account.name, DeviceSyncModel::class.java].showForTest(ui)
+                }
+            }
+            val now = System.currentTimeMillis()
+            val saved = listOf(NotSavedItem(1, RemoteCollection.CALENDAR, "Team meeting"))
+            val counts = listOf(
+                CollectionCount("/work/", RemoteCollection.CALENDAR, "Work", 3),
+                CollectionCount("/old/", RemoteCollection.CALENDAR, "Old calendar", 1, gone = true)
+            )
+
+            // 1. the calendars can't be checked, a phone version waits in "Not saved", Stop was refused because of it
+            show(
+                DeviceSyncUi(
+                    step = Step.STATUS, lastSyncUtc = now, calendarsOnPhone = 1, collectionCounts = counts, notSaved = saved,
+                    calendarsUnknown = true, stopRefusedNotSaved = true
+                )
+            )
+            compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("ds_calendars_unknown").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("ds_calendars_unknown").assertTextContains("can't check your calendars", substring = true)
+            compose.onNodeWithTag("ds_stop_refused_not_saved").assertTextContains("Look at Not saved first", substring = true)
+            compose.onNodeWithTag("ds_not_saved_1").assertExists()
+            compose.onNodeWithTag("ds_count_old").assertTextContains("No longer", substring = true)
+            assertEquals(0, compose.onAllNodesWithTag("ds_last_failed").fetchSemanticsNodes().size)
+            support.agenda.assertNoServerSoftwareName(compose)
+            support.agenda.backup.sleepForAnimation()
+            support.screenshot("status-reasons")
+
+            // 2. the last sync did not finish, changes were not sent, and the phone can not be read at all
+            show(
+                DeviceSyncUi(
+                    step = Step.STATUS, lastSyncUtc = now, calendarsOnPhone = 1, collectionCounts = counts, waiting = 2, lastFailed = true,
+                    stopRefused = true, stopRefusedUnreadable = true
+                )
+            )
+            compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("ds_last_failed").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("ds_last_failed").assertTextContains("didn't finish", substring = true)
+            compose.onNodeWithTag("ds_stop_refused").assertTextContains("Sync again, then try once more", substring = true)
+            compose.onNodeWithTag("ds_stop_refused_unreadable").assertTextContains("Nothing was removed", substring = true)
+            compose.onNodeWithTag("ds_open_settings_stop").assertExists()
+            compose.onNodeWithTag("ds_waiting").assertExists()
+            assertEquals(0, compose.onAllNodesWithTag("ds_calendars_unknown").fetchSemanticsNodes().size)
+            support.agenda.assertNoServerSoftwareName(compose)
+            support.agenda.backup.sleepForAnimation()
+            support.screenshot("status-unreadable")
+
+            // 3. the Stop question says how many unsent changes would be lost; so does the untick question
+            show(DeviceSyncUi(step = Step.STATUS, lastSyncUtc = now, calendarsOnPhone = 1, collectionCounts = counts, stopQuestion = true, stopLost = 2))
+            compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("ds_stop_lost").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("ds_stop_confirm").assertExists()
+            compose.onNodeWithTag("ds_stop_lost").assertTextContains("never sent", substring = true)
+            support.agenda.backup.sleepForAnimation()
+            support.screenshot("status-stop-question")
+            show(DeviceSyncUi(step = Step.STATUS, lastSyncUtc = now, calendarsOnPhone = 1, collectionCounts = counts, untickLost = 1))
+            compose.waitUntil(LOAD_MILLIS) { compose.onAllNodesWithTag("ds_untick_lost").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("ds_untick_confirm").assertExists()
+            compose.onNodeWithTag("ds_untick_lost").assertTextContains("never sent", substring = true)
         }
     }
 

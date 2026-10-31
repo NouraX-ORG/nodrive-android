@@ -412,11 +412,17 @@ class FakeContactsStore : ContactsStore {
     private var nextId = 1L
     var ensureFails: RuntimeException? = null
 
+    /** Set to make the contacts of the phone unreadable (a permission taken away, a provider error). */
+    var rowsFail: RuntimeException? = null
+
     override fun ensureSettings() {
         ensureFails?.let { throw it }
     }
 
-    override fun rows(): List<ContactRow> = rowList.toList()
+    override fun rows(): List<ContactRow> {
+        rowsFail?.let { throw it }
+        return rowList.toList()
+    }
 
     override fun insert(href: String, etag: String, parsed: ParsedContact): Long {
         val id = nextId++

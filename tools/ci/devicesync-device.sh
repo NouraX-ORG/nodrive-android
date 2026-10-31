@@ -5,7 +5,8 @@
 # CI only, inside the "Device calendar and contacts sync on the emulator" job (reactivecircus/android-emulator-runner). Runs the device
 # sync tests of the nodrive flavour with "am instrument" (not through Gradle, which uninstalls the app and with it the screenshots):
 #   DeviceSyncSettingsIT   the Settings row says Off; the phone's sync system knows both adapters and the account is not syncable while off;
-#                          a sync before the backup does nothing; the intro and permission screens. Light and dark. No server needed.
+#                          a sync before the backup does nothing; the intro and permission screens; the status screen in the states that are hard to
+#                          bring about (each reason, each refusal text, the Stop and untick questions). Light and dark. No server needed.
 #   DeviceSyncFirstSyncIT  against the throwaway server (tools/ci/agenda-server.sh, seeded, plus tools/ci/devicesync-seed.py): through the
 #                          screens, the backup comes first and the first sync only adds; nothing goes down on either side; another
 #                          source's calendar and contact are byte for byte as they were; no to-do reaches the phone. Light and dark.
@@ -132,7 +133,7 @@ run_it() {
 # ---- 1. no server needed
 for look in light dark; do
     if [ "$look" = light ]; then night no; else night yes; fi
-    run_it "$look" "$SETTINGS" settings 4
+    run_it "$look" "$SETTINGS" settings 5
 done
 night no
 
@@ -175,7 +176,7 @@ fi
 for f in $("$ADB" shell ls "/sdcard/Android/data/$PKG/files/" 2> /dev/null | tr -d '\r' | grep '^devicesync-.*\.png$'); do
     "$ADB" pull "/sdcard/Android/data/$PKG/files/$f" "$SHOTS/$f" > /dev/null
 done
-for name in settings intro permissions choose backup first-sync status; do
+for name in settings intro permissions choose backup first-sync status status-reasons status-unreadable status-stop-question; do
     for look in light dark; do
         f="devicesync-$name-$look.png"
         if [ -s "$SHOTS/$f" ]; then echo "devicesync screenshot: $f"; else echo "devicesync screenshot MISSING: $f"; status=1; fi

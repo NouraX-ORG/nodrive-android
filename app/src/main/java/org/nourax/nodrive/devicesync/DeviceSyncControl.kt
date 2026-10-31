@@ -26,20 +26,23 @@ sealed class StopResult {
      * Nothing was removed (plan 4.6): [waiting] phone changes could not be sent (offline, an error), or [notSaved] phone versions lost a
      * conflict and wait in "Not saved" (the person decides what to do with them first).
      */
-    class Refused(val waiting: Int, val notSaved: Int) : StopResult()
+    class Refused(val waiting: Int, val notSaved: Int, val unreadable: Boolean = false) : StopResult()
 }
 
 /** When "Stop syncing" must not remove anything (plan 4.6). A seam for the tests: it knows nothing of Android. */
 object StopRule {
     /**
+     * [waiting] is null when the phone could not be read (a permission taken away, a provider error): that is a refusal too, because
+     * "could not look" is not "nothing there", and removing the copies could take unsent edits with them.
+     *
      * Null when nothing stands in the way. The reasons to refuse are the person's own data only: [waiting] phone changes that were not
      * sent (offline, an error) and [notSaved] phone versions that lost a conflict and still wait in "Not saved". How the final sync itself
      * ended does not matter: a sync that fails for a lasting reason with nothing waiting (the calendar list can not be read, the server
      * answers an error) must not hold the removal up for ever. Anything the sync could not send is still counted in [waiting].
      */
-    fun refusal(outcome: SyncOutcome, waiting: Int, notSaved: Int): StopResult.Refused? {
-        val unsent = maxOf(waiting, outcome.waiting)
-        return if (unsent > 0 || notSaved > 0) StopResult.Refused(unsent, notSaved) else null
+    fun refusal(outcome: SyncOutcome, waiting: Int?, notSaved: Int): StopResult.Refused? {
+        val unsent = maxOf(waiting ?: 0, outcome.waiting)
+        return if (waiting == null || unsent > 0 || notSaved > 0) StopResult.Refused(unsent, notSaved, unreadable = waiting == null) else null
     }
 }
 
@@ -107,7 +110,7 @@ object DeviceSyncControl {
         val outcome = DeviceSyncRunner.run(app, accountName, setOf(RemoteCollection.CALENDAR, RemoteCollection.CONTACTS))
         // a phone version that lost a conflict (also one from before) must be looked at first: after Stop the list is not reachable
         val notSaved = dao.notSaved(accountName).count { href == null || it.collection == href }
-        StopRule.refusal(outcome, DeviceSyncRunner.waitingCount(app, accountName), notSaved)?.let { return it }
+        StopRule.refusal(outcome, DeviceSyncRunner.waitingCountOrNull(app, accountName), notSaved)?.let { return it }
         val scope = ProviderScope(accountName, MainApp.getAccountType(app))
         val calendars = CalendarProviderStore(app.contentResolver, scope)
         val contacts = ContactsProviderStore(app.contentResolver, scope)

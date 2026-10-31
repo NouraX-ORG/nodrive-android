@@ -94,6 +94,16 @@ that could bypass the backup and the first-sync rules.
   - **The refusal is about the person's unsent changes, never about the sync's own health.** A sync that fails for a lasting reason with
     nothing waiting (the calendar list can not be read, the server answers an error) does not hold Stop up. A dirty row in a chosen calendar
     is counted whether or not the server can be asked (a changed occurrence of a repeating event counts for its event).
+  - **A phone that can not be read is a refusal, not "nothing waiting".** If the calendars or the contacts of the phone can not be read when
+    Stop looks (the person took one permission away, or the provider fails), `WaitingCount.read` returns null and `StopRule` refuses with its
+    own text ("NoDrive can't reach the calendars and contacts of this phone ... Nothing was removed. Allow access in the phone's settings")
+    and an "Open settings" button. Without this, a failed final sync (offline) plus an unreadable store would have read as 0 and Stop would
+    have removed an unsent calendar edit. Removal needs the same access, so the refusal has a way out. (The status screen still shows 0
+    waiting when it can not look; it also says "needs access" when a permission is missing.)
+  - The refusal text for unsent changes is neutral ("Sync again, then try once more."), because the cause is not always the network (a
+    change the server rejects for good, deletes held back by Android's guard, calendars that can not be checked).
+  - The status screen keeps "NoDrive can't check your calendars right now" until a run that includes the calendars clears it (`StatusMessage`):
+    the contacts adapter runs on its own and no longer wipes it.
   - Only a change that can still be sent counts as waiting: a change in a calendar that the server deleted, in a read-only copy, or a new
     contact that is empty does not hold Stop up. Unsent changes in a calendar or address book that the server no longer lists **are lost
     with the phone copy**; the Stop question and the question when such a collection is unticked name how many ("%d changes on this phone
@@ -147,7 +157,11 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 - The phone's finer relation types (father, mother, manager) go to the nearest vCard kind; custom labels of a phone number or address are sent as
   the nearest standard type (the label text is not kept).
 - With several writable address books chosen, a contact made on the phone goes to the first of them (by name); the others never get it.
-- **Commit trailer.** Commit `a58e3c1a98` and the commits of this fix round end with `Co-Authored-By: Claude Sonnet 5.5`, not the
+- **Known limit (N3 of review 3, not built).** A phone change that the server rejects for good (a 4xx other than 404 and 412, for example 403
+  on a private event of a shared calendar, or 400/415 for data the server's validator refuses) stays waiting and keeps Stop refused ("Sync
+  again, then try once more."). The data is safe. Putting the server version back and keeping the phone version in "Not saved" for these is a
+  to-do for a later round (it needs a rule for a rejected new event as well, which has no server version to put back).
+- **Commit trailer.** Commit `a58e3c1a98` and the commits of the fix rounds after it end with `Co-Authored-By: Claude Sonnet 5.5`, not the
   `Claude Opus 5.5` of the round rule: the session that wrote them is Sonnet 5.5 and the session's attribution rule names that model. The
   eleven earlier commits say Opus 5.5. Noted here for the merge.
 - **Not built (listed so nothing is silent):** the NoAgenda overflow-menu entry of plan 4.1 (the screen is reached from Settings and from the
@@ -166,15 +180,19 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
   copy holding the deletes back, read-only copies, an empty contact, one default address book, a phone copy that was made again, a photo
   and a relation sent, no write without an ETag), `CollectionRefreshTest` (the copy calendar fails closed, collections that are gone) and
   `BackupFlowTest` (offline, a failed job, a timeout and a phone that can not be read all stop the first sync) and `StopRuleTest` (Stop refuses
-  for unsent changes and for "Not saved" only; a failing task-sync, 412 or 500, does not hold it up).
+  for unsent changes and for "Not saved" only, and also for a phone that can not be read; a failing task-sync, 412 or 500, does not hold it
+  up; the calendars' reason on the status screen survives a contacts-only run).
 - **Emulator tests** (`androidTestNodrive/.../devicesync/`, throwaway server, Ali's account; CI job "Device calendar and contacts sync on the
   emulator", `tools/ci/devicesync-device.sh`): `DeviceSyncSettingsIT` (also: the phone knows our settings activity as a class name),
   `DeviceSyncFirstSyncIT`, `DeviceSyncTwoWayIT`, `DeviceSyncReminderIT`, `DeviceSyncContactsIT`, `DeviceSyncSafetyIT` (a calendar deleted
   on the server then Stop; a photo set on the phone and an edit of the card on the server; an account whose NoGantt copy calendar is on),
-  `DeviceSyncStopIT` (also: a phone edit and a server edit of one event, then Stop is refused and the entry is still in "Not saved").
+  `DeviceSyncStopIT` (also: a phone edit and a server edit of one event, then Stop is refused and the entry is still in "Not saved");
+  `DeviceSyncSettingsIT` also draws the status screen in states that are hard to bring about (`DeviceSyncModel.showForTest`): the calendars
+  that can't be checked, the "Not saved" list with a refusal that points to it, the last sync that didn't finish, the unreadable-phone
+  refusal with "Open settings", and the Stop and untick questions with the lost-changes count.
   `run_it` of the CI script reads the raw output of `am instrument -r` and counts a test that skipped itself (an unmet assumption) as a
   failure, so a missing server can not pass silently. Screenshots in light and dark mode:
-  `devicesync-{settings,intro,permissions,choose,backup,first-sync,status}-{light,dark}.png`. Then `tools/ci/devicesync-server-check.py` asks the
+  `devicesync-{settings,intro,permissions,choose,backup,first-sync,status,status-reasons,status-unreadable,status-stop-question}-{light,dark}.png`. Then `tools/ci/devicesync-server-check.py` asks the
   server itself (backup files, the removed-contacts file, the trash bin, the cards).
 
 ## Owner test rows (plain English)
@@ -192,6 +210,8 @@ Result: **no new library**, and no GPL-3.0-only code in the app.
 8. Tasks never appear in the phone's calendar.
 9. Delete one contact on the phone: a file `removed-contacts-...` appears in `.Contacts-Backup` before it is gone on the web.
 10. Stop syncing: the NoDrive calendars and contacts leave the phone, NoDrive still has them. With the network off, stopping is refused.
+10b. Take the Contacts permission away in the phone's settings, turn the network off, change a calendar event, then try Stop syncing: it is
+    refused ("NoDrive can't reach the calendars and contacts of this phone ...", with an Open settings button) and the edit stays.
 11. Change one event on the phone and the same event on the web, then Stop syncing: stopping is refused with "Look at Not saved first", and
     the phone's version is listed under "Not saved" ("Apply my change again" or "Keep the NoDrive version"). After you decide, Stop works.
 

@@ -357,6 +357,14 @@ private fun Status(ui: DeviceSyncUi, actions: DeviceSyncActions) {
     } else if (ui.lastFailed && !ui.noPermission && !ui.noCalendarStorage) {
         Body(stringResource(R.string.nodrive_device_sync_last_failed), "ds_last_failed")
     }
+    if (ui.stopRefusedUnreadable) {
+        Body(stringResource(R.string.nodrive_device_sync_stop_refused_unreadable), "ds_stop_refused_unreadable")
+        if (!ui.noPermission) {
+            Button(onClick = actions.openSettings, modifier = Modifier.padding(bottom = 12.dp).testTag("ds_open_settings_stop")) {
+                Text(stringResource(R.string.nodrive_device_sync_open_settings))
+            }
+        }
+    }
     if (ui.stopRefused) Body(stringResource(R.string.nodrive_device_sync_stop_refused), "ds_stop_refused")
     if (ui.stopRefusedNotSaved) Body(stringResource(R.string.nodrive_device_sync_stop_refused_not_saved), "ds_stop_refused_not_saved")
     if (ui.applyFailed) Body(stringResource(R.string.nodrive_device_sync_apply_failed), "ds_apply_failed")

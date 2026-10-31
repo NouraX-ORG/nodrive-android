@@ -12,6 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nourax.nodrive.devicesync.dav.CardDavClient
+import org.nourax.nodrive.devicesync.model.RemoteCollection
 import org.nourax.nodrive.devicesync.model.SyncOutcome
 import java.time.ZoneOffset
 
@@ -40,6 +41,32 @@ class StopRuleTest {
         val refusal = checkNotNull(StopRule.refusal(SyncOutcome.EMPTY, 0, 1))
         assertEquals(0, refusal.waiting)
         assertEquals(1, refusal.notSaved)
+    }
+
+    @Test
+    fun aPhoneThatCanNotBeReadRefusesStopWhateverTheFinalSyncSaid() {
+        for (outcome in listOf(SyncOutcome.EMPTY, SyncOutcome.failed("offline"), SyncOutcome.failed("error"))) {
+            val refusal = checkNotNull(StopRule.refusal(outcome, null, 0))
+            assertTrue(refusal.unreadable)
+            assertEquals(0, refusal.notSaved)
+        }
+        assertFalse("a readable phone is not 'unreadable'", checkNotNull(StopRule.refusal(SyncOutcome.EMPTY, 1, 0)).unreadable)
+    }
+
+    @Test
+    fun theCalendarsReasonStaysUntilACalendarRunSaysOtherwise() {
+        val cal = setOf(RemoteCollection.CALENDAR)
+        val con = setOf(RemoteCollection.CONTACTS)
+        val both = cal + con
+        // a contacts-only run (its own sync adapter) does not wipe "can't check your calendars"
+        assertEquals("calendars_unknown", StatusMessage.next("calendars_unknown", con, SyncOutcome.EMPTY))
+        // a run that includes the calendars clears it, or sets it again
+        assertEquals("", StatusMessage.next("calendars_unknown", cal, SyncOutcome.EMPTY))
+        assertEquals("", StatusMessage.next("calendars_unknown", both, SyncOutcome.EMPTY))
+        assertEquals("calendars_unknown", StatusMessage.next("", cal, SyncOutcome.failed("calendars_unknown")))
+        // another failure of the contacts run is shown as it is; other old messages are replaced as before
+        assertEquals("offline", StatusMessage.next("calendars_unknown", con, SyncOutcome.failed("offline")))
+        assertEquals("", StatusMessage.next("no_permission", con, SyncOutcome.EMPTY))
     }
 
     @Test

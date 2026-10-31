@@ -79,6 +79,8 @@ data class DeviceSyncUi(
     val stopRefused: Boolean = false,
     /** Stop was refused because a phone version is in "Not saved" (the text points the person to that list). */
     val stopRefusedNotSaved: Boolean = false,
+    /** Stop was refused because the phone's calendars or contacts could not be read (nothing is removed; the text says to allow access). */
+    val stopRefusedUnreadable: Boolean = false,
     val applyFailed: Boolean = false,
     val noCalendarStorage: Boolean = false,
     /** The phone's calendar or contacts permission was taken away: nothing can be synced until it is given again. */
@@ -143,7 +145,7 @@ class DeviceSyncModel(
             }
             mutable.update {
                 it.copy(
-                    loading = false, offline = !ok && rows.isEmpty(), items = items, chooseCalendarsUnknown = ok && result?.calendarsKnown == false
+                    loading = false, offline = !ok && rows.isEmpty(), items = items, chooseCalendarsUnknown = ok && !result.calendarsKnown
                 )
             }
         }
@@ -195,14 +197,18 @@ class DeviceSyncModel(
             withContext(Dispatchers.IO) { for (i in items) if (i.checked) DeviceSyncSettings.setChosen(context, account, i.href, true) }
             var refused = false
             var refusedNotSaved = false
+            var refusedUnreadable = false
             for (href in items.filter { !it.checked && it.href in before }.map { it.href }) {
                 val result = withContext(Dispatchers.IO) { DeviceSyncControl.stop(context, account, href) }
                 if (result is StopResult.Refused) {
                     refused = refused || result.waiting > 0
                     refusedNotSaved = refusedNotSaved || result.notSaved > 0
+                    refusedUnreadable = refusedUnreadable || result.unreadable
                 }
             }
-            mutable.update { it.copy(step = Step.STATUS, stopRefused = refused, stopRefusedNotSaved = refusedNotSaved) }
+            mutable.update {
+                it.copy(step = Step.STATUS, stopRefused = refused, stopRefusedNotSaved = refusedNotSaved, stopRefusedUnreadable = refusedUnreadable)
+            }
             refreshStatus()
             syncNow()
         }
@@ -345,7 +351,9 @@ class DeviceSyncModel(
 
     /** Asks "Stop syncing?", with what would be lost: unsent changes of calendars and address books that are no longer in NoDrive. */
     fun askStop() {
-        mutable.update { it.copy(stopQuestion = true, stopRefused = false, stopRefusedNotSaved = false, stopLost = 0) }
+        mutable.update {
+            it.copy(stopQuestion = true, stopRefused = false, stopRefusedNotSaved = false, stopRefusedUnreadable = false, stopLost = 0)
+        }
         viewModelScope.launch {
             val lost = withContext(Dispatchers.IO) { DeviceSyncRunner.lostCount(context, account) }
             mutable.update { it.copy(stopLost = lost) }
@@ -359,7 +367,12 @@ class DeviceSyncModel(
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { DeviceSyncControl.stop(context, account) }
             if (result is StopResult.Refused) {
-                mutable.update { it.copy(syncing = false, stopRefused = result.waiting > 0, stopRefusedNotSaved = result.notSaved > 0) }
+                mutable.update {
+                    it.copy(
+                        syncing = false, stopRefused = result.waiting > 0, stopRefusedNotSaved = result.notSaved > 0,
+                        stopRefusedUnreadable = result.unreadable
+                    )
+                }
                 refreshStatus()
             } else {
                 mutable.value = DeviceSyncUi(step = Step.INTRO)
@@ -367,7 +380,14 @@ class DeviceSyncModel(
         }
     }
 
-    fun clearNotices() = mutable.update { it.copy(stopRefused = false, stopRefusedNotSaved = false, applyFailed = false) }
+    fun clearNotices() =
+        mutable.update { it.copy(stopRefused = false, stopRefusedNotSaved = false, stopRefusedUnreadable = false, applyFailed = false) }
+
+    /** For the emulator tests of the screens: shows a state that is hard to bring about for real (a store that can not be read). */
+    @androidx.annotation.VisibleForTesting
+    fun showForTest(ui: DeviceSyncUi) {
+        mutable.value = ui
+    }
 
     class Factory(
         private val context: Context,
